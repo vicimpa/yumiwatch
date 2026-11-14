@@ -71,7 +71,15 @@ export async function request<T>(path: string, params: Params = {}, signal?: Abo
     throw new Error('Нет связи с Yani. Проверь интернет и попробуй снова.');
   }
 }
-export const animeList = (params: Params, signal?: AbortSignal) => request<Anime[]>('/anime', { limit: 24, require_fields: 'genres,ep_count,description', ...params }, signal);
+export const animeList = async (params: Params, signal?: AbortSignal): Promise<Result<Anime[]>> => {
+  const query = { limit: 24, require_fields: 'genres,ep_count,description', ...params };
+  if (params.exclude_list) {
+    const session = getSession();
+    if (!session?.verified) throw new ApiError('Войди в аккаунт, чтобы фильтровать по своим спискам.', 401);
+    return { data: await yaniFetch<Anime[]>('/anime', { params: query, signal, token: session.token }), cached: false, savedAt: Date.now() };
+  }
+  return request<Anime[]>('/anime', query, signal);
+};
 export const animeDetail = (id: string | number, signal?: AbortSignal) => request<Anime>(`/anime/${encodeURIComponent(id)}`, {}, signal);
 export const animeVideos = async (id: number, signal?: AbortSignal): Promise<Result<Video[]>> => {
   const session = getSession();

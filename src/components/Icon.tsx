@@ -1,6 +1,7 @@
 import type { JSX } from 'preact';
-export type IconName = 'home' | 'search' | 'grid' | 'calendar' | 'heart' | 'settings' | 'download' | 'arrow' | 'back' | 'play' | 'close' | 'check' | 'chevron' | 'filter' | 'clock' | 'external' | 'wifi' | 'refresh' | 'spark' | 'sun' | 'trash' | 'bookmark';
+export type IconName = 'home' | 'search' | 'grid' | 'calendar' | 'heart' | 'settings' | 'download' | 'arrow' | 'back' | 'play' | 'close' | 'check' | 'chevron' | 'filter' | 'clock' | 'external' | 'wifi' | 'refresh' | 'spark' | 'sun' | 'trash' | 'bookmark' | 'comment';
 const paths: Record<IconName, JSX.Element> = {
+  comment: <path d="M21 11a8 8 0 0 1-8 8H6l-4 3 1-7a8 8 0 0 1-1-4 9 9 0 0 1 19 0Z"/>,
   home: <><path d="m3 10 9-7 9 7v9a2 2 0 0 1-2 2h-4v-7H9v7H5a2 2 0 0 1-2-2z" /></>,
   search: <><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 5 5" /></>,
   grid: <><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></>,

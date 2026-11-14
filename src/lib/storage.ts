@@ -31,9 +31,10 @@ export function toggleFavorite(anime: Anime) {
   saveLibrary(library);
   return !exists;
 }
-export function recordWatch(anime: Anime, video: Video, group: string) {
+export function recordWatch(anime: Anime, video: Video, group: string, position?: number, duration?: number) {
   const library = readLibrary();
-  library.history = [{ anime: compact(anime), videoId: video.video_id, episode: video.number, group, updatedAt: Date.now() }, ...library.history.filter(e => e.anime.anime_id !== anime.anime_id)].slice(0, 100);
+  const previous = library.history.find(entry => entry.videoId === video.video_id);
+  library.history = [{ anime: compact(anime), videoId: video.video_id, episode: video.number, group, updatedAt: Date.now(), position: position ?? previous?.position ?? 0, duration: duration ?? video.duration ?? previous?.duration ?? 0, preview: anime.random_screenshots?.find(frame => frame.episode === video.number)?.sizes.small }, ...library.history.filter(e => e.anime.anime_id !== anime.anime_id)].slice(0, 100);
   saveLibrary(library);
 }
 export function clearHistory() {

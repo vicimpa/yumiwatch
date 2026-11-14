@@ -5,7 +5,7 @@ import type { Anime, Library, Video, WatchEntry } from './types';
 
 export interface LibraryState extends Library { account: boolean; loading: boolean; error: string; syncedAt: number; hasMore: boolean; loadingMore: boolean }
 interface RemoteAnime extends Omit<Anime, 'rating'> { rating?: number | Anime['rating'] }
-interface RemoteWatch extends RemoteAnime { video_id?: number; ep_title?: string; number?: string; date?: number; end_time?: number; duration?: number; data?: Video['data'] }
+interface RemoteWatch extends RemoteAnime { video_id?: number; ep_title?: string; number?: string; date?: number; end_time?: number; duration?: number; data?: Video['data']; screenshot?: { sizes?: { small?: string } } }
 let owner = '';
 let accountState: LibraryState = emptyState();
 let revision = 0;
@@ -29,7 +29,7 @@ export function normalizeHistory(values: RemoteWatch[]): WatchEntry[] {
   const result = new Map<number, WatchEntry>();
   for (const value of [...values].sort((a, b) => (b.date || 0) - (a.date || 0))) {
     if (!value?.anime_id || !value.title || result.has(value.anime_id)) continue;
-    result.set(value.anime_id, { anime: normalizeAnime(value), episode: String(value.ep_title || value.number || ''), group: value.data ? JSON.stringify([value.data.player_id, value.data.player, value.data.dubbing]) : '', videoId: value.video_id || 0, updatedAt: (value.date || 0) * 1000, position: Math.max(0, value.end_time || 0), duration: value.duration || 0 });
+    result.set(value.anime_id, { anime: normalizeAnime(value), episode: String(value.ep_title || value.number || ''), group: value.data ? JSON.stringify([value.data.player_id, value.data.player, value.data.dubbing]) : '', videoId: value.video_id || 0, updatedAt: (value.date || 0) * 1000, position: Math.max(0, value.end_time || 0), duration: value.duration || 0, preview: value.screenshot?.sizes?.small });
   }
   return [...result.values()];
 }
@@ -106,7 +106,7 @@ export async function recordWatch(anime: Anime, video: Video, group: string, pos
   const session = getSession();
   // A player belonging to a previous session must never write to the new account.
   if ((session?.token || null) !== expectedToken) return;
-  if (!session) { recordGuestWatch(anime, video, group); return; }
+  if (!session) { recordGuestWatch(anime, video, group, position, duration); return; }
   if (!session.verified) throw new Error('Войди снова, чтобы сохранить просмотр в Yani.');
   const state = stateFor(session.token);
   const previous = state.history.find(entry => entry.anime.anime_id === anime.anime_id);
@@ -121,7 +121,7 @@ export async function recordWatch(anime: Anime, video: Video, group: string, pos
     if (success !== true) throw new Error('Yani не подтвердил сохранение просмотра.');
     if (getSession()?.token !== session.token || owner !== session.token) return;
     revision++;
-    accountState.history = [{ anime, videoId: video.video_id, episode: video.number, group, updatedAt: Date.now(), position: time, duration: length }, ...accountState.history.filter(entry => entry.anime.anime_id !== anime.anime_id)];
+    accountState.history = [{ anime, videoId: video.video_id, episode: video.number, group, updatedAt: Date.now(), position: time, duration: length, preview: anime.random_screenshots?.find(frame => frame.episode === video.number)?.sizes.small }, ...accountState.history.filter(entry => entry.anime.anime_id !== anime.anime_id)];
     emit();
   });
   watchQueues.set(queueKey, write);

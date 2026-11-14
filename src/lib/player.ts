@@ -44,3 +44,34 @@ export function playbackMessage(data: unknown): { time?: number; duration?: numb
   if (key === 'player_duration_update' || key === 'duration') return { duration: value };
   return null;
 }
+export function formatTime(seconds = 0) {
+  const value = Math.max(0, Math.floor(Number.isFinite(seconds) ? seconds : 0));
+  const parts = [Math.floor(value / 60) % 60, value % 60].map(number => String(number).padStart(2, '0'));
+  if (value >= 3600) parts.unshift(String(Math.floor(value / 3600)));
+  return parts.join(':');
+}
+export function videoPosition(video: Video, history?: WatchEntry) {
+  const matches = history?.videoId === video.video_id || (!history?.videoId && history?.episode === video.number);
+  const position = matches && (history?.updatedAt || 0) >= (video.watched?.date || 0) * 1000 ? history?.position || 0 : video.watched?.end_time || 0;
+  const duration = video.duration || (matches ? history?.duration : 0) || 0;
+  return { position, duration };
+}
+export function playerCommand(video: Video, command: 'play' | 'pause' | 'seek', seconds = 0): unknown | null {
+  const raw = playerUrl(video.iframe_url);
+  if (!raw) return null;
+  const url = new URL(raw);
+  if (url.hostname === 'player.aksor.tv') return { key: `player_${command}`, ...(command === 'seek' ? { value: Math.max(0, seconds) } : {}) };
+  if (url.hostname.includes('kodik')) return { key: 'kodik_player_api', value: { method: command, ...(command === 'seek' ? { seconds: Math.max(0, seconds) } : {}) } };
+  if (url.hostname.includes('alloha')) return JSON.stringify({ api: command, ...(command === 'seek' ? { value: Math.max(0, seconds) } : {}) });
+  return null;
+}
+export function playbackEvent(data: unknown): 'play' | 'pause' | 'ended' | null {
+  if (typeof data === 'string') { if (data.length > 10000) return null; try { data = JSON.parse(data); } catch { return null; } }
+  if (!data || typeof data !== 'object') return null;
+  const value = data as { key?: string; event?: string };
+  const key = typeof value.key === 'string' ? value.key.replace(/^kodik_/, '') : value.event;
+  if (key === 'player_play' || key === 'player_video_started' || key === 'play') return 'play';
+  if (key === 'player_pause' || key === 'pause') return 'pause';
+  if (key === 'player_video_ended' || key === 'ended') return 'ended';
+  return null;
+}

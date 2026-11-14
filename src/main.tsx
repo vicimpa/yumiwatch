@@ -1,6 +1,7 @@
 import { render, Component, type ComponentChildren } from 'preact';
 import { App } from './App';
 import './styles.css';
+import './yummy.css';
 class ErrorBoundary extends Component<{ children: ComponentChildren }, { failed: boolean }> {
   state = { failed: false };
   static getDerivedStateFromError() { return { failed: true }; }

@@ -56,8 +56,8 @@ export function AccountPage({ query }: { query: string }) {
   const [challenge, setChallenge] = useState(0);
   const controller = useRef<AbortController>();
   useEffect(() => () => controller.current?.abort(), []);
-  if (session) return <><div class="page-heading"><p class="eyebrow">ТВОЙ АККАУНТ</p><h1>{session.verified ? `Привет, ${session.user.nickname}` : 'Возвращаемся в твой мир'}</h1></div><AccountCard/><a class="button secondary" href="#/library">В мою коллекцию<Icon name="arrow" size={17}/></a></>;
-  return <div class="login-page"><div class="page-heading"><p class="eyebrow">ТВОИ ИСТОРИИ ВСЕГДА С ТОБОЙ</p><h1>Войти в YummyAnime</h1><p>Используй почту и пароль своего аккаунта YummyAnime.</p></div><form class="login-form" onSubmit={async event => {
+  if (session) return <><div class="page-heading"><p class="eyebrow">ТВОЙ АККАУНТ</p><h1>{session.verified ? `Привет, ${session.user.nickname}` : 'Возвращаемся в твой мир'}</h1></div><AccountCard/><a class="text-link account-settings-link" href="#/settings"><Icon name="settings" size={16}/>Настройки приложения</a><br/><a class="button secondary" href="#/library">В мою коллекцию<Icon name="arrow" size={17}/></a></>;
+  return <div class="login-page"><a class="text-link account-settings-link" href="#/settings"><Icon name="settings" size={16}/>Настройки приложения</a><div class="page-heading"><p class="eyebrow">ТВОИ ИСТОРИИ ВСЕГДА С ТОБОЙ</p><h1>Войти в YummyAnime</h1><p>Используй почту и пароль своего аккаунта YummyAnime.</p></div><form class="login-form" onSubmit={async event => {
     event.preventDefault(); if (busy) return;
     setBusy(true); setError('');
     controller.current = new AbortController();

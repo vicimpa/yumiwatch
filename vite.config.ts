@@ -11,7 +11,7 @@ export default defineConfig({
     apply: 'build',
     async closeBundle() {
       const dir = resolve('dist');
-      const files = ['index.html', 'manifest.webmanifest', 'hero.avif', 'open-sans-cyrillic.woff2', 'open-sans-latin.woff2', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'icons/icon.svg',
+      const files = ['index.html', 'manifest.webmanifest', 'open-sans-cyrillic.woff2', 'open-sans-latin.woff2', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'icons/icon.svg',
         ...(await readdir(resolve(dir, 'assets'))).map(f => `assets/${f}`)];
       const hash = createHash('sha256');
       for (const file of files) hash.update(await readFile(resolve(dir, file)));

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { groupKey, groupVideos, playbackMessage, playbackUrl, playerUrl, resumeVideo } from '../src/lib/player';
+import { formatTime, groupKey, groupVideos, playbackEvent, playbackMessage, playbackUrl, playerCommand, playerUrl, resumeVideo } from '../src/lib/player';
 import { anime, video } from './fixtures';
 describe('video groups and resume', () => {
   it('keeps providers and dubs separate and sorts episode numbers naturally', () => {
@@ -36,5 +36,12 @@ describe('video groups and resume', () => {
     expect(playbackUrl({ ...video('1'), iframe_url: 'https://kodik.example/iframe' }, 120)).toContain('start_from=115');
     expect(playbackUrl({ ...video('1'), iframe_url: 'https://alloha.example/iframe' }, 120)).toContain('start=115');
     expect(playbackUrl(video('1'), 120)).toBe(video('1').iframe_url);
+  });
+  it('uses the actual Aksor seek API and ignores malformed playback events', () => {
+    const aksor = { ...video('1'), iframe_url: 'https://player.aksor.tv/video/example' };
+    expect(playerCommand(aksor, 'seek', 120)).toEqual({ key: 'player_seek', value: 120 });
+    expect(playbackEvent({ key: 'kodik_player_video_ended' })).toBe('ended');
+    expect(playbackEvent({ key: 123 })).toBeNull();
+    expect(formatTime(3725)).toBe('1:02:05');
   });
 });

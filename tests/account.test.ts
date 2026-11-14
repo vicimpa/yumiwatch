@@ -72,4 +72,11 @@ describe('YummyAnime accounts', () => {
     logoutAccount();
     expect(getSession()).toBeNull(); expect(localStorage.getItem(SESSION_KEY)).toBeNull(); expect(sessionStorage.getItem(SESSION_KEY)).toBeNull();
   });
+  it('never caches catalog results filtered by the current user’s lists', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(reply([]))));
+    await expect(animeList({ exclude_list: 'watched' })).rejects.toThrow('Войди');
+    saveSession({ token: 'private-token', user: { id: 42, nickname: 'Viewer' }, remember: false, refreshedAt: Date.now(), verified: true });
+    await animeList({ exclude_list: 'watched' });
+    expect(localStorage.getItem('yumiwatch:api:v1')).toBeNull();
+  });
 });
