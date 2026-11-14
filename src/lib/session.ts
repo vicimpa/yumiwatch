@@ -22,7 +22,7 @@ export function saveSession(session: Session) {
     (session.remember ? sessionStorage : localStorage).removeItem(SESSION_KEY);
   } catch { throw new Error('Браузер не разрешил сохранить сессию. Разреши хранилище для входа.'); }
   current = session;
-  if (previous?.token !== session.token || previous?.verified !== session.verified) emit();
+  if (previous?.token !== session.token || previous?.verified !== session.verified || previous?.user.id !== session.user.id || previous?.user.avatar !== session.user.avatar || previous?.user.nickname !== session.user.nickname) emit();
 }
 export function clearSession(expectedToken?: string) {
   if (expectedToken && current?.token !== expectedToken) return;

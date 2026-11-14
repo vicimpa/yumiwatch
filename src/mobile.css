@@ -237,3 +237,5 @@
 }
 
 .settings-connection-link { align-items: center; }.settings-connection-link>div:nth-child(2) { flex: 1; }.settings-connection-link>svg { color: #aaa; }
+
+.profile-avatar { overflow: hidden; border-radius: 50%; flex-shrink: 0; }.profile-avatar img { width: 100%; height: 100%; object-fit: cover; }.profile-avatar>span { font-size: 20px; font-weight: 600; }

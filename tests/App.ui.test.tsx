@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/preact';
 import { App } from '../src/App';
-import { clearSession } from '../src/lib/session';
+import { clearSession, saveSession } from '../src/lib/session';
 import { anime } from './fixtures';
 let scroll = 0;
 beforeEach(() => {
@@ -19,6 +19,18 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); clearSession(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 describe('mobile navigation state', () => {
+  it('shows the stored avatar while the account cannot yet be verified offline', async () => {
+    saveSession({ token: 'offline-avatar-user', user: { id: 42, nickname: 'Viewer', avatar: '//static.yani.tv/users/small/42.webp?v=2' }, verified: false, remember: false, refreshedAt: Date.now() });
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('offline')));
+    history.replaceState(null, '', '#/account');
+    render(<App/>);
+    const entry = screen.getByRole('link', { name: 'Проверяем аккаунт Viewer' });
+    expect(entry.querySelector('img')?.getAttribute('src')).toBe('https://static.yani.tv/users/small/42.webp?v=2');
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Нет связи с Yani'));
+    expect(entry.querySelector('img')).not.toBeNull();
+    saveSession({ token: 'offline-avatar-user', user: { id: 42, nickname: 'Viewer', avatar: '//static.yani.tv/users/small/42.webp?v=3' }, verified: false, remember: false, refreshedAt: Date.now() });
+    await waitFor(() => expect(entry.querySelector('img')?.getAttribute('src')).toContain('v=3'));
+  });
   it('keeps loaded catalog pages and document position when returning from search', async () => {
     history.replaceState(null, '', '#/catalog');
     render(<App/>);

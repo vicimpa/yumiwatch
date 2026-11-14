@@ -17,6 +17,11 @@ export function Toast() {
   }, []);
   return <div class={`toast ${message ? 'visible' : ''}`} role="status">{message && <><Icon name="check" size={18}/>{message}</>}</div>;
 }
+export function Avatar({ url, name }: { url?: string; name: string }) {
+  const src = imageUrl(url);
+  const [failed, setFailed] = useState('');
+  return src && failed !== src ? <img src={src} alt="" decoding="async" onError={() => setFailed(src)}/> : <span>{name.trim().slice(0, 1).toLocaleUpperCase() || '?'}</span>;
+}
 export function Poster({ anime, large = false }: { anime: Anime; large?: boolean }) {
   const [broken, setBroken] = useState(false);
   const url = imageUrl(large ? anime.poster?.huge || anime.poster?.big || anime.poster?.medium : anime.poster?.big || anime.poster?.medium);

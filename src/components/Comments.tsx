@@ -1,11 +1,11 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'preact/hooks';
-import { imageUrl, yaniFetch } from '../lib/api';
+import { yaniFetch } from '../lib/api';
 import { getComments, postComment, type CommentPage, type YaniComment } from '../lib/comments';
 import { useResource, useSession } from '../lib/hooks';
 import { getSession } from '../lib/session';
 import { Icon } from './Icon';
 import { Sheet } from './Sheet';
-import { notify } from './UI';
+import { Avatar, notify } from './UI';
 
 interface ReplyTarget { parent: number; id: number; name: string }
 function textOnly(value: string) { return value.replace(/\[\/?(?:ж|b|i|u|s|к|цитата|quote|url)(?:=[^\]]*)?\]/gi, ''); }
@@ -44,7 +44,7 @@ function CommentItem({ comment, reply, rootId, openThread }: { comment: YaniComm
       setDislikes(comment.dislikes + (next === -1 ? 1 : 0) - (comment.vote === -1 ? 1 : 0)); setVote(next);
     } catch (error) { notify((error as Error).message); } finally { setVoting(false); }
   };
-  return <article class="comment-item"><div class="comment-avatar">{imageUrl(comment.avatars?.small) ? <img src={imageUrl(comment.avatars?.small)} alt="" loading="lazy"/> : comment.name.slice(0, 1)}</div><div class="comment-content"><div class="comment-author"><strong>{comment.name}</strong><time dateTime={new Date(comment.time * 1000).toISOString()}>{commentDate(comment.time)}</time></div>{comment.deleted_at ? <p class="muted comment-deleted">Комментарий удалён</p> : <CommentText text={comment.text}/>}<div class="comment-actions">{!comment.deleted_at && <><div class="comment-votes"><button aria-label="Нравится" aria-pressed={vote === 1} disabled={voting} class={vote === 1 ? 'liked' : ''} onClick={() => void cast(1)}>↑ <span>{likes}</span></button><button aria-label="Не нравится" aria-pressed={vote === -1} disabled={voting} class={vote === -1 ? 'disliked' : ''} onClick={() => void cast(-1)}>↓ <span>{dislikes}</span></button></div><button onClick={() => reply(comment, rootId || comment.id)}>Ответить</button></>}{openThread && comment.children_count > 0 && <button class="comment-thread-link" onClick={() => openThread(comment)}><Icon name="comment" size={16}/>Ответы ({comment.children_count})<Icon name="chevron" size={14}/></button>}</div></div></article>;
+  return <article class="comment-item"><div class="comment-avatar"><Avatar url={comment.avatars?.small} name={comment.name}/></div><div class="comment-content"><div class="comment-author"><strong>{comment.name}</strong><time dateTime={new Date(comment.time * 1000).toISOString()}>{commentDate(comment.time)}</time></div>{comment.deleted_at ? <p class="muted comment-deleted">Комментарий удалён</p> : <CommentText text={comment.text}/>}<div class="comment-actions">{!comment.deleted_at && <><div class="comment-votes"><button aria-label="Нравится" aria-pressed={vote === 1} disabled={voting} class={vote === 1 ? 'liked' : ''} onClick={() => void cast(1)}>↑ <span>{likes}</span></button><button aria-label="Не нравится" aria-pressed={vote === -1} disabled={voting} class={vote === -1 ? 'disliked' : ''} onClick={() => void cast(-1)}>↓ <span>{dislikes}</span></button></div><button onClick={() => reply(comment, rootId || comment.id)}>Ответить</button></>}{openThread && comment.children_count > 0 && <button class="comment-thread-link" onClick={() => openThread(comment)}><Icon name="comment" size={16}/>Ответы ({comment.children_count})<Icon name="chevron" size={14}/></button>}</div></div></article>;
 }
 function Thread({ parent, close, reply, revision }: { parent: YaniComment; close: () => void; reply: (comment: YaniComment, root: number) => void; revision: number }) {
   const session = useSession();
