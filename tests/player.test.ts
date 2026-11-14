@@ -1,0 +1,24 @@
+import { describe, expect, it } from 'vitest';
+import { groupKey, groupVideos, playerUrl, resumeVideo } from '../src/lib/player';
+import { anime, video } from './fixtures';
+describe('video groups and resume', () => {
+  it('keeps providers and dubs separate and sorts episode numbers naturally', () => {
+    const groups = groupVideos([video('10'), video('2'), video('1'), video('1', 'AniDub'), video('1', 'AniLibria', 2)]);
+    expect(groups.size).toBe(3);
+    expect(groups.get(groupKey(video('1')))!.videos.map(v => v.number)).toEqual(['1', '2', '10']);
+  });
+  it('resumes by exact video ID and falls back to episode number when a provider replaces a video', () => {
+    const videos = [video('1'), video('2')];
+    const entry = { anime, episode: '2', group: groupKey(videos[1]), videoId: videos[1].video_id, updatedAt: 1 };
+    expect(resumeVideo(videos, entry)).toEqual(videos[1]);
+    expect(resumeVideo(videos, { ...entry, videoId: 999999 })).toEqual(videos[1]);
+    expect(resumeVideo(videos, { ...entry, episode: '99', videoId: 999999 })).toEqual(videos[0]);
+  });
+  it('allows only HTTPS iframe sources and rejects credential URLs', () => {
+    expect(playerUrl('//player.example/video')).toBe('https://player.example/video');
+    for (const url of ['javascript:alert(1)', 'data:text/html,unsafe', 'http://player.example/video', 'https://user:password@player.example', '/relative']) expect(playerUrl(url)).toBe('');
+  });
+  it('omits videos with invalid iframe URLs', () => {
+    expect(groupVideos([{ ...video('1'), iframe_url: 'javascript:alert(1)' }]).size).toBe(0);
+  });
+});
