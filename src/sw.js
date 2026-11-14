@@ -25,8 +25,11 @@ self.addEventListener('fetch', event => {
     event.respondWith(fetch(event.request).then(response => response.ok ? response : caches.match(new URL('index.html', ROOT))).catch(() => caches.match(new URL('index.html', ROOT))));
     return;
   }
-  if (FILES.some(file => new URL(file, ROOT).pathname === url.pathname)) {
-    event.respondWith(caches.match(event.request).then(cached => cached || fetch(event.request)));
+  const file = FILES.find(file => new URL(file, ROOT).pathname === url.pathname);
+  if (file) {
+    // These are our exact, versioned shell files. Local preview can vary by Origin;
+    // module requests include it while addAll does not. Match the canonical asset.
+    event.respondWith(caches.open(VERSION).then(cache => cache.match(new URL(file, ROOT), { ignoreVary: true })).then(cached => cached || fetch(event.request)));
   }
 });
 

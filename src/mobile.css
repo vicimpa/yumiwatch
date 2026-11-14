@@ -239,3 +239,16 @@
 .settings-connection-link { align-items: center; }.settings-connection-link>div:nth-child(2) { flex: 1; }.settings-connection-link>svg { color: #aaa; }
 
 .profile-avatar { overflow: hidden; border-radius: 50%; flex-shrink: 0; }.profile-avatar img { width: 100%; height: 100%; object-fit: cover; }.profile-avatar>span { font-size: 20px; font-weight: 600; }
+
+.detail-list-control { max-width: 1100px; margin: 0 auto 16px; }.list-status-button { min-height: 42px; font-size: 12px; }.list-status-button>svg:last-child { margin-left: 12px; transform: rotate(90deg); }
+.list-picker-favorite { margin-top: 24px; padding-top: 21px; border-top: 1px solid var(--line); }.list-picker-favorite p { font-size: 12px; color: var(--muted); margin-bottom: 14px; }
+.library-list-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 16px; margin-top: 23px; }
+.library-list-tile { background: #2c2d32; border: 1px solid #45464c; border-radius: 12px; padding: 20px; min-height: 160px; }.library-list-tile:hover { border-color: var(--list-color); }
+.library-list-tile>div { display: flex; align-items: center; justify-content: space-between; color: var(--list-color); margin-bottom: 20px; }.library-list-tile strong { font-size: 24px; font-weight: 600; }.list-tile-icon { display: flex; }
+.library-list-tile h2 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }.library-list-tile p { color: #a8a9b3; font-size: 11px; line-height: 1.8; }
+.collection-search { display: flex; align-items: center; gap: 11px; border: 1px solid #4b4c52; border-radius: 10px; background: #2c2d32; padding: 0 13px; margin: 21px 0; color: #aaa; }.collection-search input { flex: 1; min-width: 0; border: 0; background: transparent; font-size: 16px; padding: 14px 0; outline: none; }.collection-search .icon-button { border: 0; width: 44px; }
+.history-copy { min-width: 0; flex: 1; }.history-progress { width: 100%; max-width: 350px; height: 3px; background: #50515a; border-radius: 3px; margin-top: 13px; overflow: hidden; }.history-progress>span { height: 100%; display: block; background: var(--accent); }
+.subscription-card { display: flex; gap: 15px; align-items: center; border-bottom: 1px solid var(--line); padding: 18px 0; }.subscription-card>div:nth-child(2) { flex: 1; min-width: 0; }.subscription-card h2 { font-size: 15px; line-height: 1.6; }.subscription-card p { color: #aaa; font-size: 12px; margin-top: 7px; line-height: 1.8; }
+@media(max-width:760px) { .library-list-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }.library-list-tile { padding: 16px; min-height: 164px; }.library-list-tile>div { margin-bottom: 22px; }.library-list-tile h2 { font-size: 15px; }.library-list-tile p { font-size: 11px; }.library-heading h1 { font-size: 26px; }.library-heading>p { font-size: 12px; line-height: 1.9; }.detail-list-control { margin: 0 0 15px; }.list-status-button { font-size: 12px; min-height: 43px; }.history-card h2 { font-size: 14px; }.history-card p { font-size: 11px; line-height: 1.8; }.subscription-card h2 { font-size: 14px; } }
+
+.background-update { display: flex; align-items: center; gap: 8px; color: #aaa; font-size: 11px; margin: 0 0 14px; }

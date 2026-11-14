@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearSession, saveSession } from '../src/lib/session';
-import { getLibraryState, normalizeHistory, recordWatch, resetAccountLibrary, syncLibrary, toggleFavorite } from '../src/lib/library';
+import { getLibraryState, normalizeHistory, recordWatch, resetAccountLibrary, setAnimeList, syncLibrary, toggleFavorite } from '../src/lib/library';
 import { readLibrary, toggleFavorite as guestFavorite } from '../src/lib/storage';
 import { anime, video } from './fixtures';
 const reply = (response: unknown) => new Response(JSON.stringify({ response }));
@@ -11,7 +11,7 @@ afterEach(() => { clearSession(); resetAccountLibrary(); vi.unstubAllGlobals(); 
 describe('account collection', () => {
   it('loads the user’s favorites and history and normalizes numeric ratings', async () => {
     user();
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(reply([{ ...anime, rating: 9.2 }])).mockResolvedValueOnce(reply([{ ...anime, ep_title: '12', end_time: 180, duration: 1400, date: 100, video_id: 1012 }])));
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(reply([{ ...anime, rating: 9.2, user: { list: { is_fav: true, list: { id: 0 } } } }])).mockResolvedValueOnce(reply([{ ...anime, ep_title: '12', end_time: 180, duration: 1400, date: 100, video_id: 1012 }])));
     await syncLibrary();
     expect(getLibraryState()).toMatchObject({ account: true, loading: false, error: '', favorites: [{ rating: { average: 9.2 } }], history: [{ episode: '12', videoId: 1012, position: 180, updatedAt: 100000 }] });
     expect(localStorage.getItem('yumiwatch:api:v1')).toBeNull();
@@ -66,6 +66,29 @@ describe('account collection', () => {
     finish(reply(true)); await Promise.all([first, second]);
     expect(getLibraryState().history[0].episode).toBe('2');
     expect(fetcher.mock.calls[3][0]).toContain(`/video/${video('2').video_id}`);
+  });
+  it('loads all statuses and moves one anime only after a confirmed server write', async () => {
+    user();
+    const fetcher = vi.fn().mockResolvedValueOnce(reply([{ ...anime, user: { list: { is_fav: true, list: { id: 0 } } } }])).mockResolvedValueOnce(reply([])).mockResolvedValueOnce(reply({ success: true, list: { id: 1 } })).mockResolvedValueOnce(reply(true));
+    vi.stubGlobal('fetch', fetcher);
+    await syncLibrary();
+    expect(fetcher.mock.calls[0][0]).toContain('/users/42/lists?');
+    expect(getLibraryState().lists?.[0]).toHaveLength(1);
+    await setAnimeList(anime, 1);
+    expect(getLibraryState().lists?.[0]).toEqual([]); expect(getLibraryState().lists?.[1]).toHaveLength(1);
+    expect(getLibraryState().favorites).toHaveLength(1);
+    expect(JSON.parse(fetcher.mock.calls[2][1].body).list).toBe(1);
+    await setAnimeList(anime, null);
+    expect(fetcher.mock.calls[3][1].method).toBe('DELETE');
+    expect(getLibraryState().lists?.[1]).toEqual([]); expect(getLibraryState().favorites).toHaveLength(1);
+    expect(localStorage.getItem('yumiwatch:api:v1')).toBeNull();
+  });
+  it('keeps a status unchanged when the server rejects it', async () => {
+    user();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(reply([{ ...anime, user: { list: { is_fav: false, list: { id: 0 } } } }])).mockResolvedValueOnce(reply([])).mockResolvedValue(reply({ success: false })));
+    await syncLibrary();
+    await expect(setAnimeList(anime, 2)).rejects.toThrow('не подтвердил');
+    expect(getLibraryState().lists?.[0]).toHaveLength(1); expect(getLibraryState().lists?.[2]).toEqual([]);
   });
   it('groups history by anime and keeps the latest episode', () => {
     const result = normalizeHistory([{ ...anime, date: 1, ep_title: '1' }, { ...anime, date: 2, ep_title: '2' }]);

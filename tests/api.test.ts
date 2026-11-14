@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { imageUrl, makeQuery, request } from '../src/lib/api';
+import { animeList, cachedRequest, imageUrl, makeQuery, request } from '../src/lib/api';
 import { TOKEN_KEY } from '../src/lib/storage';
 beforeEach(() => { localStorage.clear(); });
 afterEach(() => { vi.unstubAllGlobals(); });
@@ -46,6 +46,25 @@ describe('Yani API', () => {
     vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(new Response(JSON.stringify({ response: [] })))));
     for (let i = 0; i < 40; i++) await request('/anime', { offset: i });
     expect(Object.keys(JSON.parse(localStorage.getItem('yumiwatch:api:v1')!))).toHaveLength(35);
+  });
+  it('returns a cached catalog immediately and exposes its background refresh', async () => {
+    let finish!: (value: Response) => void;
+    const fetcher = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ response: ['saved'] }))).mockReturnValueOnce(new Promise<Response>(resolve => { finish = resolve; }));
+    vi.stubGlobal('fetch', fetcher);
+    await animeList({ q: 'cached' });
+    const result = await animeList({ q: 'cached' });
+    expect(result).toMatchObject({ data: ['saved'], cached: true }); expect(result.revalidate).toBeDefined();
+    finish(new Response(JSON.stringify({ response: ['fresh'] })));
+    expect(await result.revalidate).toMatchObject({ data: ['fresh'], cached: false });
+    expect(Object.values(JSON.parse(localStorage.getItem('yumiwatch:api:v1')!))[0]).toMatchObject({ data: ['fresh'] });
+  });
+  it('keeps saved data offline and invalidates it on an explicit access denial', async () => {
+    const fetcher = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ response: ['saved'] }))).mockRejectedValueOnce(new TypeError('offline')).mockResolvedValueOnce(new Response('', { status: 403 }));
+    vi.stubGlobal('fetch', fetcher);
+    await request('/anime');
+    const offline = await cachedRequest('/anime'); expect(await offline.revalidate).toMatchObject({ data: ['saved'], cached: true });
+    const denied = await cachedRequest('/anime'); await expect(denied.revalidate).rejects.toMatchObject({ status: 403 });
+    expect(JSON.parse(localStorage.getItem('yumiwatch:api:v1')!)).toEqual({});
   });
   it('normalizes protocol-relative image links and rejects executable schemes', () => {
     expect(imageUrl('//static.yani.tv/poster.jpg')).toBe('https://static.yani.tv/poster.jpg');

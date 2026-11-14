@@ -58,8 +58,8 @@ export function Empty({ icon = 'search', title, children, action }: { icon?: 'se
 export function ErrorState({ error, retry }: { error: string; retry: () => void }) {
   return <Empty icon="wifi" title="Не удалось загрузить">{error}<span class="error-actions"><button class="button secondary" onClick={retry}><Icon name="refresh" size={17}/>Попробовать снова</button><a class="text-link" href="#/settings">Настройки API</a></span></Empty>;
 }
-export function CachedNotice({ savedAt }: { savedAt: number }) {
-  return <p class="cached-notice"><Icon name="wifi" size={16}/>Сохранённая версия от {new Date(savedAt).toLocaleString('ru', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}. Обновится при загрузке с сетью.</p>;
+export function CachedNotice({ savedAt, refreshing = false }: { savedAt: number; refreshing?: boolean }) {
+  return <p class="cached-notice"><Icon name="wifi" size={16}/>Сохранённая версия от {new Date(savedAt).toLocaleString('ru', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}. {refreshing ? 'Проверяем обновления…' : 'Показываем сохранённые данные.'}</p>;
 }
 export function SectionHeading({ title, subtitle, href, action = 'Смотреть всё' }: { title: string; subtitle?: string; href?: string; action?: string }) {
   return <div class="section-heading"><div><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div>{href && <a class="text-link" href={href}>{action}<Icon name="arrow" size={17}/></a>}</div>;

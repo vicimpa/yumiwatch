@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { ApiError } from './api';
 import { LIBRARY_EVENT } from './storage';
 import { getLibraryState } from './library';
 import { getSession, restoreStoredSession, SESSION_EVENT, SESSION_KEY } from './session';
@@ -9,14 +10,34 @@ export function useResource<T>(loader: (signal: AbortSignal) => Promise<Result<T
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [revision, setRevision] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const previousDeps = useRef<unknown[]>(); const latest = useRef(value); latest.current = value;
   useEffect(() => {
     const controller = new AbortController();
-    setLoading(true); setError(''); setValue(undefined);
-    loader(controller.signal).then(result => { if (!controller.signal.aborted) setValue(result); }).catch(e => { if (!controller.signal.aborted) setError(e.message); }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    const changed = !previousDeps.current || deps.some((dep, index) => !Object.is(dep, previousDeps.current![index]));
+    previousDeps.current = [...deps];
+    setError(''); setRefreshing(!changed && !!latest.current); setLoading(changed || !latest.current);
+    if (changed) setValue(undefined);
+    void (async () => {
+      try {
+        const result = await loader(controller.signal);
+        if (controller.signal.aborted) return;
+        setValue(result); setLoading(false); setRefreshing(!!result.revalidate);
+        if (result.revalidate) {
+          const fresh = await result.revalidate;
+          if (!controller.signal.aborted) setValue(fresh);
+        }
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        if (error instanceof ApiError && [401, 403, 404].includes(error.status)) setValue(undefined);
+        setError((error as Error).message);
+      } finally { if (!controller.signal.aborted) { setLoading(false); setRefreshing(false); } }
+    })();
     return () => controller.abort();
   }, [...deps, revision]);
-  return { value, error, loading, retry: () => setRevision(n => n + 1) };
+  return { value, error, loading, refreshing, retry: () => setRevision(n => n + 1) };
 }
+
 export function useLibrary() {
   const [library, setLibrary] = useState(getLibraryState);
   useEffect(() => {

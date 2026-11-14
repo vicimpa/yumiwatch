@@ -28,6 +28,6 @@ export interface Video {
   skips?: { opening?: { time: number; length: number } | null; ending?: { time: number; length: number } | null };
 }
 export interface WatchEntry { anime: Anime; episode: string; group: string; videoId: number; updatedAt: number; position?: number; duration?: number; preview?: string }
-export interface Library { favorites: Anime[]; history: WatchEntry[] }
-export interface Result<T> { data: T; cached: boolean; savedAt: number }
+export interface Library { favorites: Anime[]; history: WatchEntry[]; lists?: Partial<Record<import('./lists').WatchListId, Anime[]>> }
+export interface Result<T> { data: T; cached: boolean; savedAt: number; revalidate?: Promise<Result<T>> }
 export type Params = Record<string, string | number | boolean | undefined>;

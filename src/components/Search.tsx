@@ -12,7 +12,8 @@ export function Search({ query, active = true }: { query: string; active?: boole
   const [recent, setRecent] = useState(recentSearches);
   const input = useRef<HTMLInputElement>(null);
   const resource = useResource(signal => submitted.trim().length >= 2 ? animeList({ q: submitted.trim(), limit: 20 }, signal) : Promise.resolve({ data: [], cached: false, savedAt: Date.now() }), [submitted]);
-  useEffect(() => { setText(initial); setSubmitted(initial); }, [query]);
+  const previousQuery = useRef(query);
+  useEffect(() => { if (previousQuery.current === query) return; previousQuery.current = query; setText(initial); setSubmitted(initial); }, [query]);
   useEffect(() => { if (active && !text) input.current?.focus({ preventScroll: true }); }, [active]);
   useEffect(() => { const timer = setTimeout(() => setSubmitted(text.trim()), 300); return () => clearTimeout(timer); }, [text]);
   const choose = (value: string) => { setText(value); setSubmitted(value); input.current?.focus(); };

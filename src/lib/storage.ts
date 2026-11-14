@@ -1,4 +1,5 @@
 import type { Anime, Library, Video } from './types';
+import { WATCH_LISTS, type WatchListId } from './lists';
 
 export const LIBRARY_KEY = 'yumiwatch:library:v1';
 export const TOKEN_KEY = 'yumiwatch:application';
@@ -11,7 +12,9 @@ export function writeJSON(key: string, value: unknown): boolean {
 }
 export function readLibrary(): Library {
   const value = readJSON<Library>(LIBRARY_KEY, { favorites: [], history: [] });
+  const lists = value.lists && typeof value.lists === 'object' ? Object.fromEntries(WATCH_LISTS.map(({ id }) => [id, Array.isArray(value.lists?.[id]) ? value.lists[id]!.filter(anime => anime?.anime_id && anime?.title) : []])) : undefined;
   return {
+    ...(lists ? { lists } : {}),
     favorites: Array.isArray(value.favorites) ? value.favorites.filter(a => a?.anime_id && a?.title) : [],
     history: Array.isArray(value.history) ? value.history.filter(a => a?.anime?.anime_id && a?.episode != null) : [],
   };
@@ -39,4 +42,11 @@ export function recordWatch(anime: Anime, video: Video, group: string, position?
 }
 export function clearHistory() {
   saveLibrary({ ...readLibrary(), history: [] });
+}
+
+export function setAnimeList(anime: Anime, selected: WatchListId | null) {
+  const library = readLibrary();
+  const lists = Object.fromEntries(WATCH_LISTS.map(({ id }) => [id, (library.lists?.[id] || []).filter(value => value.anime_id !== anime.anime_id)])) as NonNullable<Library['lists']>;
+  if (selected !== null) lists[selected]!.unshift(compact(anime));
+  saveLibrary({ ...library, lists });
 }

@@ -27,6 +27,15 @@ describe('service worker on project Pages', () => {
     expect(await (await response!).text()).toBe('offline shell');
     expect(w.caches.match.mock.calls[0][0].href).toBe('https://example.github.io/yumiwatch/index.html');
   });
+  it('serves exact shell assets offline even when the server varies module responses by Origin', async () => {
+    const w = worker(); let response: Promise<Response> | undefined;
+    w.cache.match.mockResolvedValue(new Response('cached module'));
+    w.handlers.fetch({ request: { url: 'https://example.github.io/yumiwatch/assets/app.js', method: 'GET', mode: 'cors' }, respondWith: (value: Promise<Response>) => { response = value; } });
+    expect(await (await response!).text()).toBe('cached module');
+    expect(w.cache.match.mock.calls[0][0].href).toBe('https://example.github.io/yumiwatch/assets/app.js');
+    expect(w.cache.match.mock.calls[0][1]).toEqual({ ignoreVary: true });
+    expect(w.fetcher).not.toHaveBeenCalled();
+  });
   it('leaves API requests, iframe players, streams, and other Pages apps untouched', () => {
     const w = worker(); const respondWith = vi.fn();
     for (const url of ['https://api.yani.tv/anime', 'https://player.aksor.tv/video/example', 'https://cdn.example/stream.m3u8', 'https://example.github.io/another-app/']) w.handlers.fetch({ request: { url, method: 'GET' }, respondWith });

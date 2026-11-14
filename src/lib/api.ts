@@ -58,6 +58,7 @@ export async function request<T>(path: string, params: Params = {}, signal?: Abo
   const cached = readJSON<Cache>(CACHE_KEY, {})[key];
   try {
     const data = await yaniFetch<T>(path, { params, signal });
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
     const entry = { data, savedAt: Date.now() };
     const cache = readJSON<Cache>(CACHE_KEY, {});
     cache[key] = entry;
@@ -67,9 +68,22 @@ export async function request<T>(path: string, params: Params = {}, signal?: Abo
   } catch (error) {
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
     if (cached && !(error instanceof ApiError && [401, 403, 404].includes(error.status))) return { data: cached.data as T, savedAt: cached.savedAt, cached: true };
-    if (error instanceof ApiError) throw error;
+    if (error instanceof ApiError) {
+      if ([401, 403, 404].includes(error.status)) { const cache = readJSON<Cache>(CACHE_KEY, {}); delete cache[key]; writeJSON(CACHE_KEY, cache); }
+      throw error;
+    }
     throw new Error('Нет связи с Yani. Проверь интернет и попробуй снова.');
   }
+}
+export function cachedRequest<T>(path: string, params: Params = {}, signal?: AbortSignal): Promise<Result<T>> {
+  if (signal?.aborted) return Promise.reject(new DOMException('Aborted', 'AbortError'));
+  const cached = readJSON<Cache>(CACHE_KEY, {})[`${path}?${makeQuery(params)}`];
+  const revalidate = request<T>(path, params, signal);
+  if (!cached) return revalidate;
+  // Consumers can use the saved result immediately and observe the fresh result.
+  // Attach a rejection handler even when a one-shot consumer ignores revalidation.
+  void revalidate.catch(() => {});
+  return Promise.resolve({ data: cached.data as T, cached: true, savedAt: cached.savedAt, revalidate });
 }
 export const animeList = async (params: Params, signal?: AbortSignal): Promise<Result<Anime[]>> => {
   const query = { limit: 24, require_fields: 'genres,ep_count,description', ...params };
@@ -78,7 +92,7 @@ export const animeList = async (params: Params, signal?: AbortSignal): Promise<R
     if (!session?.verified) throw new ApiError('Войди в аккаунт, чтобы фильтровать по своим спискам.', 401);
     return { data: await yaniFetch<Anime[]>('/anime', { params: query, signal, token: session.token }), cached: false, savedAt: Date.now() };
   }
-  return request<Anime[]>('/anime', query, signal);
+  return cachedRequest<Anime[]>('/anime', query, signal);
 };
 export const animeDetail = (id: string | number, signal?: AbortSignal) => request<Anime>(`/anime/${encodeURIComponent(id)}`, {}, signal);
 export const animeVideos = async (id: number, signal?: AbortSignal): Promise<Result<Video[]>> => {

@@ -45,7 +45,7 @@ describe('mobile navigation state', () => {
     location.hash = '/catalog';
     await screen.findByRole('link', { name: /Аниме 47/ });
     await waitFor(() => expect(scroll).toBe(700));
-    expect(fetch).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(3));
   });
   it('closes the filter screen when leaving a retained catalog', async () => {
     history.replaceState(null, '', '#/catalog');

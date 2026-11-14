@@ -1,10 +1,11 @@
 import { yaniFetch } from './api';
 import { getSession } from './session';
-import { clearHistory as clearGuestHistory, LIBRARY_EVENT, readLibrary, recordWatch as recordGuestWatch, toggleFavorite as toggleGuestFavorite } from './storage';
+import { clearHistory as clearGuestHistory, LIBRARY_EVENT, readLibrary, recordWatch as recordGuestWatch, setAnimeList as setGuestList, toggleFavorite as toggleGuestFavorite } from './storage';
+import { isWatchList, WATCH_LISTS, type WatchListId } from './lists';
 import type { Anime, Library, Video, WatchEntry } from './types';
 
 export interface LibraryState extends Library { account: boolean; loading: boolean; error: string; syncedAt: number; hasMore: boolean; loadingMore: boolean }
-interface RemoteAnime extends Omit<Anime, 'rating'> { rating?: number | Anime['rating'] }
+interface RemoteAnime extends Omit<Anime, 'rating'> { rating?: number | Anime['rating']; user?: { list?: { is_fav?: boolean; list?: { id?: number } | null } } }
 interface RemoteWatch extends RemoteAnime { video_id?: number; ep_title?: string; number?: string; date?: number; end_time?: number; duration?: number; data?: Video['data']; screenshot?: { sizes?: { small?: string } } }
 let owner = '';
 let accountState: LibraryState = emptyState();
@@ -12,7 +13,7 @@ let revision = 0;
 let historyOffset = 0;
 let inFlight: { token: string; promise: Promise<void> } | undefined;
 const emit = () => window.dispatchEvent(new Event(LIBRARY_EVENT));
-function emptyState(): LibraryState { return { favorites: [], history: [], account: true, loading: true, error: '', syncedAt: 0, hasMore: false, loadingMore: false }; }
+function emptyState(): LibraryState { return { favorites: [], history: [], lists: {}, account: true, loading: true, error: '', syncedAt: 0, hasMore: false, loadingMore: false }; }
 function stateFor(token: string) {
   if (owner !== token) { owner = token; accountState = emptyState(); historyOffset = 0; revision++; }
   return accountState;
@@ -43,14 +44,14 @@ export function syncLibrary(): Promise<void> {
   const capturedRevision = revision;
   const promise = (async () => {
     try {
-      const [favorites, history] = await Promise.all([
-        yaniFetch<RemoteAnime[]>(`/users/${session.user.id}/lists/4`, { token }),
+      const [animes, history] = await Promise.all([
+        yaniFetch<RemoteAnime[]>(`/users/${session.user.id}/lists`, { token }),
         yaniFetch<RemoteWatch[]>('/video/watch-history', { token, params: { limit: 100, offset: 0 } }),
       ]);
       if (getSession()?.token !== token || owner !== token) return;
-      if (!Array.isArray(favorites) || !Array.isArray(history)) throw new Error('Yani вернул неожиданный формат коллекции.');
+      if (!Array.isArray(animes) || !Array.isArray(history)) throw new Error('Yani вернул неожиданный формат коллекции.');
       if (revision === capturedRevision) {
-        accountState = { favorites: favorites.map(normalizeAnime), history: normalizeHistory(history), account: true, loading: false, error: '', syncedAt: Date.now(), hasMore: history.length === 100, loadingMore: false };
+        accountState = { favorites: animes.filter(value => value.user?.list?.is_fav).map(normalizeAnime), lists: Object.fromEntries(WATCH_LISTS.map(({ id }) => [id, animes.filter(value => value.user?.list?.list?.id === id).map(normalizeAnime)])), history: normalizeHistory(history), account: true, loading: false, error: '', syncedAt: Date.now(), hasMore: history.length === 100, loadingMore: false };
         historyOffset = history.length;
       }
     } catch (error) {
@@ -130,4 +131,27 @@ export async function recordWatch(anime: Anime, video: Video, group: string, pos
 export function clearHistory() {
   if (getSession()) throw new Error('Историю аккаунта можно управлять на YummyAnime.');
   clearGuestHistory();
+}
+
+const listPending = new Set<string>();
+export async function setAnimeList(anime: Anime, selected: WatchListId | null) {
+  if (selected !== null && !isWatchList(selected)) throw new Error('Неизвестный список.');
+  const session = getSession();
+  if (!session) { setGuestList(anime, selected); return; }
+  if (!session.verified) throw new Error('Дождись проверки аккаунта или повтори вход.');
+  const state = stateFor(session.token);
+  if (!state.syncedAt) throw new Error('Сначала обнови коллекцию аккаунта.');
+  const key = `${session.token}:${anime.anime_id}`;
+  if (listPending.has(key)) throw new Error('Изменение списка уже сохраняется.');
+  listPending.add(key);
+  try {
+    const result = await yaniFetch<boolean | { success: boolean; list?: { id: number } }>(`/anime/${anime.anime_id}/list`, { token: session.token, method: selected === null ? 'DELETE' : 'PUT', ...(selected !== null ? { body: { list: selected, date: Math.floor(Date.now() / 1000) } } : {}) });
+    if (selected === null ? result !== true && !(typeof result === 'object' && result?.success) : typeof result !== 'object' || !result?.success || result.list?.id !== selected) throw new Error('Yani не подтвердил изменение списка.');
+    if (getSession()?.token !== session.token || owner !== session.token) return;
+    revision++;
+    const lists = Object.fromEntries(WATCH_LISTS.map(({ id }) => [id, (accountState.lists?.[id] || []).filter(value => value.anime_id !== anime.anime_id)])) as NonNullable<Library['lists']>;
+    if (selected !== null) lists[selected]!.unshift(anime);
+    accountState.lists = lists;
+    emit();
+  } finally { listPending.delete(key); }
 }
