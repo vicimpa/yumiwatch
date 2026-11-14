@@ -2,7 +2,11 @@ import { useEffect, useState } from 'preact/hooks';
 import { Icon, type IconName } from './components/Icon';
 import { Catalog, Detail, Home, LibraryPage, Schedule, Settings, type InstallPrompt } from './components/Pages';
 import { Empty, Toast, notify } from './components/UI';
-import { useHash, useLibrary } from './lib/hooks';
+import { useHash, useLibrary, useSession } from './lib/hooks';
+import { initializeAccount } from './lib/account';
+import { resetAccountLibrary, syncLibrary } from './lib/library';
+import { imageUrl } from './lib/api';
+import { AccountPage } from './components/Account';
 
 const NAV: { href: string; icon: IconName; title: string; mobile: string }[] = [
   { href: '/', icon: 'home', title: 'Главная', mobile: 'Главная' },
@@ -17,11 +21,25 @@ export function App() {
   const path = useHash();
   const [route, query = ''] = path.split('?');
   const library = useLibrary();
+  const session = useSession();
   const [online, setOnline] = useState(navigator.onLine);
   const [installPrompt, setInstallPrompt] = useState<InstallPrompt>();
   const [installed, setInstalled] = useState(() => window.matchMedia('(display-mode: standalone)').matches || !!(navigator as Navigator & { standalone?: boolean }).standalone);
   const [update, setUpdate] = useState<ServiceWorkerRegistration>();
   const [globalQuery, setGlobalQuery] = useState('');
+  useEffect(() => {
+    if (!session) { resetAccountLibrary(); return; }
+    if (!session.verified) {
+      const restore = () => { void initializeAccount().catch(error => notify(error.message)); };
+      restore(); window.addEventListener('online', restore);
+      return () => window.removeEventListener('online', restore);
+    }
+    void syncLibrary();
+    const refresh = () => { if (document.visibilityState === 'visible') void initializeAccount().then(() => syncLibrary()).catch(error => notify(error.message)); };
+    const timer = setInterval(refresh, 60 * 60 * 1000);
+    window.addEventListener('online', refresh); document.addEventListener('visibilitychange', refresh);
+    return () => { clearInterval(timer); window.removeEventListener('online', refresh); document.removeEventListener('visibilitychange', refresh); };
+  }, [session?.token, session?.verified]);
   useEffect(() => {
     const offline = () => setOnline(false);
     const online = () => setOnline(true);
@@ -48,7 +66,7 @@ export function App() {
     return () => { cancelled = true; navigator.serviceWorker.removeEventListener('controllerchange', controllerChange); };
   }, []);
   useEffect(() => {
-    const titles: Record<string, string> = { '/': 'Аниме под рукой', '/catalog': 'Каталог', '/schedule': 'Расписание', '/library': 'Моя коллекция', '/settings': 'Настройки' };
+    const titles: Record<string, string> = { '/': 'Аниме под рукой', '/catalog': 'Каталог', '/schedule': 'Расписание', '/library': 'Моя коллекция', '/settings': 'Настройки', '/account': 'Аккаунт' };
     document.title = `${titles[route] || 'Аниме'} · YumiWatch`;
     document.getElementById('main')?.focus({ preventScroll: true });
   }, [path]);
@@ -57,15 +75,15 @@ export function App() {
     try { await installPrompt.prompt(); const choice = await installPrompt.userChoice; if (choice.outcome === 'accepted') notify('YumiWatch появится на главном экране'); setInstallPrompt(undefined); } catch { notify('Открой меню браузера и выбери установку приложения.'); }
   };
   const active = (href: string) => route === href || (href === '/catalog' && route.startsWith('/anime/'));
-  const navLabel = NAV.find(n => active(n.href))?.title || 'Настройки';
+  const navLabel = NAV.find(n => active(n.href))?.title || (route === '/account' ? 'Аккаунт' : 'Настройки');
   return <>
     <a class="skip-link" href="#main" onClick={event => { event.preventDefault(); document.getElementById('main')?.focus(); }}>К содержимому</a>
     <aside class="sidebar"><Brand/><div class="sidebar-label">ТВОЯ НАВИГАЦИЯ</div><nav aria-label="Основная навигация">{NAV.map(item => <a href={`#${item.href}`} class={active(item.href) ? 'nav-item active' : 'nav-item'} aria-current={active(item.href) ? 'page' : undefined}><Icon name={item.icon} size={21}/><span>{item.title}</span>{item.href === '/library' && library.favorites.length > 0 && <small>{library.favorites.length}</small>}{active(item.href) && <span class="nav-active-dot"/>}</a>)}</nav><div class="sidebar-divider"/><a class="nav-item" href="#/settings"><Icon name="settings" size={21}/>Настройки</a><div class="sidebar-bottom">{!installed && <div class="install-card"><span class="install-symbol"><Icon name="download" size={22}/></span><h3>Ещё ближе к аниме</h3><p>YumiWatch на главном экране.<br/>Один тап — и ты в другом мире.</p><button onClick={install}>Установить PWA<Icon name="arrow" size={16}/></button></div>}<a class="source-brand" href="https://ru.yummyani.me/" target="_blank" rel="noreferrer"><span>С любовью к аниме</span><strong>На основе YummyAnime<Icon name="external" size={12}/></strong></a></div></aside>
-    <div class="workspace"><header class="topbar"><div class="desktop-breadcrumb">Твоё пространство<span>/</span><strong>{navLabel}</strong></div><div class="mobile-brand"><Brand/></div><div class="topbar-actions"><form class="global-search" role="search" onSubmit={event => { event.preventDefault(); location.hash = `/catalog${globalQuery.trim() ? `?q=${encodeURIComponent(globalQuery.trim())}` : ''}`; }}><Icon name="search" size={17}/><input placeholder="Найти свою историю…" aria-label="Поиск по каталогу" value={globalQuery} onInput={event => setGlobalQuery(event.currentTarget.value)}/><kbd>⌘ K</kbd></form><a class="icon-button mobile-search" href="#/catalog" aria-label="Найти аниме"><Icon name="search"/></a><a class={`icon-button settings-link ${route === '/settings' ? 'selected' : ''}`} href="#/settings" aria-label="Настройки"><Icon name="settings" size={21}/></a><div class="avatar" aria-hidden="true">Y<span/></div></div></header>
-    {!online && <div class="offline-bar" role="status"><Icon name="wifi" size={17}/>Ты без сети. Коллекция и ранее загруженные страницы доступны.</div>}
+    <div class="workspace"><header class="topbar"><div class="desktop-breadcrumb">Твоё пространство<span>/</span><strong>{navLabel}</strong></div><div class="mobile-brand"><Brand/></div><div class="topbar-actions"><form class="global-search" role="search" onSubmit={event => { event.preventDefault(); location.hash = `/catalog${globalQuery.trim() ? `?q=${encodeURIComponent(globalQuery.trim())}` : ''}`; }}><Icon name="search" size={17}/><input placeholder="Найти свою историю…" aria-label="Поиск по каталогу" value={globalQuery} onInput={event => setGlobalQuery(event.currentTarget.value)}/><kbd>⌘ K</kbd></form><a class="icon-button mobile-search" href="#/catalog" aria-label="Найти аниме"><Icon name="search"/></a><a class={`icon-button settings-link ${route === '/settings' ? 'selected' : ''}`} href="#/settings" aria-label="Настройки"><Icon name="settings" size={21}/></a><a class="account-entry" href="#/account" aria-label={session?.verified ? `Аккаунт ${session.user.nickname}` : 'Войти в аккаунт'}>{session?.verified && imageUrl(session.user.avatar) ? <img src={imageUrl(session.user.avatar)} alt=""/> : <span>{session?.verified ? session.user.nickname.slice(0, 1).toUpperCase() : <Icon name="heart" size={18}/>}</span>}</a></div></header>
+    {!online && <div class="offline-bar" role="status"><Icon name="wifi" size={17}/>{session ? 'Ты без сети. Для коллекции аккаунта нужен интернет.' : 'Ты без сети. Гостевая коллекция и загруженные страницы доступны.'}</div>}
     {update && <div class="update-bar" role="status"><Icon name="spark" size={17}/>Готова новая версия YumiWatch<button onClick={() => update.waiting?.postMessage({ type: 'SKIP_WAITING' })}>Обновить</button></div>}
     <main id="main" tabIndex={-1}>
-      {route === '/' ? <Home/> : route === '/catalog' ? <Catalog query={query}/> : route === '/library' ? <LibraryPage query={query}/> : route === '/schedule' ? <Schedule/> : route === '/settings' ? <Settings installPrompt={installPrompt} install={install} installed={installed}/> : /^\/anime\/[^/]+$/.test(route) ? <Detail key={route} id={route.split('/')[2]}/> : <Empty title="Эта история затерялась" action={<a class="button primary" href="#/">На главную</a>}>Такой страницы нет. Вернёмся к аниме?</Empty>}
+      {route === '/' ? <Home/> : route === '/catalog' ? <Catalog query={query}/> : route === '/library' ? <LibraryPage query={query}/> : route === '/schedule' ? <Schedule/> : route === '/account' ? <AccountPage query={query}/> : route === '/settings' ? <Settings installPrompt={installPrompt} install={install} installed={installed}/> : /^\/anime\/[^/]+$/.test(route) ? <Detail key={route} id={route.split('/')[2]}/> : <Empty title="Эта история затерялась" action={<a class="button primary" href="#/">На главную</a>}>Такой страницы нет. Вернёмся к аниме?</Empty>}
     </main><footer class="footer"><span>yumiwatch<span class="coral">.</span> <span class="footer-motto">Больше историй. Меньше лишнего.</span></span><span>Независимый клиент YummyAnime <span class="footer-heart">♡</span></span></footer></div>
     <nav class="bottom-nav" aria-label="Мобильная навигация">{NAV.map(item => <a href={`#${item.href}`} class={active(item.href) ? 'active' : ''} aria-current={active(item.href) ? 'page' : undefined}><span><Icon name={item.icon} size={22}/>{item.href === '/library' && library.favorites.length > 0 && <i/>}</span><span>{item.mobile}</span></a>)}</nav><Toast/>
   </>;

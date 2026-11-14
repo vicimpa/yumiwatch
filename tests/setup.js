@@ -3,4 +3,5 @@ import { JSDOM } from 'jsdom';
 // Use an actual DOM Storage implementation consistently on Node 22 and 26.
 const storageWindow = new JSDOM('', { url: 'https://yumiwatch.test/' }).window;
 Object.defineProperty(globalThis, 'localStorage', { value: storageWindow.localStorage, configurable: true, writable: true });
+Object.defineProperty(globalThis, 'sessionStorage', { value: storageWindow.sessionStorage, configurable: true, writable: true });
 Object.defineProperty(globalThis, 'Storage', { value: storageWindow.Storage, configurable: true, writable: true });

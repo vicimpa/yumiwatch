@@ -3,12 +3,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/preact';
 import { Player } from '../src/components/Player';
 import { readLibrary } from '../src/lib/storage';
+import { clearSession, saveSession } from '../src/lib/session';
 import { anime, video } from './fixtures';
 beforeEach(() => {
+  clearSession();
   localStorage.clear();
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ response: [video('1'), video('2'), video('1', 'AniDub'), video('2', 'AniDub')] }))));
 });
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); clearSession(); vi.unstubAllGlobals(); });
 describe('watch flow', () => {
   it('loads the iframe only on play, then records series and changes the episode', async () => {
     const { container } = render(<Player anime={anime}/>);
@@ -37,5 +39,23 @@ describe('watch flow', () => {
     const { container } = render(<Player anime={anime}/>);
     await screen.findByText('Серии пока не появились');
     expect(container.querySelector('iframe')).toBeNull();
+  });
+  it('accepts progress only from the active iframe and its expected origin', async () => {
+    saveSession({ token: 'test-user', user: { id: 42, nickname: 'Viewer' }, remember: false, verified: true, refreshedAt: Date.now() });
+    const fetcher = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ response: [video('1')] }))).mockImplementation(() => Promise.resolve(new Response(JSON.stringify({ response: true }))));
+    vi.stubGlobal('fetch', fetcher);
+    const { container } = render(<Player anime={anime}/>);
+    await screen.findByRole('button', { name: 'Смотреть серию 1' });
+    fireEvent.click(screen.getByRole('button', { name: 'Смотреть серию 1' }));
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2));
+    const frame = container.querySelector('iframe')!;
+    window.dispatchEvent(new MessageEvent('message', { source: frame.contentWindow, origin: 'https://attacker.example', data: { key: 'player_time_update', value: 999 } }));
+    window.dispatchEvent(new MessageEvent('message', { source: window, origin: 'https://player.example', data: { key: 'player_time_update', value: 999 } }));
+    window.dispatchEvent(new Event('pagehide'));
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    window.dispatchEvent(new MessageEvent('message', { source: frame.contentWindow, origin: 'https://player.example', data: { key: 'player_time_update', value: 333 } }));
+    window.dispatchEvent(new Event('pagehide'));
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(3));
+    expect(JSON.parse(fetcher.mock.calls[2][1].body)).toMatchObject({ time: 333 });
   });
 });

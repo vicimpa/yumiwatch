@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
-import { LIBRARY_EVENT, readLibrary } from './storage';
+import { LIBRARY_EVENT } from './storage';
+import { getLibraryState } from './library';
+import { getSession, restoreStoredSession, SESSION_EVENT, SESSION_KEY } from './session';
 import type { Result } from './types';
 
 export function useResource<T>(loader: (signal: AbortSignal) => Promise<Result<T>>, deps: unknown[]) {
@@ -16,14 +18,25 @@ export function useResource<T>(loader: (signal: AbortSignal) => Promise<Result<T
   return { value, error, loading, retry: () => setRevision(n => n + 1) };
 }
 export function useLibrary() {
-  const [library, setLibrary] = useState(readLibrary);
+  const [library, setLibrary] = useState(getLibraryState);
   useEffect(() => {
-    const update = () => setLibrary(readLibrary());
+    const update = () => setLibrary({ ...getLibraryState() });
     window.addEventListener(LIBRARY_EVENT, update);
+    window.addEventListener(SESSION_EVENT, update);
     window.addEventListener('storage', update);
-    return () => { window.removeEventListener(LIBRARY_EVENT, update); window.removeEventListener('storage', update); };
+    return () => { window.removeEventListener(LIBRARY_EVENT, update); window.removeEventListener(SESSION_EVENT, update); window.removeEventListener('storage', update); };
   }, []);
   return library;
+}
+export function useSession() {
+  const [session, setSession] = useState(getSession);
+  useEffect(() => {
+    const update = () => setSession(getSession());
+    const storage = (event: StorageEvent) => { if (event.key === SESSION_KEY || event.key === null) restoreStoredSession(); };
+    window.addEventListener(SESSION_EVENT, update); window.addEventListener('storage', storage);
+    return () => { window.removeEventListener(SESSION_EVENT, update); window.removeEventListener('storage', storage); };
+  }, []);
+  return session;
 }
 export function useHash() {
   const [path, setPath] = useState(() => location.hash.slice(1) || '/');

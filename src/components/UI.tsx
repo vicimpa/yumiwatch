@@ -2,7 +2,7 @@ import { useEffect, useState } from 'preact/hooks';
 import type { ComponentChildren } from 'preact';
 import { Icon } from './Icon';
 import { imageUrl } from '../lib/api';
-import { toggleFavorite } from '../lib/storage';
+import { toggleFavorite } from '../lib/library';
 import { useLibrary } from '../lib/hooks';
 import type { Anime } from '../lib/types';
 
@@ -24,10 +24,12 @@ export function Poster({ anime, large = false }: { anime: Anime; large?: boolean
 }
 export function FavoriteButton({ anime, compact = false }: { anime: Anime; compact?: boolean }) {
   const library = useLibrary();
+  const [busy, setBusy] = useState(false);
   const favorite = library.favorites.some(a => a.anime_id === anime.anime_id);
-  return <button class={`${compact ? 'save-button' : 'button secondary'} ${favorite ? 'saved' : ''}`} aria-label={favorite ? `Убрать «${anime.title}» из избранного` : `Добавить «${anime.title}» в избранное`} aria-pressed={favorite} onClick={() => {
-    try { const added = toggleFavorite(anime); notify(added ? 'Добавлено в твою коллекцию' : 'Удалено из избранного'); } catch (error) { notify((error as Error).message); }
-  }}><Icon name={favorite ? 'check' : 'bookmark'} size={compact ? 17 : 19}/>{!compact && (favorite ? 'В коллекции' : 'Буду смотреть')}</button>;
+  return <button class={`${compact ? 'save-button' : 'button secondary'} ${favorite ? 'saved' : ''}`} disabled={busy || library.loading} aria-busy={busy} aria-label={favorite ? `Убрать «${anime.title}» из избранного` : `Добавить «${anime.title}» в избранное`} aria-pressed={favorite} onClick={async () => {
+    setBusy(true);
+    try { const added = await toggleFavorite(anime); notify(added ? 'Добавлено в твою коллекцию' : 'Удалено из избранного'); } catch (error) { notify((error as Error).message); } finally { setBusy(false); }
+  }}><Icon name={favorite ? 'check' : 'bookmark'} size={compact ? 17 : 19}/>{!compact && (favorite ? 'В избранном' : 'В избранное')}</button>;
 }
 export function AnimeCard({ anime, rank }: { anime: Anime; rank?: number }) {
   const score = anime.rating?.average;

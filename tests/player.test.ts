@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { groupKey, groupVideos, playerUrl, resumeVideo } from '../src/lib/player';
+import { groupKey, groupVideos, playbackMessage, playbackUrl, playerUrl, resumeVideo } from '../src/lib/player';
 import { anime, video } from './fixtures';
 describe('video groups and resume', () => {
   it('keeps providers and dubs separate and sorts episode numbers naturally', () => {
@@ -20,5 +20,21 @@ describe('video groups and resume', () => {
   });
   it('omits videos with invalid iframe URLs', () => {
     expect(groupVideos([{ ...video('1'), iframe_url: 'javascript:alert(1)' }]).size).toBe(0);
+  });
+  it('resumes the newest server-side watched video in its original dubbing', () => {
+    const first = { ...video('1'), watched: { date: 100, end_time: 200 } };
+    const second = { ...video('3', 'AniDub'), watched: { date: 200, end_time: 300 } };
+    expect(resumeVideo([first, second])).toBe(second);
+  });
+  it('parses only finite progress from supported player messages', () => {
+    expect(playbackMessage({ key: 'kodik_player_time_update', value: 120.5 })).toEqual({ time: 120.5 });
+    expect(playbackMessage({ key: 'player_duration_update', value: 1400 })).toEqual({ duration: 1400 });
+    expect(playbackMessage('{"event":"timeupdate","time":30}')).toEqual({ time: 30 });
+    for (const value of [null, 'bad JSON', { key: 'player_time_update', value: Infinity }, { key: 'player_time_update', value: -1 }, { key: 'unknown', value: 30 }, { key: 'player_time_update', value: '120' }]) expect(playbackMessage(value)).toBeNull();
+  });
+  it('adds resume parameters only for known player protocols', () => {
+    expect(playbackUrl({ ...video('1'), iframe_url: 'https://kodik.example/iframe' }, 120)).toContain('start_from=115');
+    expect(playbackUrl({ ...video('1'), iframe_url: 'https://alloha.example/iframe' }, 120)).toContain('start=115');
+    expect(playbackUrl(video('1'), 120)).toBe(video('1').iframe_url);
   });
 });

@@ -21,8 +21,10 @@ export interface Video {
   data: { dubbing: string; player: string; player_id: number };
   number: string;
   index: number;
+  duration?: number;
+  watched?: { end_time: number; date: number };
 }
-export interface WatchEntry { anime: Anime; episode: string; group: string; videoId: number; updatedAt: number }
+export interface WatchEntry { anime: Anime; episode: string; group: string; videoId: number; updatedAt: number; position?: number; duration?: number }
 export interface Library { favorites: Anime[]; history: WatchEntry[] }
 export interface Result<T> { data: T; cached: boolean; savedAt: number }
 export type Params = Record<string, string | number | boolean | undefined>;
