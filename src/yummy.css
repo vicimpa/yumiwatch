@@ -113,7 +113,7 @@ h1 { font-size: 26px; letter-spacing: -.5px; font-weight: 600; }
 .watch-toggle { display: flex; flex-direction: row; gap: 7px; align-items: center; font-size: 12px; font-weight: 400; color: #ccc; cursor: pointer; min-height: 40px; }
 .watch-toggle input { width: 17px; height: 17px; min-height: 0; padding: 0; accent-color: var(--accent); }
 .episode-search { width: 100%; max-width: 240px; font-size: 14px; border-radius: 5px; margin-bottom: 17px; }
-.episode-cards { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 14px; max-height: 560px; overflow-y: auto; overscroll-behavior: contain; padding: 3px; scrollbar-width: thin; scrollbar-color: #666 #292929; }
+.episode-cards { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 14px;  padding: 3px; scrollbar-width: thin; scrollbar-color: #666 #292929; }
 .episode-card { background: #333; border: 1px solid #444; border-radius: 5px; padding: 0; text-align: left; overflow: hidden; }
 .episode-card.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .episode-preview { position: relative; aspect-ratio: 16/9; background: #292929; overflow: hidden; }
@@ -127,17 +127,10 @@ h1 { font-size: 26px; letter-spacing: -.5px; font-weight: 600; }
 .episode-caption strong { font-size: 12px; font-weight: 600; }
 .episode-caption small { color: #aaa; font-size: 10px; }
 .episode-card.selected .episode-caption strong { color: var(--accent); }
-.episode-cards.numbers-only { grid-template-columns: repeat(auto-fill,minmax(53px,1fr)); max-height: 280px; }
+.episode-cards.numbers-only { grid-template-columns: repeat(auto-fill,minmax(53px,1fr));  }
 .numbers-only .episode-caption { min-height: 46px; align-items: center; justify-content: center; }
 .numbers-only .episode-caption strong { font-size: 14px; }
 .player-note { font-size: 11px; color: #aaa; }
-.detail-accordion { margin: 23px auto; max-width: 1100px; background: #303030; border: 1px solid #444; border-radius: 6px; scroll-margin-top: 100px; }
-.detail-accordion>summary { display: flex; align-items: center; gap: 10px; min-height: 55px; padding: 14px 18px; cursor: pointer; font-size: 15px; font-weight: 600; list-style: none; }
-.detail-accordion>summary::-webkit-details-marker { display: none; }
-.detail-accordion>summary>svg:last-child { margin-left: auto; color: #aaa; transition: transform .15s; }
-.detail-accordion[open]>summary>svg:last-child { transform: rotate(90deg); }
-.detail-accordion[open]>summary { border-bottom: 1px solid #444; }
-.accordion-body { padding: 20px; }
 .full-synopsis { font-size: 14px; color: #d0d0d0; line-height: 1.9; white-space: pre-line; margin: 20px 0; }
 .anime-studios { font-size: 13px; color: #bbb; }
 .detail-genres { margin: 0; }
@@ -148,13 +141,6 @@ h1 { font-size: 26px; letter-spacing: -.5px; font-weight: 600; }
 .viewing-order a strong { font-size: 13px; font-weight: 500; }
 .viewing-order a small { color: #aaa; margin-left: auto; }
 .viewing-order a:last-child { border: 0; }
-.filter-sheet { padding: 0; border: 1px solid #555; border-radius: 12px; background: #2d2d2d; color: #eee; width: min(760px,calc(100vw - 40px)); max-height: 92dvh; overflow: hidden; }
-.filter-sheet::backdrop { background: #000b; backdrop-filter: blur(3px); }
-.filter-sheet-content { display: flex; flex-direction: column; max-height: 91dvh; }
-.sheet-header { display: flex; align-items: center; gap: 15px; justify-content: space-between; padding: 21px 24px; background: #353535; border-bottom: 1px solid #4b4b4b; flex-shrink: 0; }
-.sheet-header h2 { font-size: 21px; font-weight: 600; }
-.sheet-header p { font-size: 11px; color: #aaa; margin-top: 5px; }
-.sheet-body { overflow-y: auto; overscroll-behavior: contain; padding: 22px 24px; }
 .filter-group { padding: 0; border: 0; margin: 0 0 25px; min-width: 0; }
 .filter-group legend { font-size: 14px; font-weight: 600; margin-bottom: 13px; padding: 0; }
 .filter-options { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -171,21 +157,11 @@ h1 { font-size: 26px; letter-spacing: -.5px; font-weight: 600; }
 .green-dot, .red-dot { width: 7px; height: 7px; display: inline-block; border-radius: 50%; margin: 0 4px 1px 7px; background: #71a77b; }
 .red-dot { background: #e77b7b; }
 .genre-filter>input { width: 100%; font-size: 14px; min-height: 45px; background: #242424; border-radius: 5px; margin-bottom: 13px; }
-.all-genres { max-height: 340px; overflow: auto; overscroll-behavior: contain; padding: 4px 2px; }
-.sheet-footer { display: flex; gap: 13px; padding: 17px 24px calc(17px + env(safe-area-inset-bottom,0px)); background: #353535; border-top: 1px solid #4b4b4b; flex-shrink: 0; }
-.sheet-footer .primary { flex: 1; }
-.sheet-footer .button { min-height: 47px; }
+.all-genres {  padding: 4px 2px; }
 .comments-section .section-heading h2 { font-size: 18px; }
 .comments-section .section-heading select { font-size: 13px; padding: 9px 12px; border-radius: 5px; }
-.comment-form { margin: 10px 0 25px; }
-.comment-form label { font-size: 12px; }
-.comment-form textarea { resize: vertical; width: 100%; min-height: 105px; font: inherit; font-size: 14px; color: #eee; background: #242424; border: 1px solid #555; border-radius: 5px; padding: 13px; line-height: 1.7; }
-.comment-form textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.comment-form-footer { display: flex; justify-content: space-between; align-items: center; gap: 14px; margin-top: 12px; }
 .comment-reply-to { display: flex; align-items: center; justify-content: space-between; background: #414141; padding: 10px 12px; font-size: 12px; margin-bottom: 12px; color: #e6b3b3; }
 .comment-reply-to button { min-width: 32px; min-height: 32px; }
-.comment-login { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 16px; background: #393939; border-radius: 5px; margin: 15px 0 25px; }
-.comment-login p { font-size: 13px; line-height: 1.8; color: #ccc; }
 .comment-item { display: flex; gap: 13px; padding: 19px 0; border-bottom: 1px solid #494949; }
 .comment-avatar { flex-shrink: 0; width: 39px; height: 39px; border-radius: 5px; overflow: hidden; background: #4b3d3d; display: flex; align-items: center; justify-content: center; }
 .comment-avatar img { width: 100%; height: 100%; object-fit: cover; }
@@ -194,9 +170,6 @@ h1 { font-size: 26px; letter-spacing: -.5px; font-weight: 600; }
 .comment-author strong { color: var(--accent); font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
 .comment-author time { font-size: 10px; color: #aaa; }
 .comment-text { font-size: 13px; line-height: 1.85; color: #dedede; white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 9px; }
-.comment-spoiler { display: inline-block; max-width: 100%; }
-.comment-spoiler summary { cursor: pointer; font-size: 12px; color: #ddd; border: 1px dashed #777; background: #424242; padding: 4px 8px; list-style: none; }
-.comment-spoiler[open] summary { color: var(--accent); margin-bottom: 6px; }
 .comment-actions { display: flex; align-items: center; gap: 17px; flex-wrap: wrap; margin-top: 8px; }
 .comment-actions button { font-size: 11px; color: #aaa; min-height: 34px; padding: 0; }
 .comment-actions .liked { color: #a7d9b3; }.comment-actions .disliked { color: #ff9d9d; }
@@ -277,14 +250,11 @@ h1 { font-size: 26px; letter-spacing: -.5px; font-weight: 600; }
   .watch-toggle { font-size: 11px; gap: 5px; }
   .watch-toggle input { width: 16px; height: 16px; }
   .episode-search { font-size: 16px; max-width: none; min-height: 46px; }
-  .episode-cards { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; max-height: 500px; }
+  .episode-cards { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px;  }
   .episode-caption strong { font-size: 13px; }
   .episode-caption small { font-size: 11px; }
   .episode-caption { padding: 10px 9px; }
   .episode-duration { font-size: 10px; }
-  .detail-accordion { scroll-margin-top: 80px; border-radius: 5px; margin-top: 19px; }
-  .detail-accordion>summary { min-height: 54px; padding: 13px 14px; font-size: 14px; }
-  .accordion-body { padding: 16px 13px; }
   .full-synopsis { font-size: 13px; }
   .detail-genres a { font-size: 11px; }
   .viewing-order a { padding: 14px 12px; gap: 10px; }
@@ -300,19 +270,14 @@ h1 { font-size: 26px; letter-spacing: -.5px; font-weight: 600; }
   .results-heading { font-size: 12px; }
   .applied-filters { gap: 7px; margin-top: -3px; }
   .applied-filters>button { font-size: 11px; min-height: 38px; }
-  .filter-sheet { position: fixed; width: 100%; max-width: none; margin: auto 0 0; inset: auto 0 0; max-height: 94dvh; border-radius: 16px 16px 0 0; border-left: 0; border-right: 0; border-bottom: 0; }
-  .filter-sheet-content { max-height: 93dvh; }
-  .sheet-header { padding: 18px 16px 15px; }
   .sheet-header h2 { font-size: 20px; }
   .sheet-header p { font-size: 10px; }
-  .sheet-body { padding: 20px 16px; }
   .filter-ranges { grid-template-columns: 1fr; gap: 0; }
   .filter-range input,.filter-range select,.genre-filter>input { font-size: 16px; min-height: 47px; }
   .filter-option { min-height: 44px; font-size: 12px; padding: 9px 11px; }
   .filter-group legend { font-size: 14px; }
   .filter-help { font-size: 11px; }
-  .all-genres { max-height: 360px; }
-  .sheet-footer { padding: 14px 16px calc(14px + env(safe-area-inset-bottom,0px)); gap: 10px; }
+
   .sheet-footer .button { min-height: 48px; font-size: 13px; }
   .comments-section .section-heading h2 { font-size: 16px; }
   .comments-section .section-heading select { font-size: 16px; max-width: 133px; }
@@ -342,4 +307,25 @@ h1 { font-size: 26px; letter-spacing: -.5px; font-weight: 600; }
   .watch-title h1 { font-size: 18px; }
   .watch-title-actions { gap: 10px; }
   .watch-title-actions .text-link { font-size: 9px; }
+}
+
+.anime-sections-nav { display: flex; gap: 25px; max-width: 1100px; margin: 0 auto 20px; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+.anime-sections-nav a { display: flex; align-items: center; min-height: 46px; padding: 0 0 10px; font-size: 13px; white-space: nowrap; color: #bbb; }
+.anime-sections-nav a:hover { color: var(--accent); }
+.anime-section { max-width: 1100px; margin: 34px auto 0; padding-top: 26px; border-top: 1px solid var(--line); scroll-margin-top: 96px; }
+.anime-section-body { padding: 0; }
+.anime-section .viewing-order { background: #303030; border: 1px solid #444; border-radius: 5px; }
+.anime-section .full-synopsis { margin: 18px 0; }
+@media(max-width:760px) {
+  .anime-sections-nav { gap: 21px; margin: 0 -12px 16px; padding: 0 12px; }
+  .anime-sections-nav a { min-height: 45px; font-size: 12px; }
+  .anime-section { margin-top: 27px; padding-top: 22px; scroll-margin-top: calc(80px + env(safe-area-inset-top,0px)); }
+}
+.anime-sections-nav a.active { color: var(--accent); border-bottom: 2px solid var(--accent); }
+@media(max-width:760px) {
+  .anime-sections-nav { position: sticky; top: calc(66px + env(safe-area-inset-top,0px)); z-index: 20; background: var(--bg); }
+  .mobile-watch .watch-sticky { top: calc(112px + env(safe-area-inset-top,0px)); }
+  .anime-section { margin-top: 0; padding-top: 5px; border-top: 0; min-height: 45vh; }
+  .secondary-view-heading .watch-poster, .secondary-view-heading .detail-meta, .secondary-view-heading .watch-title-actions { display: none; }
+  .secondary-view-heading h1 { font-size: 17px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 }

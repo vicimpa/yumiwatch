@@ -26,7 +26,9 @@ export function saveSession(session: Session) {
 }
 export function clearSession(expectedToken?: string) {
   if (expectedToken && current?.token !== expectedToken) return;
+  const userId = current?.user.id;
   current = null;
+  if (userId !== undefined) { try { for (const key of Object.keys(sessionStorage)) if (key.startsWith(`yumiwatch:draft:${userId}:`)) sessionStorage.removeItem(key); } catch { /* Session storage can be unavailable. */ } }
   for (const storage of [sessionStorage, localStorage]) { try { storage.removeItem(SESSION_KEY); } catch { /* Already signed out in memory. */ } }
   emit();
 }

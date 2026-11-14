@@ -1,6 +1,7 @@
 import type { JSX } from 'preact';
-export type IconName = 'home' | 'search' | 'grid' | 'calendar' | 'heart' | 'settings' | 'download' | 'arrow' | 'back' | 'play' | 'close' | 'check' | 'chevron' | 'filter' | 'clock' | 'external' | 'wifi' | 'refresh' | 'spark' | 'sun' | 'trash' | 'bookmark' | 'comment';
+export type IconName = 'home' | 'search' | 'grid' | 'calendar' | 'heart' | 'settings' | 'download' | 'arrow' | 'back' | 'play' | 'close' | 'check' | 'chevron' | 'filter' | 'clock' | 'external' | 'wifi' | 'refresh' | 'spark' | 'sun' | 'trash' | 'bookmark' | 'comment' | 'list';
 const paths: Record<IconName, JSX.Element> = {
+  list: <><path d="M8 5h13M8 12h13M8 19h13"/><path d="M3 5h.01M3 12h.01M3 19h.01" stroke-width="3"/></>,
   comment: <path d="M21 11a8 8 0 0 1-8 8H6l-4 3 1-7a8 8 0 0 1-1-4 9 9 0 0 1 19 0Z"/>,
   home: <><path d="m3 10 9-7 9 7v9a2 2 0 0 1-2 2h-4v-7H9v7H5a2 2 0 0 1-2-2z" /></>,
   search: <><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 5 5" /></>,

@@ -41,6 +41,9 @@ export function AnimeCard({ anime, rank }: { anime: Anime; rank?: number }) {
     <div class="card-caption">{rank && <span class="rank">{String(rank).padStart(2, '0')}</span>}<div><a class="card-title" href={`#/anime/${anime.anime_id}`}>{anime.title}</a><p>{[anime.year, anime.type?.shortname || anime.type?.name].filter(Boolean).join(' · ')}{anime.episodes?.aired ? ` · ${anime.episodes.aired} сер.` : ''}</p></div></div>
   </article>;
 }
+export function AnimeRow({ anime, onOpen }: { anime: Anime; onOpen?: () => void }) {
+  return <article class="anime-result-row"><a class="result-main" href={`#/anime/${anime.anime_id}`} onClick={onOpen}><div class="result-poster"><Poster anime={anime}/></div><div class="result-copy"><h2>{anime.title}</h2><p>{[anime.year, anime.type?.shortname || anime.type?.name, anime.episodes?.aired ? `${anime.episodes.aired} сер.` : ''].filter(Boolean).join(' · ')}</p><div class="result-bottom">{anime.rating?.average ? <span class="result-rating">★ {anime.rating.average.toFixed(1)}</span> : null}<span>{anime.anime_status?.title}</span></div></div></a><FavoriteButton anime={anime} compact/></article>;
+}
 export function Skeleton({ count = 6 }: { count?: number }) {
   return <div class="anime-grid" role="status" aria-label="Загрузка аниме">{Array.from({ length: count }, (_, i) => <div class="skeleton-card" key={i}><div class="skeleton poster-skeleton"/><div class="skeleton line"/><div class="skeleton line short"/></div>)}</div>;
 }

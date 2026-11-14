@@ -26,3 +26,21 @@ export function validateFilters(filters: CatalogFilters) {
   }
   return '';
 }
+export interface FilterChip { id: string; label: string; changes: Partial<CatalogFilters> }
+export function describeFilters(filters: CatalogFilters, genres: { title: string; href: string; value: number }[] = []): FilterChip[] {
+  const chips: FilterChip[] = [];
+  const names: Record<string, string> = { ongoing: 'Онгоинг', released: 'Вышел', announcement: 'Анонс', tv: 'ТВ-сериал', movie: 'Фильм', ova: 'OVA', ona: 'ONA', special: 'Спешл', shorttv: 'Короткий сериал', shortfilm: 'Короткий фильм', winter: 'Зима', spring: 'Весна', summer: 'Лето', fall: 'Осень', autumn: 'Осень', dubbing: 'Дубляж', multivoice: 'Многоголосая', onevoice: 'Одноголосая', twovoice: 'Двухголосая', subtitles: 'Субтитры' };
+  for (const key of ['genres','exclude_genres','status','types','season','translates','min_age'] as const) {
+    for (const value of filters[key].split(',').filter(Boolean)) {
+      const genre = genres.find(genre => genre.href === value || String(genre.value) === value);
+      const label = key === 'min_age' ? ({ '1':'G', '2':'PG', '3':'13+', '4':'17+', '5':'18+' }[value] || value) : genre?.title || names[value] || value;
+      chips.push({ id: `${key}:${value}`, label: key === 'exclude_genres' ? `Без: ${label}` : label, changes: { [key]: filters[key].split(',').filter(item => item !== value).join(',') } });
+    }
+  }
+  for (const [from,to,label] of [['from_year','to_year','Годы'],['ep_from','ep_to','Серии'],['min_rating','max_rating','Рейтинг'],['min_rating_counters','max_rating_counters','Оценки']] as const) {
+    if (filters[from] || filters[to]) chips.push({ id: from, label: `${label}: ${filters[from] || '…'}–${filters[to] || '…'}`, changes: { [from]: '', [to]: '' } });
+  }
+  if (filters.exclude_list) chips.push({ id: 'exclude_list', label: `Скрыты списки: ${filters.exclude_list.split(',').length}`, changes: { exclude_list: '' } });
+  for (const key of ['studio_ids','director_ids','ids','worldart_ids','mal_ids','kp_ids','shikimori_ids'] as const) if (filters[key]) chips.push({ id: key, label: key === 'studio_ids' ? 'Студии' : key === 'director_ids' ? 'Режиссёры' : 'Подборка', changes: { [key]: '' } });
+  return chips;
+}

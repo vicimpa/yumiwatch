@@ -9,10 +9,12 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 describe('mobile filter sheet', () => {
-  it('cycles a genre through included, excluded, and neutral states', async () => {
+  it('uses explicit include and exclude modes and allows clearing a genre', async () => {
     render(<FilterSheet query="" close={() => {}}/>);
+    fireEvent.click(screen.getByRole('button', { name: 'Жанры' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Фэнтези: не выбран' }));
     expect(screen.getByRole('button', { name: 'Фэнтези: включён' }).getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(screen.getByRole('button', { name: 'Исключить жанры' }));
     fireEvent.click(screen.getByRole('button', { name: 'Фэнтези: включён' }));
     expect(screen.getByRole('button', { name: 'Фэнтези: исключён' }).getAttribute('aria-pressed')).toBe('mixed');
     fireEvent.click(screen.getByRole('button', { name: 'Фэнтези: исключён' }));
@@ -20,7 +22,9 @@ describe('mobile filter sheet', () => {
   });
   it('applies filters together and rejects an invalid range first', async () => {
     const close = vi.fn(); render(<FilterSheet query="q=anime" close={close}/>);
+    fireEvent.click(screen.getByRole('button', { name: 'Жанры' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Фэнтези: не выбран' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Основное' }));
     fireEvent.click(screen.getByRole('button', { name: 'Субтитры' }));
     fireEvent.input(screen.getByLabelText('Год выхода от'), { target: { value: '2026' } });
     fireEvent.input(screen.getByLabelText('Год выхода до'), { target: { value: '2000' } });

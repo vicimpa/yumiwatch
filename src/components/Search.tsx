@@ -1,0 +1,22 @@
+import { useEffect, useRef, useState } from 'preact/hooks';
+import { animeList } from '../lib/api';
+import { useResource } from '../lib/hooks';
+import { recentSearches, rememberSearch, removeSearch } from '../lib/search';
+import { Icon } from './Icon';
+import { AnimeRow, Empty, ErrorState } from './UI';
+
+export function Search({ query, active = true }: { query: string; active?: boolean }) {
+  const initial = new URLSearchParams(query).get('q') || '';
+  const [text, setText] = useState(initial);
+  const [submitted, setSubmitted] = useState(initial);
+  const [recent, setRecent] = useState(recentSearches);
+  const input = useRef<HTMLInputElement>(null);
+  const resource = useResource(signal => submitted.trim().length >= 2 ? animeList({ q: submitted.trim(), limit: 20 }, signal) : Promise.resolve({ data: [], cached: false, savedAt: Date.now() }), [submitted]);
+  useEffect(() => { setText(initial); setSubmitted(initial); }, [query]);
+  useEffect(() => { if (active && !text) input.current?.focus({ preventScroll: true }); }, [active]);
+  useEffect(() => { const timer = setTimeout(() => setSubmitted(text.trim()), 300); return () => clearTimeout(timer); }, [text]);
+  const choose = (value: string) => { setText(value); setSubmitted(value); input.current?.focus(); };
+  return <section class="search-screen" aria-label="Поиск аниме"><div class="screen-title"><div><h1>Найди своё аниме</h1><p>На русском, английском или японском</p></div></div><form class="search-field" role="search" onSubmit={event => { event.preventDefault(); setSubmitted(text.trim()); rememberSearch(text); setRecent(recentSearches()); input.current?.blur(); }}><Icon name="search" size={22}/><input ref={input} id="anime-search" type="search" value={text} onInput={event => setText(event.currentTarget.value)} placeholder="Название аниме" aria-label="Поиск аниме" maxLength={500} autoComplete="off" autoCapitalize="none" enterKeyHint="search"/>{text && <button type="button" class="icon-button" aria-label="Очистить поиск" onClick={() => { choose(''); }}><Icon name="close" size={20}/></button>}</form>
+    {!text.trim() ? <><div class="search-section-title"><h2>Недавно искали</h2>{recent.length > 0 && <button class="text-link" onClick={() => { removeSearch(); setRecent([]); }}>Очистить</button>}</div>{recent.length ? <div class="recent-searches">{recent.map(value => <div key={value}><button class="recent-query" onClick={() => choose(value)}><Icon name="clock" size={18}/><span>{value}</span></button><button class="icon-button" aria-label={`Убрать запрос ${value}`} onClick={() => { removeSearch(value); setRecent(recentSearches()); }}><Icon name="close" size={17}/></button></div>)}</div> : <p class="search-hint">Здесь появятся твои последние запросы.</p>}<h2 class="quick-search-title">Быстрый выбор</h2><div class="search-quick-links"><a href="#/catalog?status=ongoing"><Icon name="play"/>Онгоинги<Icon name="chevron" size={17}/></a><a href="#/catalog?types=movie"><Icon name="grid"/>Полнометражные<Icon name="chevron" size={17}/></a><a href="#/catalog?sort=top"><Icon name="spark"/>Лучшие по рейтингу<Icon name="chevron" size={17}/></a><a href="#/catalog?translates=subtitles"><Icon name="comment"/>С субтитрами<Icon name="chevron" size={17}/></a></div></> : text.trim().length < 2 ? <p class="search-hint">Введи хотя бы два символа.</p> : <><div class="search-section-title"><h2>{resource.loading || text.trim() !== submitted ? 'Ищем…' : `Найдено ${resource.value?.data.length || 0}${resource.value?.data.length === 20 ? '+' : ''}`}</h2><a class="text-link" href={`#/catalog?q=${encodeURIComponent(text.trim())}`} onClick={() => rememberSearch(text)}>Фильтры<Icon name="filter" size={16}/></a></div>{text.trim() !== submitted || resource.loading ? <div class="search-loading" role="status" aria-label="Поиск аниме">{[1,2,3,4].map(value => <div class="result-skeleton" key={value}><div class="skeleton"/><div><div class="skeleton line"/><div class="skeleton line short"/></div></div>)}</div> : resource.error ? <ErrorState error={resource.error} retry={resource.retry}/> : resource.value?.data.length ? <div class="search-results">{resource.value.data.map(anime => <AnimeRow anime={anime} key={anime.anime_id} onOpen={() => { rememberSearch(text); setRecent(recentSearches()); input.current?.blur(); }}/>)}</div> : <Empty title="Не нашли такое аниме" action={<a class="button secondary" href={`#/catalog?q=${encodeURIComponent(text.trim())}`}>Искать в каталоге</a>}>Попробуй другое написание или короткую часть названия.</Empty>}</>}
+  </section>;
+}

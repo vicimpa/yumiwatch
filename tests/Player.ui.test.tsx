@@ -15,6 +15,22 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); clearSession(); vi.unstubAllGlobals(); });
 describe('mobile watch flow', () => {
+  it('opens series and dubbing as separate mobile screens while preserving the episode', async () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+    const { container } = render(<Player anime={anime}/>);
+    fireEvent.click(await screen.findByRole('button', { name: /Все серии/ }));
+    expect(document.body.style.overflow).toBe('hidden');
+    fireEvent.click(screen.getByRole('button', { name: 'Серия 2' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.body.style.overflow).not.toBe('hidden');
+    await waitFor(() => expect(container.querySelector('iframe')?.src).toContain('/AniLibria/1/2'));
+    fireEvent.click(screen.getByRole('button', { name: /Озвучка.*AniLibria/ }));
+    expect(screen.queryByRole('button', { name: 'Серия 2' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /AniDub.*2 серий/ }));
+    await waitFor(() => expect(container.querySelector('iframe')?.src).toContain('/AniDub/1/2'));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(readLibrary().history).toEqual([]);
+  });
   it('preloads the iframe without an extra Play screen and records only playback', async () => {
     const { container } = render(<Player anime={anime}/>);
     await screen.findByRole('button', { name: 'Серия 1' });
