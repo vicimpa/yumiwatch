@@ -1,0 +1,4 @@
+{
+  "app": { "windows": [{ "label": "main", "title": "YummyWatch", "backgroundColor": "#222222", "theme": "Dark" }] },
+  "bundle": { "iOS": { "minimumSystemVersion": "15.0" } }
+}

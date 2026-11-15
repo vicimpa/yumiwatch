@@ -141,6 +141,10 @@ h1 { font-size: 26px; letter-spacing: -.5px; font-weight: 600; }
 .viewing-order a strong { font-size: 13px; font-weight: 500; }
 .viewing-order a small { color: #aaa; margin-left: auto; }
 .viewing-order a:last-child { border: 0; }
+.viewing-order a strong { min-width:0;overflow-wrap:anywhere; }
+.viewing-order a>span,.viewing-order a small,.viewing-order a>svg { flex-shrink:0; }
+.viewing-order a[aria-current=page] { background:#ff777712;box-shadow:inset 3px 0 var(--accent);border-radius:8px;color:var(--accent); }
+.viewing-order-current { display:block;font-size:11px;font-weight:400;color:var(--muted);margin-top:4px; }
 .filter-group { padding: 0; border: 0; margin: 0 0 25px; min-width: 0; }
 .filter-group legend { font-size: 14px; font-weight: 600; margin-bottom: 13px; padding: 0; }
 .filter-options { display: flex; flex-wrap: wrap; gap: 8px; }

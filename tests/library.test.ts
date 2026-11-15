@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearSession, saveSession } from '../src/lib/session';
 import { getLibraryState, normalizeHistory, recordWatch, resetAccountLibrary, setAnimeList, syncLibrary, toggleFavorite } from '../src/lib/library';
 import { readLibrary, toggleFavorite as guestFavorite } from '../src/lib/storage';
+import { savePlaybackRecovery } from '../src/lib/playback-recovery';
 import { anime, video } from './fixtures';
 const reply = (response: unknown) => new Response(JSON.stringify({ response }));
 function user(id = 42) { saveSession({ token: `user-${id}`, user: { id, nickname: `Viewer ${id}` }, remember: false, refreshedAt: Date.now(), verified: true }); }
@@ -15,6 +16,20 @@ describe('account collection', () => {
     await syncLibrary();
     expect(getLibraryState()).toMatchObject({ account: true, loading: false, error: '', favorites: [{ rating: { average: 9.2 } }], history: [{ episode: '12', videoId: 1012, position: 180, updatedAt: 100000 }] });
     expect(localStorage.getItem('yumiwatch:api:v1')).toBeNull();
+  });
+  it('restores Continue Watching from an account-scoped cache before synchronization and keeps other accounts and the guest separate',async()=>{
+    user();vi.stubGlobal('fetch',vi.fn().mockResolvedValueOnce(reply([])).mockResolvedValueOnce(reply([{...anime,video_id:1001,ep_title:'1',end_time:123,date:100,private_field:'private-value',videos:[{url:'private-stream'}]}])));await syncLibrary();
+    resetAccountLibrary();expect(getLibraryState()).toMatchObject({loading:true,history:[{position:123}]});
+    const saved=localStorage.getItem('yumiwatch:continue:v1:account:42')!;expect(saved).not.toContain('private-value');expect(saved).not.toContain('private-stream');expect(saved).not.toContain('user-42');
+    user(43);expect(getLibraryState().history).toEqual([]);clearSession();expect(getLibraryState().history).toEqual([]);user();expect(getLibraryState().history[0].position).toBe(123);
+    vi.stubGlobal('fetch',vi.fn().mockImplementation(()=>Promise.resolve(reply([]))));await syncLibrary();expect(getLibraryState().history).toEqual([]);
+  });
+  it('keeps unsynchronized local progress ahead of an older server snapshot and confirms it only after a successful write',async()=>{
+    user();const entry={anime,videoId:1001,episode:'1',group:'group',position:321,duration:1400,updatedAt:Date.now(),playing:true};savePlaybackRecovery(entry,'user-42');
+    resetAccountLibrary();expect(getLibraryState().history[0]).toMatchObject({position:321,playing:true});
+    vi.stubGlobal('fetch',vi.fn().mockResolvedValueOnce(reply([])).mockResolvedValueOnce(reply([{...anime,video_id:1001,ep_title:'1',end_time:10,date:100}])).mockImplementation(()=>Promise.resolve(reply(true))));await syncLibrary();expect(getLibraryState().history[0].position).toBe(321);
+    await recordWatch(anime,video('1'),'group',321,1400);expect(JSON.parse(localStorage.getItem('yumiwatch:continue:v1:account:42')!)[0].pending).toBe(false);
+    vi.stubGlobal('fetch',vi.fn().mockImplementation(()=>Promise.resolve(reply([]))));await syncLibrary();expect(getLibraryState().history).toEqual([]);
   });
   it('updates favorites remotely, preserving the guest collection', async () => {
     guestFavorite({ ...anime, anime_id: 999 }); user();

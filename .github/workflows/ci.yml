@@ -1,0 +1,39 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main, master, develop]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node scripts/check-release.mjs
+      - run: npm test
+      - run: npm run build:web
+      - run: npx playwright install --with-deps chromium webkit
+      - run: npm run check:mobile
+      - name: Save mobile screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-layout
+          path: test-results/mobile/
+          if-no-files-found: ignore
+          retention-days: 7
+  builds:
+    needs: checks
+    uses: ./.github/workflows/build.yml
+    secrets: inherit

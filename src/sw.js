@@ -5,7 +5,7 @@ const ROOT = new URL('./', self.location.href);
 const POSTERS = 'yumiwatch-posters-v1';
 const AVATARS = 'yumiwatch-avatars-v1';
 self.addEventListener('install', event => {
-  event.waitUntil(caches.open(VERSION).then(cache => cache.addAll(FILES.map(file => new URL(file, ROOT).href))));
+  event.waitUntil(caches.open(VERSION).then(cache => cache.addAll(FILES.filter(file => !file.includes('shaka-player')).map(file => new URL(file, ROOT).href))));
 });
 self.addEventListener('message', event => {
   if (event.data?.type === 'SKIP_WAITING') self.skipWaiting();
@@ -29,7 +29,7 @@ self.addEventListener('fetch', event => {
   if (file) {
     // These are our exact, versioned shell files. Local preview can vary by Origin;
     // module requests include it while addAll does not. Match the canonical asset.
-    event.respondWith(caches.open(VERSION).then(cache => cache.match(new URL(file, ROOT), { ignoreVary: true })).then(cached => cached || fetch(event.request)));
+    event.respondWith(caches.open(VERSION).then(async cache => { const cached = await cache.match(new URL(file, ROOT), { ignoreVary: true }); if (cached) return cached; const response = await fetch(event.request); if (response.ok) { try { await cache.put(new URL(file, ROOT), response.clone()); } catch { /* Loading still succeeds under storage pressure. */ } } return response; }));
   }
 });
 

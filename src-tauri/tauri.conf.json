@@ -1,0 +1,38 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "YummyWatch",
+  "version": "../package.json",
+  "identifier": "app.yumiwatch.desktop",
+  "build": {
+    "beforeDevCommand": "npm run clean:tauri && npm run dev:web -- --port 4179 --strictPort",
+    "devUrl": "http://127.0.0.1:4179",
+    "beforeBuildCommand": "npm run clean:tauri && npm run build:web",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "YummyWatch",
+        "width": 1280,
+        "height": 820,
+        "minWidth": 720,
+        "minHeight": 480,
+        "center": true,
+        "backgroundColor": "#222222",
+        "theme": "Dark"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data: blob:; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost https: yumiwatch-media: http://yumiwatch-media.localhost; media-src 'self' https: yumiwatch-media: http://yumiwatch-media.localhost blob:; worker-src 'self' blob:; frame-src https:; object-src 'none'; base-uri 'self'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "Entertainment",
+    "shortDescription": "Аниме под рукой",
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
+    "macOS": { "minimumSystemVersion": "12.0" }
+  }
+}

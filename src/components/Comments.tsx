@@ -1,10 +1,11 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'preact/hooks';
-import { yaniFetch } from '../lib/api';
-import { getComments, postComment, type CommentPage, type YaniComment } from '../lib/comments';
+import { yaniFetch,cachedRequest,peekRequest } from '../lib/api';
+import { getComments,peekComments, postComment, type CommentPage, type YaniComment } from '../lib/comments';
 import { useResource, useSession } from '../lib/hooks';
 import { getSession } from '../lib/session';
 import { Icon } from './Icon';
 import { Sheet } from './Sheet';
+import { Select } from './Select';
 import { Avatar, notify } from './UI';
 
 interface ReplyTarget { parent: number; id: number; name: string }
@@ -49,10 +50,10 @@ function CommentItem({ comment, reply, rootId, openThread }: { comment: YaniComm
 function Thread({ parent, close, reply, revision }: { parent: YaniComment; close: () => void; reply: (comment: YaniComment, root: number) => void; revision: number }) {
   const session = useSession();
   const resource = useResource(async signal => {
-    const data = await yaniFetch<CommentPage>(`/comments/${parent.id}/children`, { token: session?.verified ? session.token : undefined, signal });
-    if (!Array.isArray(data?.comments)) throw new Error('Не удалось прочитать ответы.');
-    return { data, cached: false, savedAt: Date.now() };
-  }, [parent.id, revision]);
+    const result = await cachedRequest<CommentPage>(`/comments/${parent.id}/children`,{},signal,{token:session?.verified?session.token:undefined});
+    if (!Array.isArray(result.data?.comments)) throw new Error('Не удалось прочитать ответы.');
+    return result;
+  }, [parent.id, revision,session?.token],()=>peekRequest<CommentPage>(`/comments/${parent.id}/children`,{},{token:session?.verified?session.token:undefined}));
   return <Sheet title="Ответы" subtitle={`Обсуждение с ${parent.name}`} close={close} className="thread-screen" footer={<button class="button primary" onClick={() => reply(parent, parent.id)}><Icon name="comment" size={17}/>Ответить в ветке</button>}><div class="thread-parent"><CommentItem comment={parent} reply={reply}/></div><div class="thread-replies">{resource.loading ? <p class="account-loading" role="status">Загружаем ответы…</p> : resource.error ? <div class="account-error" role="alert">{resource.error}<button class="text-link" onClick={resource.retry}>Повторить</button></div> : resource.value?.data.comments.map(comment => <CommentItem key={`${comment.id}:${revision}`} comment={comment} reply={reply} rootId={parent.id}/>)}</div></Sheet>;
 }
 function Composer({ animeId, requestedReply, close, completed }: { animeId: number; requestedReply?: ReplyTarget; close: () => void; completed: () => void }) {
@@ -83,23 +84,23 @@ function Composer({ animeId, requestedReply, close, completed }: { animeId: numb
     catch (error) { setError((error as Error).message); } finally { setSending(false); }
   }}>{reply && <div class="comment-reply-to">Ответ для {reply.name}<button type="button" aria-label="Отменить ответ" onClick={() => setReply(undefined)}><Icon name="close" size={16}/></button></div>}<label htmlFor="comment-draft">Твой комментарий<textarea ref={textarea} id="comment-draft" placeholder="Поделись впечатлениями. Сюжетные детали спрячь под спойлер." maxLength={10000} required value={text} disabled={sending} onInput={event => setText(event.currentTarget.value)} onKeyDown={event => { if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') form.current?.requestSubmit(); }}/></label><p class="draft-note">{stored.current.text ? 'Черновик восстановлен' : 'Черновик сохранится, если закрыть этот экран'}</p></form></Sheet>;
 }
-export function Comments({ animeId }: { animeId: number }) {
-  const session = useSession(); return <CommentsContent key={session?.token || 'guest'} animeId={animeId}/>;
+export function Comments({ animeId, returnTo }: { animeId: number; returnTo?:string }) {
+  const session = useSession(); return <CommentsContent key={session?.token || 'guest'} animeId={animeId} returnTo={returnTo}/>;
 }
-function CommentsContent({ animeId }: { animeId: number }) {
+function CommentsContent({ animeId, returnTo }: { animeId: number; returnTo?:string }) {
   const session = useSession();
   const [sort, setSort] = useState('new'); const [revision, setRevision] = useState(0);
   const [compose, setCompose] = useState(false); const [reply, setReply] = useState<ReplyTarget>(); const [thread, setThread] = useState<YaniComment>();
   const [extra, setExtra] = useState<YaniComment[]>([]); const [loadingMore, setLoadingMore] = useState(false); const [moreError, setMoreError] = useState(''); const [moreEnd, setMoreEnd] = useState(false);
   const generation = useRef(0);
-  const resource = useResource(signal => getComments(animeId, sort, 0, signal), [animeId, sort, revision]);
+  const resource = useResource(signal => getComments(animeId, sort, 0, signal), [animeId, sort, revision,session?.token,session?.verified],()=>peekComments(animeId,sort,0));
   const comments = [...(resource.value?.data.comments || []), ...extra];
-  const loginHref = `#/account?next=${encodeURIComponent(`/anime/${animeId}?view=comments`)}`;
+  const loginHref = `#/account?next=${encodeURIComponent(returnTo||`/anime/${animeId}?view=comments`)}`;
   const respond = (comment: YaniComment, root: number) => {
     if (!session?.verified) { location.hash = loginHref.slice(1); return; }
     setReply({ parent: root, id: comment.id, name: comment.name }); setCompose(true);
   };
-  return <section class="comments-section"><div class="discussion-header"><div><h2>Обсуждение</h2><p>Без спойлеров — до твоего нажатия</p></div><select aria-label="Сортировка комментариев" value={sort} onChange={event => { generation.current++; setSort(event.currentTarget.value); setExtra([]); setMoreEnd(false); setLoadingMore(false); }}><option value="new">Новые</option><option value="nice">Лучшие</option><option value="old">Старые</option></select></div>
+  return <section class="comments-section"><div class="discussion-header"><div><h2>Обсуждение</h2><p>Без спойлеров — до твоего нажатия</p></div><Select aria-label="Сортировка комментариев" value={sort} onChange={event => { generation.current++; setSort(event.currentTarget.value); setExtra([]); setMoreEnd(false); setLoadingMore(false); }}><option value="new">Новые</option><option value="nice">Лучшие</option><option value="old">Старые</option></Select></div>
     {resource.loading ? <div class="comment-loading" role="status" aria-label="Загрузка комментариев">{[1,2,3].map(value => <div key={value} class="comment-skeleton"><div class="skeleton"/><div><div class="skeleton line"/><div class="skeleton line"/><div class="skeleton line short"/></div></div>)}</div> : resource.error ? <div class="account-error" role="alert">{resource.error}<button class="text-link" onClick={resource.retry}>Повторить</button></div> : <>{comments.map(comment => <CommentItem key={`${comment.id}:${revision}`} comment={comment} reply={respond} openThread={setThread}/>)}{!comments.length && <div class="discussion-empty"><Icon name="comment" size={35}/><h3>Пока тихо</h3><p>Начни обсуждение этого аниме.</p></div>}{!moreEnd && (resource.value?.data.comments.length || 0) >= 20 && <div class="load-more"><button class="button secondary" disabled={loadingMore} onClick={async () => {
       setLoadingMore(true); setMoreError(''); const version = generation.current;
       try { const result = await getComments(animeId, sort, comments.length); if (generation.current !== version) return; setExtra(previous => [...previous, ...result.data.comments.filter(comment => !comments.some(existing => existing.id === comment.id))]); setMoreEnd(result.data.comments.length < 20); }

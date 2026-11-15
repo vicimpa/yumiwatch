@@ -1,0 +1,23 @@
+{
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "YummyWatch",
+        "width": 1280,
+        "height": 820,
+        "minWidth": 720,
+        "minHeight": 480,
+        "center": true,
+        "backgroundColor": "#00000000",
+        "transparent": true,
+        "windowEffects": { "effects": ["sidebar"], "state": "active" },
+        "theme": "Dark",
+        "decorations": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "trafficLightPosition": { "x": 16, "y": 18 }
+      }
+    ]
+  }
+}

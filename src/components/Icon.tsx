@@ -1,6 +1,13 @@
 import type { JSX } from 'preact';
-export type IconName = 'home' | 'search' | 'grid' | 'calendar' | 'heart' | 'settings' | 'download' | 'arrow' | 'back' | 'play' | 'close' | 'check' | 'chevron' | 'filter' | 'clock' | 'external' | 'wifi' | 'refresh' | 'spark' | 'sun' | 'trash' | 'bookmark' | 'comment' | 'list';
+export type IconName = 'home' | 'search' | 'grid' | 'calendar' | 'heart' | 'settings' | 'download' | 'arrow' | 'back' | 'play' | 'close' | 'check' | 'chevron' | 'filter' | 'clock' | 'external' | 'wifi' | 'refresh' | 'spark' | 'sun' | 'trash' | 'bookmark' | 'comment' | 'list' | 'pause' | 'volume' | 'volumeOff' | 'fullscreen' | 'minimize' | 'skipNext' | 'skipBack';
 const paths: Record<IconName, JSX.Element> = {
+  pause: <><path d="M8 5v14M16 5v14" stroke-width="4"/></>,
+  volume: <><path d="m11 4-6 5H2v6h3l6 5ZM15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/></>,
+  volumeOff: <><path d="m11 4-6 5H2v6h3l6 5ZM16 9l6 6m0-6-6 6"/></>,
+  fullscreen: <path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>,
+  minimize: <path d="M3 8h5V3m8 0v5h5M8 21v-5H3m18 0h-5v5"/>,
+  skipNext: <><path d="m5 5 11 7L5 19Z" fill="currentColor" stroke="none"/><path d="M19 5v14"/></>,
+  skipBack: <><path d="m19 5-11 7 11 7Z" fill="currentColor" stroke="none"/><path d="M5 5v14"/></>,
   list: <><path d="M8 5h13M8 12h13M8 19h13"/><path d="M3 5h.01M3 12h.01M3 19h.01" stroke-width="3"/></>,
   comment: <path d="M21 11a8 8 0 0 1-8 8H6l-4 3 1-7a8 8 0 0 1-1-4 9 9 0 0 1 19 0Z"/>,
   home: <><path d="m3 10 9-7 9 7v9a2 2 0 0 1-2 2h-4v-7H9v7H5a2 2 0 0 1-2-2z" /></>,

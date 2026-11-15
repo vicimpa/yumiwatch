@@ -33,7 +33,7 @@ describe('mobile watch flow', () => {
   });
   it('preloads the iframe without an extra Play screen and records only playback', async () => {
     const { container } = render(<Player anime={anime}/>);
-    await screen.findByRole('button', { name: 'Серия 1' });
+    await screen.findByRole('button', { name: /Все серии/ });
     const frame = container.querySelector('iframe')!;
     expect(frame.src).toContain('/AniLibria/1/1');
     expect(screen.queryByRole('button', { name: 'Смотреть серию 1' })).toBeNull();
@@ -48,7 +48,7 @@ describe('mobile watch flow', () => {
   });
   it('keeps the selected episode while changing dubbing with separate controls', async () => {
     const { container } = render(<Player anime={anime}/>);
-    await screen.findByRole('button', { name: 'Серия 2' });
+    fireEvent.click(await screen.findByRole('button', { name: /Все серии/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Серия 2' }));
     fireEvent.change(screen.getByRole('combobox', { name: 'Озвучка' }), { target: { value: 'AniDub' } });
     await waitFor(() => expect(container.querySelector('iframe')?.src).toContain('/AniDub/1/2'));
@@ -56,6 +56,7 @@ describe('mobile watch flow', () => {
   });
   it('shows actual episode screenshots with watched progress', async () => {
     render(<Player anime={{ ...anime, random_screenshots: [{ episode: '2', time: 200, sizes: { small: 'https://static.yani.tv/frame.webp', full: 'https://static.yani.tv/frame.avif' } }] }} history={{ anime, episode: '2', videoId: video('2').video_id, group: '', updatedAt: Date.now(), position: 120, duration: 1400 }}/>);
+    fireEvent.click(await screen.findByRole('button', { name: /Все серии/ }));
     const image = await screen.findByAltText('Кадр серии 2');
     expect(image.getAttribute('src')).toBe('https://static.yani.tv/frame.webp');
     expect(screen.getByText('Просмотрено 02:00')).toBeTruthy();
@@ -70,7 +71,7 @@ describe('mobile watch flow', () => {
     saveSession({ token: 'test-user', user: { id: 42, nickname: 'Viewer' }, remember: false, verified: true, refreshedAt: Date.now() });
     const fetcher = vi.fn().mockResolvedValueOnce(reply([video('1')])).mockImplementation(() => Promise.resolve(reply(true))); vi.stubGlobal('fetch', fetcher);
     const { container } = render(<Player anime={anime}/>);
-    await screen.findByRole('button', { name: 'Серия 1' });
+    await screen.findByRole('button', { name: /Все серии/ });
     const frame = container.querySelector('iframe')!;
     expect(fetcher).toHaveBeenCalledTimes(1);
     message(frame, { key: 'player_time_update', value: 999 }, 'https://attacker.example');
@@ -84,7 +85,7 @@ describe('mobile watch flow', () => {
     const current = { ...video('1'), iframe_url: 'https://player.aksor.tv/video/example' };
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(reply([current])));
     const { container } = render(<Player anime={anime} history={{ anime, episode: '1', videoId: current.video_id, group: '', updatedAt: Date.now(), position: 120, duration: 1400 }}/>);
-    await screen.findByRole('button', { name: 'Серия 1' });
+    await screen.findByRole('button', { name: /Все серии/ });
     const frame = container.querySelector('iframe')!;
     const send = vi.spyOn(frame.contentWindow!, 'postMessage');
     message(frame, { key: 'kodik_player_duration_update', value: 1400 });

@@ -1,0 +1,72 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      include_mobile:
+        description: Build signed Android/iOS packages (requires signing secrets)
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Require a version tag
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+        run: test "$REF_TYPE" = tag
+      - run: npm ci
+      - run: node scripts/check-release.mjs
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+      - run: npm test
+  builds:
+    needs: validate
+    uses: ./.github/workflows/build.yml
+    with:
+      release: true
+      mobile: ${{ inputs.include_mobile || false }}
+    secrets: inherit
+  publish:
+    needs: builds
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: installers-*
+          merge-multiple: true
+          path: release-assets
+      - name: Verify and publish all installers
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          cd release-assets
+          cat *-SHA256SUMS.txt > SHA256SUMS.txt
+          sha256sum --check SHA256SUMS.txt
+          if ! gh release view "$TAG" > /dev/null 2>&1; then
+            if [[ "$TAG" == *-* ]]; then
+              gh release create "$TAG" --verify-tag --draft --prerelease --notes-file ../.github/RELEASE_NOTES.md
+            else
+              gh release create "$TAG" --verify-tag --draft --notes-file ../.github/RELEASE_NOTES.md
+            fi
+          fi
+          gh release upload "$TAG" ./* --clobber
+          gh release edit "$TAG" --draft=false

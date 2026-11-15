@@ -5,16 +5,19 @@ import { Icon } from './Icon';
 let locks = 0;
 let previousBody = '';
 let previousRoot = '';
+let scrollElement:HTMLElement|null=null;
+let previousScrollOverflow='';
 export function lockPageScroll() {
   if (locks++ === 0) {
     previousBody = document.body.style.overflow; previousRoot = document.documentElement.style.overflow;
     document.body.style.overflow = 'hidden'; document.documentElement.style.overflow = 'hidden';
+    scrollElement=document.querySelector<HTMLElement>('#main.media-scroll');previousScrollOverflow=scrollElement?.style.overflow||'';if(scrollElement)scrollElement.style.overflow='hidden';
   }
   let released = false;
   return () => {
     if (released) return;
     released = true;
-    if (--locks === 0) { document.body.style.overflow = previousBody; document.documentElement.style.overflow = previousRoot; }
+    if (--locks === 0) { document.body.style.overflow = previousBody; document.documentElement.style.overflow = previousRoot;if(scrollElement)scrollElement.style.overflow=previousScrollOverflow;scrollElement=null; }
   };
 }
 export function Sheet({ title, subtitle, close, children, footer, actions, navigation, className = '' }: { title: string; subtitle?: string; close: () => void; children: ComponentChildren; footer?: ComponentChildren; actions?: ComponentChildren; navigation?: ComponentChildren; className?: string }) {

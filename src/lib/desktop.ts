@@ -1,0 +1,92 @@
+import { convertFileSrc, invoke, isTauri } from '@tauri-apps/api/core';
+import { getCurrentWindow } from '@tauri-apps/api/window';
+
+// Kept for existing IPC consumers: the Rust backend also runs on phones.
+export const isDesktop = () => isTauri();
+export interface DesktopInfo { platform: 'macos' | 'windows' | 'linux' | 'android' | 'ios' }
+export const isDesktopWindow = () => isDesktop() && !document.documentElement.dataset.mobile;
+let desktop: DesktopInfo | undefined;
+export function desktopMediaRoot() {
+  const url = new URL(convertFileSrc('', 'yumiwatch-media'));
+  return new URL(`${url.protocol}//${url.host}/`);
+}
+export const isDesktopMedia = (url: string) => isDesktop() && (url.startsWith('yumiwatch-media:') || /^https?:\/\/yumiwatch-media\.localhost\//.test(url));
+
+export async function initializeDesktop() {
+  if (!isDesktop()) return;
+  // Set the inset before the first paint, including the startup/error screen.
+  const mobile = /Android/i.test(navigator.userAgent) ? 'android' : /iPad|iPhone|iPod/i.test(navigator.userAgent) || navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1 ? 'ios' : undefined;
+  if (mobile) document.documentElement.dataset.mobile = mobile;
+  else document.documentElement.dataset.desktop = navigator.platform.startsWith('Mac') ? 'macos' : navigator.platform.startsWith('Win') ? 'windows' : 'linux';
+  desktop = await invoke<DesktopInfo>('desktop_info');
+  if (desktop.platform === 'android' || desktop.platform === 'ios') {
+    delete document.documentElement.dataset.desktop;
+    document.documentElement.dataset.mobile = desktop.platform;
+  } else {
+    delete document.documentElement.dataset.mobile;
+    document.documentElement.dataset.desktop = desktop.platform;
+  }
+  document.addEventListener('click', event => {
+    if (event.defaultPrevented || event.button !== 0) return;
+    const link = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>('a[href]') : null;
+    if (!link || link.hasAttribute('download')) return;
+    const url = new URL(link.href, location.href);
+    if (url.origin === location.origin && url.pathname === location.pathname) return;
+    event.preventDefault();
+    if (url.protocol !== 'https:') return;
+    void import('@tauri-apps/plugin-opener').then(({ openUrl }) => openUrl(url.href)).catch(() => {
+      window.dispatchEvent(new CustomEvent('yumiwatch:external-error'));
+    });
+  });
+}
+
+/** Keep API requests independent of WebView CORS policies. Rust accepts only api.yani.tv. */
+export async function apiFetch(url: string, options: RequestInit): Promise<Response> {
+  if (!isDesktop()) return fetch(url, options);
+  const parsed = new URL(url);
+  if (parsed.origin !== 'https://api.yani.tv') throw new Error('Некорректный адрес API.');
+  const result = await desktopInvoke<{ status: number; body: string }>('yani_request', { request: {
+    path: `${parsed.pathname}${parsed.search}`, method: options.method || 'GET',
+    headers: Object.fromEntries(new Headers(options.headers).entries()),
+    body: typeof options.body === 'string' ? options.body : null,
+  } }, options.signal);
+  return new Response([204,205,304].includes(result.status) ? null : result.body, { status: result.status, headers: { 'Content-Type': 'application/json' } });
+}
+
+export async function desktopInvoke<T>(command: string, args: Record<string, unknown>, signal?: AbortSignal | null): Promise<T> {
+  signal?.throwIfAborted();
+  let abort: (() => void) | undefined;
+  const cancelled = new Promise<never>((_, reject) => {
+    abort = () => reject(new DOMException('Aborted', 'AbortError'));
+    signal?.addEventListener('abort', abort, { once: true });
+  });
+  try {
+    return await Promise.race([invoke<T>(command, args), cancelled]);
+  } catch (error) {
+    // Tauri serializes Rust Result::Err(String) as a rejected string. Consumers
+    // expect Error.message; losing it leaves the player on an endless loader.
+    if (error instanceof Error || error instanceof DOMException) throw error;
+    throw new Error(typeof error === 'string' ? error : 'Не удалось выполнить запрос приложения.');
+  } finally { if (abort) signal?.removeEventListener('abort', abort); }
+}
+
+export const desktopFullscreen = () => document.documentElement.dataset.desktopFullscreen === 'true';
+export function syncDesktopFullscreen(fullscreen: boolean) {
+  document.documentElement.dataset.desktopFullscreen = String(fullscreen);
+  window.dispatchEvent(new Event('yumiwatch:fullscreen'));
+}
+let fullscreenChange: Promise<void> | undefined;
+/** One window owns fullscreen across every route and player. */
+export function toggleDesktopFullscreen(): Promise<void> {
+  if (!isDesktopWindow()) return Promise.resolve();
+  return fullscreenChange ??= (async () => {
+    const appWindow = getCurrentWindow();
+    const fullscreen = !await appWindow.isFullscreen();
+    await appWindow.setFullscreen(fullscreen);
+    syncDesktopFullscreen(fullscreen);
+  })().finally(() => { fullscreenChange = undefined; });
+}
+export async function exitPlayerFullscreen() {
+  // Browser fullscreen belongs to the player; desktop fullscreen belongs to the app.
+  if (!isDesktopWindow() && document.fullscreenElement) await document.exitFullscreen();
+}

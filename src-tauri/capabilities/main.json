@@ -1,0 +1,18 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main",
+  "description": "Local application window and HTTPS links in the system browser",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-close",
+    "core:window:allow-set-fullscreen",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [{ "url": "https://*" }]
+    }
+  ]
+}

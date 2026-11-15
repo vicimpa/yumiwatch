@@ -1,3 +1,6 @@
+import { beforeEach } from 'vitest';
+import { resetMemoryCache } from '../src/lib/cache-store';
+beforeEach(()=>{resetMemoryCache();});
 import { JSDOM } from 'jsdom';
 // Node 26 exposes an unavailable native localStorage without a storage file.
 // Use an actual DOM Storage implementation consistently on Node 22 and 26.

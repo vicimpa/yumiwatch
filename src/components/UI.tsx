@@ -1,7 +1,9 @@
+import { CachedImage } from './CachedImage';
 import { useEffect, useState } from 'preact/hooks';
 import type { ComponentChildren } from 'preact';
 import { Icon } from './Icon';
 import { imageUrl } from '../lib/api';
+import { subscribeImage } from '../lib/image-cache';
 import { toggleFavorite } from '../lib/library';
 import { useLibrary } from '../lib/hooks';
 import type { Anime } from '../lib/types';
@@ -20,12 +22,14 @@ export function Toast() {
 export function Avatar({ url, name }: { url?: string; name: string }) {
   const src = imageUrl(url);
   const [failed, setFailed] = useState('');
-  return src && failed !== src ? <img src={src} alt="" decoding="async" onError={() => setFailed(src)}/> : <span>{name.trim().slice(0, 1).toLocaleUpperCase() || '?'}</span>;
+  useEffect(()=>subscribeImage(src,()=>setFailed('')),[src]);
+  return src && failed !== src ? <CachedImage src={src} alt="" decoding="async" onError={() => setFailed(src)}/> : <span>{name.trim().slice(0, 1).toLocaleUpperCase() || '?'}</span>;
 }
 export function Poster({ anime, large = false }: { anime: Anime; large?: boolean }) {
-  const [broken, setBroken] = useState(false);
+  const [broken, setBroken] = useState('');
   const url = imageUrl(large ? anime.poster?.huge || anime.poster?.big || anime.poster?.medium : anime.poster?.big || anime.poster?.medium);
-  return url && !broken ? <img src={url} alt={anime.title} loading={large ? 'eager' : 'lazy'} decoding="async" onError={() => setBroken(true)} /> : <div class="poster-fallback"><Icon name="spark" size={32}/><span>{anime.title}</span></div>;
+  useEffect(()=>subscribeImage(url,()=>setBroken('')),[url]);
+  return url && broken !== url ? <CachedImage src={url} alt={anime.title} loading={large ? 'eager' : 'lazy'} decoding="async" onError={() => setBroken(url)} /> : <div class="poster-fallback"><Icon name="spark" size={32}/><span>{anime.title}</span></div>;
 }
 export function FavoriteButton({ anime, compact = false }: { anime: Anime; compact?: boolean }) {
   const library = useLibrary();
@@ -36,21 +40,21 @@ export function FavoriteButton({ anime, compact = false }: { anime: Anime; compa
     try { const added = await toggleFavorite(anime); notify(added ? 'Добавлено в твою коллекцию' : 'Удалено из избранного'); } catch (error) { notify((error as Error).message); } finally { setBusy(false); }
   }}><Icon name={favorite ? 'check' : 'bookmark'} size={compact ? 17 : 19}/>{!compact && (favorite ? 'В избранном' : 'В избранное')}</button>;
 }
-export function AnimeCard({ anime, rank }: { anime: Anime; rank?: number }) {
+export function AnimeCard({ anime, rank, onOpen, onFocus, onPreview }: { anime: Anime; rank?: number; onOpen?: () => void; onFocus?: () => void; onPreview?: () => void }) {
   const score = anime.rating?.average;
-  return <article class="anime-card">
-    <div class="card-image"><a href={`#/anime/${anime.anime_id}`} tabIndex={-1} aria-hidden="true"><Poster anime={anime}/><span class="poster-play"><Icon name="play" size={28}/></span></a>
+  return <article class="anime-card" data-gallery-item onFocusIn={onFocus} onPointerEnter={onPreview}>
+    <div class="card-image"><a href={`#/anime/${anime.anime_id}?view=anime-about`} onClick={onOpen} tabIndex={-1} aria-hidden="true"><Poster anime={anime}/><span class="poster-play"><Icon name="play" size={28}/></span></a>
       {!!score && <span class="score">★ {score.toFixed(1)}</span>}<FavoriteButton anime={anime} compact/>
       {anime.anime_status?.alias === 'ongoing' && <span class="ongoing-label"><span/>Онгоинг</span>}
     </div>
-    <div class="card-caption">{rank && <span class="rank">{String(rank).padStart(2, '0')}</span>}<div><a class="card-title" href={`#/anime/${anime.anime_id}`}>{anime.title}</a><p>{[anime.year, anime.type?.shortname || anime.type?.name].filter(Boolean).join(' · ')}{anime.episodes?.aired ? ` · ${anime.episodes.aired} сер.` : ''}</p></div></div>
+    <div class="card-caption">{rank && <span class="rank">{String(rank).padStart(2, '0')}</span>}<div><h3><a data-gallery-link class="card-title" href={`#/anime/${anime.anime_id}?view=anime-about`} onClick={onOpen}>{anime.title}</a></h3><p>{[anime.year, anime.type?.shortname || anime.type?.name].filter(Boolean).join(' · ')}{anime.episodes?.aired ? ` · ${anime.episodes.aired} сер.` : ''}</p></div></div>
   </article>;
 }
 export function AnimeRow({ anime, onOpen }: { anime: Anime; onOpen?: () => void }) {
-  return <article class="anime-result-row"><a class="result-main" href={`#/anime/${anime.anime_id}`} onClick={onOpen}><div class="result-poster"><Poster anime={anime}/></div><div class="result-copy"><h2>{anime.title}</h2><p>{[anime.year, anime.type?.shortname || anime.type?.name, anime.episodes?.aired ? `${anime.episodes.aired} сер.` : ''].filter(Boolean).join(' · ')}</p><div class="result-bottom">{anime.rating?.average ? <span class="result-rating">★ {anime.rating.average.toFixed(1)}</span> : null}<span>{anime.anime_status?.title}</span></div></div></a><FavoriteButton anime={anime} compact/></article>;
+  return <article class="anime-result-row"><a class="result-main" href={`#/anime/${anime.anime_id}?view=anime-about`} onClick={onOpen}><div class="result-poster"><Poster anime={anime}/></div><div class="result-copy"><h2>{anime.title}</h2><p>{[anime.year, anime.type?.shortname || anime.type?.name, anime.episodes?.aired ? `${anime.episodes.aired} сер.` : ''].filter(Boolean).join(' · ')}</p><div class="result-bottom">{anime.rating?.average ? <span class="result-rating">★ {anime.rating.average.toFixed(1)}</span> : null}<span>{anime.anime_status?.title}</span></div></div></a><FavoriteButton anime={anime} compact/></article>;
 }
-export function Skeleton({ count = 6 }: { count?: number }) {
-  return <div class="anime-grid" role="status" aria-label="Загрузка аниме">{Array.from({ length: count }, (_, i) => <div class="skeleton-card" key={i}><div class="skeleton poster-skeleton"/><div class="skeleton line"/><div class="skeleton line short"/></div>)}</div>;
+export function Skeleton({ count = 6, gallery=false }: { count?: number;gallery?:boolean }) {
+  return <div class={`anime-grid ${gallery?'gallery-grid':''}`} role="status" aria-label="Загрузка аниме">{Array.from({ length: count }, (_, i) => <div class="skeleton-card" key={i}><div class="skeleton poster-skeleton"/><div class="skeleton line"/><div class="skeleton line short"/></div>)}</div>;
 }
 export function Empty({ icon = 'search', title, children, action }: { icon?: 'search' | 'heart' | 'calendar' | 'wifi' | 'clock'; title: string; children: ComponentChildren; action?: ComponentChildren }) {
   return <div class="empty-state"><span class="empty-icon"><Icon name={icon} size={30}/></span><h2>{title}</h2><p>{children}</p>{action}</div>;

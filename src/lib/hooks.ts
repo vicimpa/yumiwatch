@@ -1,23 +1,31 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { flushSync } from 'preact/compat';
+import { interfaceSettings, INTERFACE_EVENT } from './interface-settings';
+import { pageDirection, pageSlide } from './page-transitions';
+import { rememberPageScroll, restorePageScroll } from './page-scroll';
 import { ApiError } from './api';
 import { LIBRARY_EVENT } from './storage';
 import { getLibraryState } from './library';
 import { getSession, restoreStoredSession, SESSION_EVENT, SESSION_KEY } from './session';
 import type { Result } from './types';
+import { beginImageRefresh } from './image-cache';
 
-export function useResource<T>(loader: (signal: AbortSignal) => Promise<Result<T>>, deps: unknown[]) {
-  const [value, setValue] = useState<Result<T>>();
+export function useResource<T>(loader: (signal: AbortSignal) => Promise<Result<T>>, deps: unknown[],peek?:()=>Result<T>|undefined) {
+  const [value, setValue] = useState<Result<T>|undefined>(()=>peek?.());
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!value);
   const [revision, setRevision] = useState(0);
-  const [refreshing, setRefreshing] = useState(false);
+  const [refreshing, setRefreshing] = useState(!!value);
   const previousDeps = useRef<unknown[]>(); const latest = useRef(value); latest.current = value;
+  const different=!!previousDeps.current&&deps.some((dep,index)=>!Object.is(dep,previousDeps.current![index]));
+  const visible=different?peek?.():value;
   useEffect(() => {
     const controller = new AbortController();
     const changed = !previousDeps.current || deps.some((dep, index) => !Object.is(dep, previousDeps.current![index]));
     previousDeps.current = [...deps];
-    setError(''); setRefreshing(!changed && !!latest.current); setLoading(changed || !latest.current);
-    if (changed) setValue(undefined);
+    const seed=changed?peek?.():latest.current;
+    setError(''); setRefreshing(!!seed); setLoading(!seed);
+    if (changed) setValue(seed);
     void (async () => {
       try {
         const result = await loader(controller.signal);
@@ -35,7 +43,7 @@ export function useResource<T>(loader: (signal: AbortSignal) => Promise<Result<T
     })();
     return () => controller.abort();
   }, [...deps, revision]);
-  return { value, error, loading, refreshing, retry: () => setRevision(n => n + 1) };
+  return { value:visible, error:different?'':error, loading:different?!visible:loading, refreshing, retry: () => setRevision(n => n + 1) };
 }
 
 export function useLibrary() {
@@ -45,6 +53,7 @@ export function useLibrary() {
     window.addEventListener(LIBRARY_EVENT, update);
     window.addEventListener(SESSION_EVENT, update);
     window.addEventListener('storage', update);
+    update(); // A fast account restore may finish between render and subscribing.
     return () => { window.removeEventListener(LIBRARY_EVENT, update); window.removeEventListener(SESSION_EVENT, update); window.removeEventListener('storage', update); };
   }, []);
   return library;
@@ -55,6 +64,7 @@ export function useSession() {
     const update = () => setSession(getSession());
     const storage = (event: StorageEvent) => { if (event.key === SESSION_KEY || event.key === null) restoreStoredSession(); };
     window.addEventListener(SESSION_EVENT, update); window.addEventListener('storage', storage);
+    update();
     return () => { window.removeEventListener(SESSION_EVENT, update); window.removeEventListener('storage', storage); };
   }, []);
   return session;
@@ -70,26 +80,57 @@ export function useMediaQuery(query: string) {
   }, [query]);
   return matches;
 }
-const scrollPositions = new Map<string, number>();
 export function useHash() {
   const [path, setPath] = useState(() => location.hash.slice(1) || '/');
   const current = useRef(path);
+  const cancelScrollRestore=useRef<()=>void>(()=>{});
   useEffect(() => {
     const previousRestoration = history.scrollRestoration;
     history.scrollRestoration = 'manual';
-    const update = (event: HashChangeEvent) => {
-      const previous = new URL(event.oldURL).hash.slice(1) || current.current;
-      scrollPositions.set(previous, window.scrollY);
-      if (scrollPositions.size > 50) scrollPositions.delete(scrollPositions.keys().next().value!);
-      current.current = location.hash.slice(1) || '/'; setPath(current.current);
+    let sequence = 0, transition: ViewTransition | undefined, arrival: Animation | undefined, arrivalFrame = 0;
+    const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+    const motion = () => interfaceSettings().animations && !reducedMotion?.matches;
+    const update = () => {
+      beginImageRefresh();
+      const navigation = ++sequence;
+      transition?.skipTransition(); arrival?.cancel(); arrival = undefined; cancelAnimationFrame(arrivalFrame); delete document.documentElement.dataset.pageFallback;
+      rememberPageScroll(current.current);cancelScrollRestore.current();
+      const next = location.hash.slice(1) || '/', direction = pageDirection(current.current, next), animate = !!direction && motion();
+      if (direction) document.documentElement.dataset.pageDirection = direction;
+      const commit = () => {
+        // A skipped transition still runs its callback; only the latest navigation may commit.
+        if (navigation !== sequence) return;
+        current.current = next;
+        flushSync(() => setPath(next));
+        cancelScrollRestore.current=restorePageScroll(next);
+      };
+      if (animate && document.startViewTransition) {
+        try {
+          document.documentElement.dataset.pageTransition='active';
+          const active = document.startViewTransition(commit); transition = active;
+          void active.ready.catch(() => {});
+          void active.finished.catch(() => {}).then(() => { if (transition === active) { transition = undefined; delete document.documentElement.dataset.pageTransition; } });
+          return;
+        } catch { delete document.documentElement.dataset.pageTransition; /* Older browsers still navigate and slide in the new screen. */ }
+      }
+      commit();
+      if (animate) arrivalFrame = requestAnimationFrame(() => {
+        const element = document.querySelector<HTMLElement>('.media-workspace') || document.getElementById('main');
+        if (navigation !== sequence || !motion() || !element?.animate) return;
+        document.documentElement.dataset.pageFallback = 'active';
+        const active = element.animate([{ transform: pageSlide(direction!) }, { transform: 'none' }], { duration: 280, easing: 'cubic-bezier(.25,.85,.25,1)' });
+        arrival = active;
+        void active.finished.catch(() => {}).then(() => { if (arrival === active) { arrival = undefined; delete document.documentElement.dataset.pageFallback; } });
+      });
     };
-    window.addEventListener('hashchange', update);
-    return () => { window.removeEventListener('hashchange', update); history.scrollRestoration = previousRestoration; };
+    const stopMotion = () => { if (!motion()) { transition?.skipTransition(); arrival?.cancel(); delete document.documentElement.dataset.pageFallback; } };
+    window.addEventListener('hashchange', update);window.addEventListener(INTERFACE_EVENT, stopMotion);reducedMotion?.addEventListener('change', stopMotion);
+    return () => { ++sequence; transition?.skipTransition(); arrival?.cancel(); cancelAnimationFrame(arrivalFrame); window.removeEventListener('hashchange', update);window.removeEventListener(INTERFACE_EVENT, stopMotion);reducedMotion?.removeEventListener('change', stopMotion);delete document.documentElement.dataset.pageFallback;delete document.documentElement.dataset.pageTransition; history.scrollRestoration = previousRestoration; };
   }, []);
   useLayoutEffect(() => {
-    const frame = requestAnimationFrame(() => window.scrollTo(0, scrollPositions.get(path) || 0));
-    return () => cancelAnimationFrame(frame);
-  }, [path]);
+    cancelScrollRestore.current=restorePageScroll(current.current);
+    return()=>cancelScrollRestore.current();
+  }, []);
   return path;
 }
 export function useVisualViewport() {

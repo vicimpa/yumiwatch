@@ -1,3 +1,4 @@
+import { confirmContinue, mergeContinueHistory, readContinueHistory, syncContinueHistory } from './continue-cache';
 import { yaniFetch } from './api';
 import { getSession } from './session';
 import { clearHistory as clearGuestHistory, LIBRARY_EVENT, readLibrary, recordWatch as recordGuestWatch, setAnimeList as setGuestList, toggleFavorite as toggleGuestFavorite } from './storage';
@@ -20,7 +21,8 @@ function stateFor(token: string) {
 }
 export function getLibraryState(): LibraryState {
   const session = getSession();
-  return session ? stateFor(session.token) : { ...readLibrary(), account: false, loading: false, error: '', syncedAt: 0, hasMore: false, loadingMore: false };
+  const state=session?stateFor(session.token):undefined;
+  return state ? {...state,history:mergeContinueHistory(readContinueHistory(),state.history)} : { ...readLibrary(), account: false, loading: false, error: '', syncedAt: 0, hasMore: false, loadingMore: false };
 }
 export function resetAccountLibrary() { owner = ''; accountState = emptyState(); historyOffset = 0; revision++; emit(); }
 export function normalizeAnime(value: RemoteAnime): Anime {
@@ -52,6 +54,7 @@ export function syncLibrary(): Promise<void> {
       if (!Array.isArray(animes) || !Array.isArray(history)) throw new Error('Yani вернул неожиданный формат коллекции.');
       if (revision === capturedRevision) {
         accountState = { favorites: animes.filter(value => value.user?.list?.is_fav).map(normalizeAnime), lists: Object.fromEntries(WATCH_LISTS.map(({ id }) => [id, animes.filter(value => value.user?.list?.list?.id === id).map(normalizeAnime)])), history: normalizeHistory(history), account: true, loading: false, error: '', syncedAt: Date.now(), hasMore: history.length === 100, loadingMore: false };
+        accountState.history=syncContinueHistory(accountState.history,token);
         historyOffset = history.length;
       }
     } catch (error) {
@@ -78,6 +81,7 @@ export async function loadMoreHistory() {
     const entries = normalizeHistory(values);
     const ids = new Set(accountState.history.map(entry => entry.anime.anime_id));
     accountState.history.push(...entries.filter(entry => !ids.has(entry.anime.anime_id)));
+    accountState.history=syncContinueHistory(accountState.history,session.token);
     historyOffset += values.length; accountState.hasMore = values.length === 100;
   } catch (error) { if (owner === session.token) accountState.error = (error as Error).message; }
   finally { if (owner === session.token) { accountState.loadingMore = false; emit(); } }
@@ -114,6 +118,7 @@ export async function recordWatch(anime: Anime, video: Video, group: string, pos
   const same = previous?.videoId === video.video_id || (!previous?.videoId && previous?.episode === video.number);
   const time = Math.floor(Math.max(0, position ?? video.watched?.end_time ?? (same ? previous?.position : 0) ?? 0));
   const length = Math.floor(Math.max(0, duration ?? video.duration ?? (same ? previous?.duration : 0) ?? 0));
+  const recordedAt=Date.now();
   const queueKey = `${session.token}:${anime.anime_id}`;
   const previousWrite = watchQueues.get(queueKey) || Promise.resolve();
   const write = previousWrite.catch(() => {}).then(async () => {
@@ -122,7 +127,8 @@ export async function recordWatch(anime: Anime, video: Video, group: string, pos
     if (success !== true) throw new Error('Yani не подтвердил сохранение просмотра.');
     if (getSession()?.token !== session.token || owner !== session.token) return;
     revision++;
-    accountState.history = [{ anime, videoId: video.video_id, episode: video.number, group, updatedAt: Date.now(), position: time, duration: length, preview: anime.random_screenshots?.find(frame => frame.episode === video.number)?.sizes.small }, ...accountState.history.filter(entry => entry.anime.anime_id !== anime.anime_id)];
+    accountState.history = [{ anime, videoId: video.video_id, episode: video.number, group, updatedAt: recordedAt, position: time, duration: length, preview: anime.random_screenshots?.find(frame => frame.episode === video.number)?.sizes.small }, ...accountState.history.filter(entry => entry.anime.anime_id !== anime.anime_id)];
+    confirmContinue(accountState.history[0],session.token);
     emit();
   });
   watchQueues.set(queueKey, write);

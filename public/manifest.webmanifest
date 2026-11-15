@@ -1,7 +1,7 @@
 {
   "id": "./",
-  "name": "YumiWatch — аниме под рукой",
-  "short_name": "YumiWatch",
+  "name": "YummyWatch — аниме под рукой",
+  "short_name": "YummyWatch",
   "description": "Мобильный клиент YummyAnime: каталог, просмотр и личная коллекция.",
   "lang": "ru",
   "start_url": "./",

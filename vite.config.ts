@@ -6,8 +6,10 @@ import { resolve } from 'node:path';
 
 export default defineConfig({
   base: process.env.BASE_PATH || '/',
+  clearScreen: false,
+  server: { watch: { ignored: ['**/src-tauri/**'] } },
   plugins: [preact(), {
-    name: 'yumiwatch-pwa',
+    name: 'yummywatch-pwa',
     apply: 'build',
     async closeBundle() {
       const dir = resolve('dist');

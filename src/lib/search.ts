@@ -1,4 +1,14 @@
 import { readJSON, writeJSON } from './storage';
+
+// Search terms (titles, studios, episode numbers) must reach us unchanged.
+export const SEARCH_INPUT_PROPS = {
+  autoComplete: 'off',
+  autoCorrect: 'off',
+  autoCapitalize: 'none',
+  spellcheck: false,
+  writingsuggestions: 'false',
+} as const;
+
 const KEY = 'yumiwatch:recent-searches';
 export function recentSearches(): string[] {
   const values = readJSON<unknown>(KEY, []);

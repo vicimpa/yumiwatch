@@ -8,6 +8,12 @@ const reply = (response: unknown) => new Response(JSON.stringify({ response }));
 beforeEach(() => { clearSession(); localStorage.clear(); sessionStorage.clear(); });
 afterEach(() => { clearSession(); vi.unstubAllGlobals(); });
 describe('YummyAnime accounts', () => {
+  it.each([403,429,500])('does not erase a remembered session after a temporary/permission profile error %s',async status=>{
+    saveSession({token:'saved-token',user:{id:42,nickname:'Viewer'},remember:true,refreshedAt:Date.now(),verified:false});
+    vi.stubGlobal('fetch',vi.fn().mockResolvedValue(new Response(JSON.stringify({error:'unavailable'}),{status})));
+    await expect(initializeAccount()).rejects.toMatchObject({status});expect(getSession()?.token).toBe('saved-token');
+    expect(localStorage.getItem(SESSION_KEY)).toContain('saved-token');
+  });
   it('logs in directly, verifies the profile, and keeps only a session token by default', async () => {
     const fetcher = vi.fn().mockResolvedValueOnce(reply({ success: true, token: 'user-token' })).mockResolvedValueOnce(reply({ id: 42, nickname: 'Viewer', avatars: { small: '//static.yani.tv/avatar.jpg' }, about: 'private field' }));
     vi.stubGlobal('fetch', fetcher);

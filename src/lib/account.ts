@@ -1,5 +1,5 @@
 import { ApiError, yaniFetch } from './api';
-import { clearSession, getSession, saveSession, type AccountUser } from './session';
+import { clearSession, getSession, persistSession, type AccountUser } from './session';
 
 function profileUser(value: { id: number; nickname: string; avatars?: { small?: string } }): AccountUser {
   if (!Number.isInteger(value?.id) || typeof value.nickname !== 'string') throw new Error('Yani вернул неожиданный профиль.');
@@ -10,7 +10,7 @@ export async function loginAccount(login: string, password: string, remember: bo
   if (!response?.success || !response.token) throw new Error('Yani не подтвердил вход. Проверь данные и попробуй снова.');
   const profile = await yaniFetch<Parameters<typeof profileUser>[0]>('/profile', { token: response.token, signal });
   if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-  saveSession({ token: response.token, user: profileUser(profile), remember, refreshedAt: Date.now(), verified: true });
+  await persistSession({ token: response.token, user: profileUser(profile), remember, refreshedAt: Date.now(), verified: true });
 }
 let restoring: Promise<void> | undefined;
 export function initializeAccount() {
@@ -27,9 +27,9 @@ export function initializeAccount() {
         const refresh = await yaniFetch<{ token: string }>('/profile/token', { token });
         if (refresh?.token) { token = refresh.token; refreshedAt = Date.now(); }
       }
-      if (getSession()?.token === session.token) saveSession({ ...session, token, refreshedAt, user: profileUser(profile), verified: true });
+      if (getSession()?.token === session.token) await persistSession({ ...session, token, refreshedAt, user: profileUser(profile), verified: true });
     } catch (error) {
-      if (error instanceof ApiError && [401, 403].includes(error.status)) clearSession(session.token);
+      if (error instanceof ApiError && error.status===401) clearSession(session.token);
       throw error;
     } finally { restoring = undefined; }
   })();

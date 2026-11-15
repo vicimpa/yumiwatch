@@ -11,7 +11,7 @@ function worker() {
   const caches = { open: vi.fn().mockImplementation(async (name: string) => cacheFor(name)), match: vi.fn().mockResolvedValue(new Response('offline shell')), keys: vi.fn().mockResolvedValue(['yumiwatch-old', 'yumiwatch-posters-v1', 'yumiwatch-avatars-v1', 'other-app']), delete: vi.fn().mockResolvedValue(true) };
   const self = { location: { href: 'https://example.github.io/yumiwatch/sw.js' }, addEventListener: (name: string, cb: (event: any) => void) => { handlers[name] = cb; }, clients: { claim: vi.fn() }, skipWaiting: vi.fn() };
   const fetcher = vi.fn().mockRejectedValue(new TypeError('offline'));
-  vm.runInNewContext(readFileSync('src/sw.js', 'utf8').replace('__VERSION__', 'test').replace('__PRECACHE__', '["index.html", "assets/app.js", "manifest.webmanifest"]'), { self, caches, fetch: fetcher, URL, Response, Promise });
+  vm.runInNewContext(readFileSync('src/sw.js', 'utf8').replace('__VERSION__', 'test').replace('__PRECACHE__', '["index.html", "assets/app.js", "manifest.webmanifest", "assets/shaka-player.compiled.js"]'), { self, caches, fetch: fetcher, URL, Response, Promise });
   return { handlers, cache, posters, avatars, caches, fetcher, self };
 }
 describe('service worker on project Pages', () => {

@@ -1,10 +1,19 @@
-import { readJSON, writeJSON, TOKEN_KEY } from './storage';
+import { TOKEN_KEY } from './storage';
+import { getCache,putCache,deleteCache,dataRequests,cacheGeneration,resetRequests } from './cache-store';
+import { normalizeImage,primeImages } from './image-cache';
 import type { Anime, Params, Result, Video } from './types';
 import { clearSession, getSession } from './session';
+import { apiFetch } from './desktop';
 
 export const API_URL = 'https://api.yani.tv';
-const CACHE_KEY = 'yumiwatch:api:v1';
-type Cache = Record<string, { data: unknown; savedAt: number }>;
+const pending=dataRequests;
+interface CacheOptions {token?:string}
+function keyFor(path:string,params:Params,options:CacheOptions={}){
+ const query=new URLSearchParams(makeQuery(params));query.sort();
+ let scope='';if(options.token){let hash=2166136261;for(const char of options.token)hash=Math.imul(hash^char.charCodeAt(0),16777619);scope=`account:${getSession()?.user.id||'session'}:${hash>>>0}:`;}
+ return `${scope}${path}?${query}`;
+}
+export function resetPendingRequests(){resetRequests();}
 export class ApiError extends Error {
   constructor(message: string, public status: number, public code?: number) { super(message); }
 }
@@ -25,7 +34,7 @@ export async function yaniFetch<T>(path: string, options: { params?: Params; met
   const timeout = setTimeout(abort, 15000);
   try {
     const applicationToken = getToken();
-    const response = await fetch(`${API_URL}${path}?${makeQuery(params)}`, {
+    const response = await apiFetch(`${API_URL}${path}?${makeQuery(params)}`, {
       method, credentials: 'omit', cache: 'no-store', keepalive,
       headers: { Accept: 'application/json,image/avif,image/webp', Lang: 'ru', ...(applicationToken ? { 'X-Application': applicationToken } : {}), ...(accountToken ? { Authorization: `Yummy ${accountToken}` } : {}), ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
       body: body === undefined ? undefined : JSON.stringify(body), signal: controller.signal,
@@ -53,62 +62,74 @@ export async function yaniFetch<T>(path: string, options: { params?: Params; met
     signal?.removeEventListener('abort', abort);
   }
 }
-export async function request<T>(path: string, params: Params = {}, signal?: AbortSignal): Promise<Result<T>> {
-  const key = `${path}?${makeQuery(params)}`;
-  const cached = readJSON<Cache>(CACHE_KEY, {})[key];
-  try {
-    const data = await yaniFetch<T>(path, { params, signal });
-    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-    const entry = { data, savedAt: Date.now() };
-    const cache = readJSON<Cache>(CACHE_KEY, {});
-    cache[key] = entry;
-    const entries = Object.entries(cache).sort((a, b) => b[1].savedAt - a[1].savedAt).slice(0, 35);
-    writeJSON(CACHE_KEY, Object.fromEntries(entries));
-    return { ...entry, cached: false };
-  } catch (error) {
-    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-    if (cached && !(error instanceof ApiError && [401, 403, 404].includes(error.status))) return { data: cached.data as T, savedAt: cached.savedAt, cached: true };
-    if (error instanceof ApiError) {
-      if ([401, 403, 404].includes(error.status)) { const cache = readJSON<Cache>(CACHE_KEY, {}); delete cache[key]; writeJSON(CACHE_KEY, cache); }
-      throw error;
+function subscribe<T>(promise:Promise<T>,signal?:AbortSignal):Promise<T>{
+ if(!signal)return promise;
+ if(signal.aborted)return Promise.reject(new DOMException('Aborted','AbortError'));
+ return new Promise((resolve,reject)=>{
+  const abort=()=>{signal.removeEventListener('abort',abort);reject(new DOMException('Aborted','AbortError'));};
+  signal.addEventListener('abort',abort,{once:true});
+  void promise.then(value=>{signal.removeEventListener('abort',abort);if(!signal.aborted)resolve(value);},error=>{signal.removeEventListener('abort',abort);reject(error);});
+ });
+}
+export function peekRequest<T>(path:string,params:Params={},options:CacheOptions={}):Result<T>|undefined{
+ const saved=getCache<T>('data',keyFor(path,params,options));
+ return saved?{data:saved.data,savedAt:saved.savedAt,cached:true}:undefined;
+}
+export function request<T>(path:string,params:Params={},signal?:AbortSignal,options:CacheOptions={}):Promise<Result<T>>{
+ if(signal?.aborted)return Promise.reject(new DOMException('Aborted','AbortError'));
+ const key=keyFor(path,params,options);
+ let task=pending.get(key) as Promise<Result<T>>|undefined;
+ if(!task){
+  const generation=cacheGeneration;
+  task=(async()=>{
+   try{
+    // A screen leaving does not abort a shared refresh needed by another view.
+    const data=await yaniFetch<T>(path,{params,token:options.token});
+    const savedAt=Date.now();if(generation===cacheGeneration){
+     putCache('data',key,data,savedAt);primeImages(data);
+     if(!options.token&&Array.isArray(data))for(const value of data){
+      if(value&&Number.isInteger(value.anime_id)&&typeof value.title==='string'){
+       const entityKey=keyFor(`/anime/${value.anime_id}`,{}),previous=getCache<Anime>('data',entityKey)?.data;
+       if(!previous)putCache('data',entityKey,value,savedAt);
+      }
+     }
     }
-    throw new Error('Нет связи с Yani. Проверь интернет и попробуй снова.');
-  }
+    return {data,savedAt,cached:false};
+   }catch(error){
+    if(error instanceof ApiError&&[401,403,404].includes(error.status)){deleteCache('data',key);throw error;}
+    const cached=peekRequest<T>(path,params,options);if(cached)return cached;
+    throw error;
+   }
+  })();
+  pending.set(key,task);
+  const current=task;
+  void task.then(()=>{if(pending.get(key)===current)pending.delete(key);},()=>{if(pending.get(key)===current)pending.delete(key);});
+ }
+ return subscribe(task,signal);
 }
-export function cachedRequest<T>(path: string, params: Params = {}, signal?: AbortSignal): Promise<Result<T>> {
-  if (signal?.aborted) return Promise.reject(new DOMException('Aborted', 'AbortError'));
-  const cached = readJSON<Cache>(CACHE_KEY, {})[`${path}?${makeQuery(params)}`];
-  const revalidate = request<T>(path, params, signal);
-  if (!cached) return revalidate;
-  // Consumers can use the saved result immediately and observe the fresh result.
-  // Attach a rejection handler even when a one-shot consumer ignores revalidation.
-  void revalidate.catch(() => {});
-  return Promise.resolve({ data: cached.data as T, cached: true, savedAt: cached.savedAt, revalidate });
+export function cachedRequest<T>(path:string,params:Params={},signal?:AbortSignal,options:CacheOptions={}):Promise<Result<T>>{
+ if(signal?.aborted)return Promise.reject(new DOMException('Aborted','AbortError'));
+ const cached=peekRequest<T>(path,params,options),revalidate=request<T>(path,params,signal,options);
+ if(!cached)return revalidate;
+ void revalidate.catch(()=>{});
+ return Promise.resolve({...cached,revalidate});
 }
-export const animeList = async (params: Params, signal?: AbortSignal): Promise<Result<Anime[]>> => {
-  const query = { limit: 24, require_fields: 'genres,ep_count,description', ...params };
-  if (params.exclude_list) {
-    const session = getSession();
-    if (!session?.verified) throw new ApiError('Войди в аккаунт, чтобы фильтровать по своим спискам.', 401);
-    return { data: await yaniFetch<Anime[]>('/anime', { params: query, signal, token: session.token }), cached: false, savedAt: Date.now() };
-  }
-  return cachedRequest<Anime[]>('/anime', query, signal);
-};
-export const animeDetail = (id: string | number, signal?: AbortSignal) => request<Anime>(`/anime/${encodeURIComponent(id)}`, {}, signal);
-export const animeVideos = async (id: number, signal?: AbortSignal): Promise<Result<Video[]>> => {
-  const session = getSession();
-  if (!session?.verified) return request<Video[]>(`/anime/${id}/videos`, {}, signal);
-  const data = await yaniFetch<Video[]>(`/anime/${id}/videos`, { token: session.token, signal });
-  return { data, cached: false, savedAt: Date.now() };
-};
-export const animeSchedule = (signal?: AbortSignal) => request<Anime[]>('/anime/schedule', {}, signal);
-export function imageUrl(url?: string) {
-  if (!url) return '';
-  try {
-    const normalized = new URL(url, 'https://static.yani.tv');
-    return normalized.protocol === 'https:' ? normalized.href : '';
-  } catch { return ''; }
+const listQuery=(params:Params)=>({limit:24,require_fields:'genres,ep_count,description',...params});
+function listOptions(params:Params):CacheOptions{
+ if(!params.exclude_list)return {};
+ const session=getSession();if(!session?.verified)throw new ApiError('Войди в аккаунт, чтобы фильтровать по своим спискам.',401);
+ return {token:session.token};
 }
+export const animeList=async(params:Params,signal?:AbortSignal):Promise<Result<Anime[]>>=>cachedRequest('/anime',listQuery(params),signal,listOptions(params));
+export const peekAnimeList=(params:Params)=>{try{return peekRequest<Anime[]>('/anime',listQuery(params),listOptions(params));}catch{return undefined;}};
+export const animeDetail=(id:string|number,signal?:AbortSignal)=>cachedRequest<Anime>(`/anime/${encodeURIComponent(id)}`,{},signal);
+export const peekAnimeDetail=(id:string|number)=>peekRequest<Anime>(`/anime/${encodeURIComponent(id)}`);
+const videoOptions=()=>{const session=getSession();return session?.verified?{token:session.token}:{};};
+export const animeVideos=(id:number,signal?:AbortSignal)=>cachedRequest<Video[]>(`/anime/${id}/videos`,{},signal,videoOptions());
+export const peekAnimeVideos=(id:number)=>peekRequest<Video[]>(`/anime/${id}/videos`,{},videoOptions());
+export const animeSchedule=(signal?:AbortSignal)=>cachedRequest<Anime[]>('/anime/schedule',{},signal);
+export const peekAnimeSchedule=()=>peekRequest<Anime[]>('/anime/schedule');
+export const imageUrl=normalizeImage;
 export function plainText(html = '') {
   return html.replace(/<br\s*\/?\s*>/gi, '\n').replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
 }
