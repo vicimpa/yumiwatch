@@ -8,13 +8,14 @@
 
 | Платформа | CI | Release |
 | --- | --- | --- |
-| macOS Intel + Apple Silicon | Universal DMG и PKG | Те же пакеты; подпись приложения и notarization при наличии Apple secrets |
+| macOS Apple Silicon | DMG для aarch64 | Тот же пакет; подпись приложения и notarization при наличии Apple secrets |
+| macOS Intel | отдельный DMG для x86_64 | Тот же пакет; подпись приложения и notarization при наличии Apple secrets |
 | Windows x64 | NSIS EXE, MSI | Те же пакеты, без Authenticode |
-| Linux x64 | DEB, RPM, AppImage | Те же пакеты |
+| Linux x64 | DEB, RPM, AppImage, Arch `.pkg.tar.zst` | Те же пакеты |
 | Android | Debug APK для arm64 | Подписанные APK/AAB с arm64, armv7 и x86_64 |
 | iOS | ZIP приложения arm64 Simulator без подписи | IPA с App Store Connect provisioning profile |
 
-AppImage включает GStreamer; DEB/RPM объявляют зависимости медиа. Наличие конкретного кодека на целевом дистрибутиве и воспроизведение на физических телефонах требуют отдельной проверки. Симулятор и браузерные проверки не подтверждают работу DRM/кодеков и custom URI transport на реальном устройстве.
+AppImage включает GStreamer; DEB/RPM объявляют зависимости медиа. Arch-пакет создаётся `makepkg` в контейнере `archlinux:base-devel` из проверенного DEB той же сборки; PKGBUILD хранится в `packaging/archlinux`. CI устанавливает результат через `pacman -U`, проверяет файлы, desktop entry и динамические библиотеки. Публикация в AUR не выполняется. Наличие конкретного кодека на целевом дистрибутиве и воспроизведение на физических телефонах требуют отдельной проверки. Симулятор и браузерные проверки не подтверждают работу DRM/кодеков и custom URI transport на реальном устройстве.
 
 ## Подготовка GitHub
 
@@ -49,7 +50,7 @@ Upload key Android можно создать через `keytool` по [инст
 | `APPLE_PASSWORD` | App-specific password |
 | `APPLE_TEAM_ID` | Team ID для notarization |
 
-Без этих дополнительных секретов desktop-пакеты собираются без доверенной подписи разработчика. PKG создаётся через `pkgbuild` и сам не подписывается Developer ID Installer, даже если вложенное приложение подписано. Windows Authenticode также не настроен: для него потребуется сертификат или сервис подписи. [Официальная схема Tauri/GitHub](https://v2.tauri.app/distribute/pipelines/github/) используется как основа сборки.
+Без этих дополнительных секретов desktop-пакеты собираются без доверенной подписи разработчика. Windows Authenticode также не настроен: для него потребуется сертификат или сервис подписи. [Официальная схема Tauri/GitHub](https://v2.tauri.app/distribute/pipelines/github/) используется как основа сборки.
 
 ## Выпуск версии
 
@@ -77,4 +78,4 @@ APPLE_DEVELOPMENT_TEAM=YOUR_TEAM npm run build:ios -- --ci --target aarch64-sim 
 
 ## Границы локальной проверки
 
-Конфигурация workflow проверяется через actionlint; сборка фронтенда, Rust-тесты и геометрия мобильного UI могут проверяться локально. Реальные macOS Universal/Windows/Linux/Android/iOS релизы подтверждаются только успешными Actions jobs. Для первого выпуска сначала добавь секреты и проверь CI на своём GitHub repository.
+Конфигурация workflow проверяется через actionlint; сборка фронтенда, Rust-тесты и геометрия мобильного UI могут проверяться локально. Реальные macOS ARM64/Intel, Windows, Linux, Android и iOS сборки подтверждаются только успешными Actions jobs. Для подписанных выпусков сначала добавь соответствующие секреты и проверь CI.

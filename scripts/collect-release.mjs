@@ -11,15 +11,15 @@ async function visit(path) {
   for (const entry of entries) {
     const file = resolve(path, entry.name);
     if (entry.isDirectory()) files.push(...await visit(file));
-    else if (/\.(dmg|pkg|exe|msi|deb|rpm|AppImage|apk|aab|ipa|zip)$/.test(entry.name)) files.push(file);
+    else if (/\.(dmg|exe|msi|deb|rpm|AppImage|pkg\.tar\.zst|apk|aab|ipa|zip)$/.test(entry.name)) files.push(file);
   }
   return files;
 }
 const files = await visit(resolve(folder));
 if (!files.length) throw new Error(`No ${platform} installers found in ${folder}`);
 const required = {
-  'macos-universal': ['dmg','pkg'], 'windows-x64': ['exe','msi'],
-  'linux-x64': ['deb','rpm','AppImage'], android: process.env.RELEASE_BUILD === 'true' ? ['apk','aab'] : ['apk'],
+  'macos-arm64': ['dmg'], 'macos-intel': ['dmg'], 'windows-x64': ['exe','msi'],
+  'linux-x64': ['deb','rpm','AppImage','pkg.tar.zst'], android: process.env.RELEASE_BUILD === 'true' ? ['apk','aab'] : ['apk'],
   ios: ['ipa'], 'ios-simulator': ['zip'],
 }[platform];
 if (!required) throw new Error(`Unknown release platform: ${platform}`);

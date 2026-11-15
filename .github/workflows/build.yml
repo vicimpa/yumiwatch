@@ -30,9 +30,13 @@ jobs:
             os: windows-latest
             target: x86_64-pc-windows-msvc
             bundles: nsis,msi
-          - platform: macos-universal
+          - platform: macos-arm64
             os: macos-15
-            target: universal-apple-darwin
+            target: aarch64-apple-darwin
+            bundles: app,dmg
+          - platform: macos-intel
+            os: macos-15
+            target: x86_64-apple-darwin
             bundles: app,dmg
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
@@ -45,14 +49,15 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: macOS architectures
         if: runner.os == 'macOS'
-        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+        run: rustup target add ${{ matrix.target }}
       - name: Linux dependencies
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev librsvg2-dev libayatana-appindicator3-dev patchelf rpm libgstreamer1.0-dev gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
-          key: ${{ matrix.platform }}
+          # Reuse both architecture caches from the initial universal build.
+          key: ${{ runner.os == 'macOS' && 'macos-universal' || matrix.platform }}
       - run: npm ci
       - run: cargo test --locked --manifest-path src-tauri/Cargo.toml
       - name: Build installers
@@ -64,12 +69,9 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-      - name: Package macOS installer
-        if: runner.os == 'macOS'
-        shell: bash
-        run: |
-          VERSION=$(node -p "JSON.parse(require('fs').readFileSync('package.json','utf8')).version.split('-')[0]")
-          pkgbuild --component src-tauri/target/universal-apple-darwin/release/bundle/macos/YummyWatch.app --install-location /Applications --identifier app.yumiwatch.desktop --version "$VERSION" src-tauri/target/universal-apple-darwin/release/bundle/YummyWatch.pkg
+      - name: Build and verify Arch Linux package
+        if: runner.os == 'Linux'
+        run: node scripts/package-arch.mjs src-tauri/target/${{ matrix.target }}/release/bundle
       - run: node scripts/collect-release.mjs ${{ matrix.platform }} src-tauri/target/${{ matrix.target }}/release/bundle
       - uses: actions/upload-artifact@v4
         with:

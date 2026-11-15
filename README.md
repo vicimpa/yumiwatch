@@ -26,11 +26,15 @@ YummyWatch — приложение для просмотра аниме из к
 
 | Платформа | Архитектура | Пакеты |
 | --- | --- | --- |
-| macOS 12+ | Intel и Apple Silicon, Universal | `.dmg`, `.pkg` |
+| macOS 12+ | Apple Silicon (ARM64) | отдельный `.dmg` |
+| macOS 12+ | Intel (x86_64) | отдельный `.dmg` |
 | Windows | x64 | `.exe` (NSIS), `.msi` |
 | Linux | x86_64 | `.deb`, `.rpm`, `.AppImage` |
+| Arch Linux | x86_64 | `.pkg.tar.zst` для pacman |
 
-Linux-пакеты собираются на Ubuntu 24.04. AppImage включает медиа-компоненты GStreamer; DEB/RPM устанавливают системные зависимости. Доступность кодеков зависит от дистрибутива.
+Linux-бинарник собирается на Ubuntu 24.04. AppImage включает медиа-компоненты GStreamer; DEB/RPM устанавливают системные зависимости. Пакет Arch собирается через `makepkg` и проверяется установкой в актуальном Arch Linux. Доступность кодеков зависит от дистрибутива.
+
+Для Arch скачай `.pkg.tar.zst` и установи через `sudo pacman -U ./linux-x64-yummywatch-0.0.1-1-x86_64.pkg.tar.zst`.
 
 Первый выпуск desktop-пакетов — без сертификатов подписи Apple Developer ID и Windows Authenticode. Для каждого файла опубликована SHA-256 в `SHA256SUMS.txt`.
 
@@ -102,6 +106,7 @@ npm run test:rust      # Rust-бэкенд и внутренний медиа-п
 npm run check:mobile   # мобильная геометрия и автоподгрузка в Chromium/WebKit
 npm run check:layout   # desktop, прокрутка, окна и полный экран
 npm run screenshots   # обновить настоящие снимки desktop/mobile
+npm run icons         # пересоздать иконки из public/icons/icon.svg
 ```
 
 Для браузерных проверок нужны установленный Google Chrome и Playwright WebKit (`npx playwright install webkit`). Для CI/Chromium — `npx playwright install chromium webkit`. Снимкам и проверкам живых источников нужен доступ к YummyAnime и источникам видео.

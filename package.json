@@ -31,7 +31,8 @@
     "dev:ios": "tauri ios dev",
     "build:android": "tauri android build",
     "build:ios": "tauri ios build",
-    "check:mobile": "node scripts/check-mobile.mjs"
+    "check:mobile": "node scripts/check-mobile.mjs",
+    "icons": "node scripts/icons.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.4",

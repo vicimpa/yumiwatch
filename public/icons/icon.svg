@@ -1,1 +1,18 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><rect width="128" height="128" rx="32" fill="#ff777b"/><path d="m37 36 27 31 27-31M64 67v28" fill="none" stroke="#19191d" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/><circle cx="92" cy="88" r="7" fill="#19191d"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="coral" x1="16" y1="0" x2="112" y2="128" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffaaa3"/>
+      <stop offset=".46" stop-color="#ff7b83"/>
+      <stop offset="1" stop-color="#ef536f"/>
+    </linearGradient>
+    <linearGradient id="edge" x1="64" y1="0" x2="64" y2="128" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fff" stop-opacity=".5"/>
+      <stop offset=".55" stop-color="#fff" stop-opacity=".08"/>
+      <stop offset="1" stop-color="#ae2948" stop-opacity=".35"/>
+    </linearGradient>
+  </defs>
+  <rect x="1" y="1" width="126" height="126" rx="28" fill="url(#coral)"/>
+  <rect x="1.75" y="1.75" width="124.5" height="124.5" rx="27.25" fill="none" stroke="url(#edge)" stroke-width="1.5"/>
+  <path d="m37 36 27 31 27-31M64 67v28" fill="none" stroke="#25232d" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="92" cy="88" r="7" fill="#25232d"/>
+</svg>

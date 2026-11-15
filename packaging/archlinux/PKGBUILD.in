@@ -1,0 +1,26 @@
+# Generated with the version and SHA-256 of this release's verified DEB.
+pkgname=yummywatch
+pkgver=@VERSION@
+pkgrel=1
+pkgdesc='Anime player and YummyAnime catalog client'
+arch=('x86_64')
+url='https://github.com/vicimpa/yummywatch'
+license=('custom')
+depends=('glibc' 'gcc-libs' 'gtk3' 'webkit2gtk-4.1' 'libsoup3' 'libxdo'
+         'desktop-file-utils' 'hicolor-icon-theme'
+         'gst-plugins-good' 'gst-plugins-bad' 'gst-libav')
+options=('!strip' '!debug')
+source=('yummywatch.deb' 'OpenSans-OFL.txt' 'Shaka-Apache-2.0.txt')
+noextract=('yummywatch.deb')
+sha256sums=('@DEB_SHA256@' '@FONT_SHA256@' '@PLAYER_SHA256@')
+
+package() {
+  # This is a pacman package, not a renamed DEB. makepkg creates .PKGINFO,
+  # .BUILDINFO and the compressed payload from these installed files.
+  local payload
+  payload=$(bsdtar -tf "$srcdir/yummywatch.deb" | sed -n '/^data\.tar\./p')
+  test -n "$payload"
+  bsdtar -xOf "$srcdir/yummywatch.deb" "$payload" | bsdtar -xf - -C "$pkgdir"
+  install -Dm644 "$srcdir/OpenSans-OFL.txt" "$pkgdir/usr/share/licenses/$pkgname/OpenSans-OFL.txt"
+  install -Dm644 "$srcdir/Shaka-Apache-2.0.txt" "$pkgdir/usr/share/licenses/$pkgname/Shaka-Apache-2.0.txt"
+}
