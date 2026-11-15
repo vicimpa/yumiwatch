@@ -10,6 +10,7 @@ const styles = (await Promise.all(['styles.css','yummy.css','mobile.css','galler
 const anime = {anime_id:10531,anime_url:'mobile-long-title',title:'Реинкарнация безработного: История о приключениях в другом мире 3',year:2026,rating:{average:9.2},type:{name:'ТВ-сериал',shortname:'ТВ'},episodes:{aired:24,count:24},genres:[{id:14,title:'Детектив',alias:'detektiv'}],description:'Проверяем длинное описание на небольшом экране.',comments_count:12345};
 const poster=id=>Object.fromEntries(['medium','big','huge'].map(size=>[size,`https://static.yani.tv/posters/${id}/${size}.svg`]));
 anime.poster=poster(anime.anime_id);
+anime.random_screenshots=[{episode:'1',sizes:{small:'https://static.yani.tv/frame-1-small.png',full:'https://static.yani.tv/frame-1-full.png'}}];
 anime.viewing_order=[{anime_id:10530,title:'Первый сезон',year:2021},{anime_id:10531,title:anime.title,year:2026},{anime_id:10532,title:'Следующая история с очень длинным названием',year:2027}];
 const list = Array.from({length:12},(_,index)=>({...anime,anime_id:10531+index,poster:poster(10531+index),title:index?`Длинное название аниме для мобильного экрана ${index}`:anime.title}));
 await mkdir('test-results/mobile',{recursive:true});
@@ -22,6 +23,7 @@ for (const engine of [chromium,webkit]) {
       const phone = viewport.width <= 1000;
       const context = await browser.newContext({viewport,isMobile:phone,hasTouch:phone,deviceScaleFactor:1,reducedMotion:'reduce'});
       const page = await context.newPage(), errors=[],paginationOffsets=[],paginationPending=new Map(),imageRequests=[];
+      let releaseScreenshot;const screenshotGate=new Promise(resolve=>{releaseScreenshot=resolve;});
       page.setDefaultTimeout(10000);
       // This fixture has no service worker server; exercise the UI without an
       // artificial registration-error toast obscuring the screenshot.
@@ -46,6 +48,7 @@ for (const engine of [chromium,webkit]) {
         }
         if(url.hostname==='static.yani.tv'){
           imageRequests.push(url.pathname);
+          if(viewport.width===390&&url.pathname==='/frame-1-full.png')await screenshotGate;
           return route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180"><rect width="320" height="180" fill="#3a5062"/><path d="M0 180 100 40 200 180 270 80 320 180" fill="#82978a"/></svg>'});
         }
         if(url.hostname!=='mobile.test')return route.abort();
@@ -136,6 +139,16 @@ for (const engine of [chromium,webkit]) {
           assert.ok(await currentTitle.locator('.viewing-order-current').isVisible(),'Current title has no visible label');
           await page.screenshot({path:`test-results/mobile/${engine.name()}-${viewport.width}-detail.png`});
           await page.locator('.viewing-order').screenshot({path:`test-results/mobile/${engine.name()}-${viewport.width}-order.png`});
+          if(viewport.width===390){
+            const thumbnail=page.getByRole('button',{name:'Открыть скриншот 1',exact:true});
+            await thumbnail.scrollIntoViewIfNeeded();await thumbnail.locator('.poster-artwork.is-loaded').waitFor();
+            await thumbnail.click();const viewer=page.getByRole('dialog',{name:'Скриншот 1 из 1'});
+            await viewer.locator('.poster-placeholder.skeleton').waitFor();
+            const box=await viewer.locator('.poster-placeholder').boundingBox();assert.ok(box&&box.width>100&&box.height>100,'Screenshot skeleton has no visible area');
+            await viewer.screenshot({path:`test-results/mobile/${engine.name()}-${viewport.width}-screenshot-loading.png`});
+            releaseScreenshot();await viewer.locator('.poster-artwork.is-loaded').waitFor();
+            await viewer.getByRole('button',{name:'Закрыть',exact:true}).click();
+          }
           await page.evaluate(()=>{location.hash='/probe-player';});
           await page.getByRole('button',{name:'Настройки плеера'}).waitFor();
           assert.equal(await navigation.isVisible(),false,'Navigation overlaps video');

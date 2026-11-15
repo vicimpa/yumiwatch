@@ -14,7 +14,7 @@ env:
   CARGO_INCREMENTAL: '0'
   CARGO_TERM_COLOR: always
   RELEASE_BUILD: ${{ inputs.release }}
-  VITE_YANI_APPLICATION_TOKEN: ${{ vars.YANI_APPLICATION_TOKEN || secrets.YANI_APPLICATION_TOKEN }}
+  VITE_YANI_APPLICATION_TOKEN: ${{ secrets.YANI_APPLICATION_TOKEN }}
 jobs:
   desktop:
     name: ${{ matrix.platform }}
@@ -59,6 +59,9 @@ jobs:
           # Reuse both architecture caches from the initial universal build.
           key: ${{ runner.os == 'macOS' && 'macos-universal' || matrix.platform }}
       - run: npm ci
+      - name: Require application token for release
+        if: inputs.release
+        run: node scripts/check-application-token.mjs
       - run: cargo test --locked --manifest-path src-tauri/Cargo.toml
       - name: Build installers
         run: node scripts/build-desktop.mjs ${{ matrix.target }} ${{ matrix.bundles }}
@@ -69,6 +72,9 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      - name: Verify embedded application token
+        if: inputs.release
+        run: node scripts/check-application-token.mjs dist
       - name: Build and verify Arch Linux package
         if: runner.os == 'Linux'
         run: node scripts/package-arch.mjs src-tauri/target/${{ matrix.target }}/release/bundle
@@ -113,6 +119,9 @@ jobs:
           workspaces: src-tauri -> target
           key: android
       - run: npm ci
+      - name: Require application token for release
+        if: inputs.release
+        run: node scripts/check-application-token.mjs
       - run: npm run init:android
       - name: Restore Android signing key
         if: inputs.release
@@ -139,6 +148,9 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      - name: Verify embedded application token
+        if: inputs.release
+        run: node scripts/check-application-token.mjs dist
       - run: node scripts/collect-release.mjs android src-tauri/gen/android/app/build/outputs
       - uses: actions/upload-artifact@v4
         with:
@@ -172,6 +184,9 @@ jobs:
           workspaces: src-tauri -> target
           key: ios
       - run: npm ci
+      - name: Require application token for release
+        if: inputs.release
+        run: node scripts/check-application-token.mjs
       - name: iOS build tools
         run: |
           command -v xcodegen || brew install xcodegen
@@ -204,6 +219,9 @@ jobs:
       - name: Collect simulator
         if: ${{ !inputs.release }}
         run: node scripts/collect-release.mjs ios-simulator ios-output
+      - name: Verify embedded application token
+        if: inputs.release
+        run: node scripts/check-application-token.mjs dist
       - name: Collect signed IPA
         if: inputs.release
         run: node scripts/collect-release.mjs ios src-tauri/gen/apple/build

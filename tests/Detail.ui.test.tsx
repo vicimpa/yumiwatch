@@ -55,10 +55,17 @@ describe('anime media center screens',()=>{
   expect(screen.getByText('Монолог фармацевта — серия 2')).toBeTruthy();expect(container.querySelector('video')?.currentTime).toBe(0);
   fireEvent.loadedMetadata(container.querySelector('video')!);expect(HTMLMediaElement.prototype.play).toHaveBeenCalled();
  });
- it('opens full-size screenshots and navigates them with arrows',async()=>{
-  render(<Detail id="10531"/>);fireEvent.click(await screen.findByRole('button',{name:'Открыть скриншот 1'}));
-  expect(screen.getByRole('dialog',{name:'Скриншот 1 из 2'})).toBeTruthy();expect(screen.getByRole('img',{name:/Скриншот 1 —/}).getAttribute('src')).toContain('one-full');
+ it('shares poster skeletons with screenshots and resets loading when navigating between frames',async()=>{
+  render(<Detail id="10531"/>);const thumbnail=await screen.findByRole('button',{name:'Открыть скриншот 1'});
+  expect(thumbnail.querySelector('.poster-placeholder.skeleton')).toBeTruthy();
+  fireEvent.load(within(thumbnail).getByRole('img'));expect(thumbnail.querySelector('.poster-artwork.is-loaded')).toBeTruthy();
+  fireEvent.click(thumbnail);
+  expect(screen.getByRole('dialog',{name:'Скриншот 1 из 2'})).toBeTruthy();const first=screen.getByRole('img',{name:/Скриншот 1 —/});expect(first.getAttribute('src')).toContain('one-full');
+  expect(first.closest('.poster-artwork')?.classList.contains('is-loaded')).toBe(false);
+  fireEvent.load(first);expect(first.closest('.poster-artwork')?.classList.contains('is-loaded')).toBe(true);
   fireEvent.keyDown(window,{key:'ArrowRight'});expect(screen.getByRole('dialog',{name:'Скриншот 2 из 2'})).toBeTruthy();
+  const second=screen.getByRole('img',{name:/Скриншот 2 —/});expect(second.closest('.poster-artwork')?.classList.contains('is-loaded')).toBe(false);
+  fireEvent.error(second);expect(screen.getByRole('dialog').querySelector('.poster-placeholder.skeleton')).toBeNull();
   fireEvent.click(screen.getByRole('button',{name:'Закрыть'}));expect(screen.queryByRole('dialog')).toBeNull();
  });
  it('uses only our player on the watch screen and preserves playback through comments',async()=>{

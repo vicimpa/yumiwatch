@@ -1,4 +1,5 @@
 import { CachedImage } from './CachedImage';
+import { ArtworkImage } from './ArtworkImage';
 import { useEffect, useState } from 'preact/hooks';
 import type { ComponentChildren } from 'preact';
 import { Icon } from './Icon';
@@ -26,18 +27,11 @@ export function Avatar({ url, name }: { url?: string; name: string }) {
   return src && failed !== src ? <CachedImage src={src} alt="" decoding="async" onError={() => setFailed(src)}/> : <span>{name.trim().slice(0, 1).toLocaleUpperCase() || '?'}</span>;
 }
 export function Poster({ anime, large = false }: { anime: Anime; large?: boolean }) {
-  const [broken, setBroken] = useState('');
-  const [loaded, setLoaded] = useState('');
   const retina = window.devicePixelRatio > 1.25;
   const url = imageUrl(large
     ? (retina ? anime.poster?.huge : undefined) || anime.poster?.big || anime.poster?.medium || anime.poster?.huge
     : (retina ? anime.poster?.big : undefined) || anime.poster?.medium || anime.poster?.big || anime.poster?.huge);
-  useEffect(()=>subscribeImage(url,()=>setBroken('')),[url]);
-  const available = !!url && broken !== url;
-  return <span class={`poster-artwork ${available && loaded === url ? 'is-loaded' : ''}`} data-tone={anime.anime_id % 3} role={available ? undefined : 'img'} aria-label={available ? undefined : anime.title}>
-    <span class={`poster-placeholder ${available ? 'skeleton' : ''}`} aria-hidden="true"><Icon name="spark" size={30}/></span>
-    {available && <CachedImage src={url} alt={anime.title} loading={large ? 'eager' : 'lazy'} decoding="async" onLoad={() => setLoaded(url)} onError={() => setBroken(url)} />}
-  </span>;
+  return <ArtworkImage src={url} alt={anime.title} eager={large} tone={anime.anime_id}/>;
 }
 export function FavoriteButton({ anime, compact = false }: { anime: Anime; compact?: boolean }) {
   const library = useLibrary();

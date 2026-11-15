@@ -19,7 +19,7 @@ AppImage включает GStreamer; DEB/RPM объявляют зависимо
 
 ## Подготовка GitHub
 
-В Settings → Secrets and variables → Actions добавь variable `YANI_APPLICATION_TOKEN` — публичный токен приложения YummyAnime. Он передаётся сборке как `VITE_YANI_APPLICATION_TOKEN`; также поддерживается одноимённый secret.
+В Settings → Secrets and variables → Actions → Secrets добавь **secret** `YANI_APPLICATION_TOKEN` — публичный токен приложения YummyAnime. Он передаётся сборке как `VITE_YANI_APPLICATION_TOKEN`. Release jobs проверяют наличие значения до сборки и его включение в готовый JavaScript после сборки; при отсутствии токена релиз не публикуется. Значение не записывается в Git и маскируется в логах Actions. Само приложение содержит этот публичный токен: хранение в Secrets не делает клиентский ключ неизвлекаемым.
 
 Для подписанных мобильных сборок добавь следующие **secrets**.
 
