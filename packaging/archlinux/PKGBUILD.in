@@ -6,7 +6,7 @@ pkgdesc='Anime player and YummyAnime catalog client'
 arch=('x86_64')
 url='https://github.com/vicimpa/yummywatch'
 license=('custom')
-depends=('glibc' 'gcc-libs' 'gtk3' 'webkit2gtk-4.1' 'libsoup3' 'libxdo'
+depends=('glibc' 'gcc-libs' 'gtk3' 'webkit2gtk-4.1' 'libsoup3'
          'desktop-file-utils' 'hicolor-icon-theme'
          'gst-plugins-good' 'gst-plugins-bad' 'gst-libav')
 options=('!strip' '!debug')

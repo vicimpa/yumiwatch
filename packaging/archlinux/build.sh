@@ -2,7 +2,7 @@
 set -euo pipefail
 
 pacman -Syu --noconfirm --needed \
-  gtk3 webkit2gtk-4.1 libsoup3 libxdo desktop-file-utils hicolor-icon-theme \
+  gtk3 webkit2gtk-4.1 libsoup3 desktop-file-utils hicolor-icon-theme \
   gst-plugins-good gst-plugins-bad gst-libav
 useradd --create-home builder
 install -d -o builder -g builder /tmp/build
