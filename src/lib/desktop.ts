@@ -12,6 +12,25 @@ export function desktopMediaRoot() {
 }
 export const isDesktopMedia = (url: string) => isDesktop() && (url.startsWith('yumiwatch-media:') || /^https?:\/\/yumiwatch-media\.localhost\//.test(url));
 
+export function handleDesktopLinkClick(event: MouseEvent) {
+  if (event.defaultPrevented || event.button !== 0) return;
+  const link = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>('a[href]') : null;
+  if (!link || link.hasAttribute('download')) return;
+  if (link.getAttribute('href')?.startsWith('#')) return;
+  const url = new URL(link.href, location.href);
+  const current = new URL(location.href);
+  // WKWebView's Location and URL disagree about custom-scheme origins and
+  // empty root paths. Compare parsed addresses instead of opaque origins.
+  if (url.protocol === current.protocol && url.host === current.host &&
+      (url.pathname || '/') === (current.pathname || '/') && url.search === current.search &&
+      url.username === current.username && url.password === current.password) return;
+  event.preventDefault();
+  if (url.protocol !== 'https:') return;
+  void import('@tauri-apps/plugin-opener').then(({ openUrl }) => openUrl(url.href)).catch(() => {
+    window.dispatchEvent(new CustomEvent('yumiwatch:external-error'));
+  });
+}
+
 export async function initializeDesktop() {
   if (!isDesktop()) return;
   // Set the inset before the first paint, including the startup/error screen.
@@ -26,18 +45,7 @@ export async function initializeDesktop() {
     delete document.documentElement.dataset.mobile;
     document.documentElement.dataset.desktop = desktop.platform;
   }
-  document.addEventListener('click', event => {
-    if (event.defaultPrevented || event.button !== 0) return;
-    const link = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>('a[href]') : null;
-    if (!link || link.hasAttribute('download')) return;
-    const url = new URL(link.href, location.href);
-    if (url.origin === location.origin && url.pathname === location.pathname) return;
-    event.preventDefault();
-    if (url.protocol !== 'https:') return;
-    void import('@tauri-apps/plugin-opener').then(({ openUrl }) => openUrl(url.href)).catch(() => {
-      window.dispatchEvent(new CustomEvent('yumiwatch:external-error'));
-    });
-  });
+  document.addEventListener('click', handleDesktopLinkClick);
 }
 
 /** Keep API requests independent of WebView CORS policies. Rust accepts only api.yani.tv. */
