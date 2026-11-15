@@ -5,7 +5,7 @@ import { useLibrary, useResource } from '../lib/hooks';
 import { formatTime } from '../lib/player';
 import { navigateGallery } from '../lib/gallery-navigation';
 import type { Anime } from '../lib/types';
-import { AnimeCard, CachedNotice, ErrorState, FavoriteButton, Poster } from './UI';
+import { AnimeCard, CachedNotice, CardSkeleton, ErrorState, FavoriteButton, Poster } from './UI';
 import { GalleryShelf, GalleryToolbar } from './GalleryShelf';
 import { FilterSheet } from './Filters';
 import { Icon } from './Icon';
@@ -27,7 +27,7 @@ export function Gallery({active=true}:{active?:boolean}) {
   const feature=selected||ongoing.value?.data[0]||popular.value?.data[0];
   const resume=feature&&library.history.find(entry=>entry.anime.anime_id===feature.anime_id);
   const shelf=(resource:typeof popular,title:string,href:string,subtitle?:string)=><>
-    {resource.error?<section class="section"><h2>{title}</h2><ErrorState error={resource.error} retry={resource.retry}/></section>:<GalleryShelf title={title} href={href} subtitle={subtitle} count={resource.value?.data.length||0}>{resource.loading?Array.from({length:6},(_,index)=><div class="skeleton poster-skeleton" key={index} aria-hidden="true"/>):resource.value?.data.map(anime=><AnimeCard key={anime.anime_id} anime={anime} onFocus={()=>setSelected(anime)} onPreview={()=>setSelected(anime)}/>)}</GalleryShelf>}
+    {resource.error?<section class="section"><h2>{title}</h2><ErrorState error={resource.error} retry={resource.retry}/></section>:<GalleryShelf title={title} href={href} subtitle={subtitle} count={resource.value?.data.length||0}>{resource.loading?Array.from({length:6},(_,index)=><CardSkeleton key={index}/>):resource.value?.data.map(anime=><AnimeCard key={anime.anime_id} anime={anime} onFocus={()=>setSelected(anime)} onPreview={()=>setSelected(anime)}/>)}</GalleryShelf>}
     {resource.value?.cached&&!resource.refreshing&&<CachedNotice savedAt={resource.value.savedAt}/>}</>;
   return <section ref={screen} class="gallery-screen" aria-label="Галерея аниме" onKeyDown={navigateGallery}>
     <GalleryToolbar title="Каталог" subtitle="Твои истории и новые открытия" onFilters={()=>setFilters(true)}/>

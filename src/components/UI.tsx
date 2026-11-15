@@ -27,9 +27,17 @@ export function Avatar({ url, name }: { url?: string; name: string }) {
 }
 export function Poster({ anime, large = false }: { anime: Anime; large?: boolean }) {
   const [broken, setBroken] = useState('');
-  const url = imageUrl(large ? anime.poster?.huge || anime.poster?.big || anime.poster?.medium : anime.poster?.big || anime.poster?.medium);
+  const [loaded, setLoaded] = useState('');
+  const retina = window.devicePixelRatio > 1.25;
+  const url = imageUrl(large
+    ? (retina ? anime.poster?.huge : undefined) || anime.poster?.big || anime.poster?.medium || anime.poster?.huge
+    : (retina ? anime.poster?.big : undefined) || anime.poster?.medium || anime.poster?.big || anime.poster?.huge);
   useEffect(()=>subscribeImage(url,()=>setBroken('')),[url]);
-  return url && broken !== url ? <CachedImage src={url} alt={anime.title} loading={large ? 'eager' : 'lazy'} decoding="async" onError={() => setBroken(url)} /> : <div class="poster-fallback"><Icon name="spark" size={32}/><span>{anime.title}</span></div>;
+  const available = !!url && broken !== url;
+  return <span class={`poster-artwork ${available && loaded === url ? 'is-loaded' : ''}`} data-tone={anime.anime_id % 3} role={available ? undefined : 'img'} aria-label={available ? undefined : anime.title}>
+    <span class={`poster-placeholder ${available ? 'skeleton' : ''}`} aria-hidden="true"><Icon name="spark" size={30}/></span>
+    {available && <CachedImage src={url} alt={anime.title} loading={large ? 'eager' : 'lazy'} decoding="async" onLoad={() => setLoaded(url)} onError={() => setBroken(url)} />}
+  </span>;
 }
 export function FavoriteButton({ anime, compact = false }: { anime: Anime; compact?: boolean }) {
   const library = useLibrary();
@@ -53,8 +61,11 @@ export function AnimeCard({ anime, rank, onOpen, onFocus, onPreview }: { anime: 
 export function AnimeRow({ anime, onOpen }: { anime: Anime; onOpen?: () => void }) {
   return <article class="anime-result-row"><a class="result-main" href={`#/anime/${anime.anime_id}?view=anime-about`} onClick={onOpen}><div class="result-poster"><Poster anime={anime}/></div><div class="result-copy"><h2>{anime.title}</h2><p>{[anime.year, anime.type?.shortname || anime.type?.name, anime.episodes?.aired ? `${anime.episodes.aired} сер.` : ''].filter(Boolean).join(' · ')}</p><div class="result-bottom">{anime.rating?.average ? <span class="result-rating">★ {anime.rating.average.toFixed(1)}</span> : null}<span>{anime.anime_status?.title}</span></div></div></a><FavoriteButton anime={anime} compact/></article>;
 }
+export function CardSkeleton() {
+  return <div class="skeleton-card" aria-hidden="true"><div class="skeleton poster-skeleton poster-placeholder"><Icon name="spark" size={30}/></div><div class="skeleton-caption"><span class="skeleton line"/><span class="skeleton line short"/><span class="skeleton skeleton-meta"/></div></div>;
+}
 export function Skeleton({ count = 6, gallery=false }: { count?: number;gallery?:boolean }) {
-  return <div class={`anime-grid ${gallery?'gallery-grid':''}`} role="status" aria-label="Загрузка аниме">{Array.from({ length: count }, (_, i) => <div class="skeleton-card" key={i}><div class="skeleton poster-skeleton"/><div class="skeleton line"/><div class="skeleton line short"/></div>)}</div>;
+  return <div class={`anime-grid ${gallery?'gallery-grid':''}`} role="status" aria-label="Загрузка аниме">{Array.from({ length: count }, (_, i) => <CardSkeleton key={i}/>)}</div>;
 }
 export function Empty({ icon = 'search', title, children, action }: { icon?: 'search' | 'heart' | 'calendar' | 'wifi' | 'clock'; title: string; children: ComponentChildren; action?: ComponentChildren }) {
   return <div class="empty-state"><span class="empty-icon"><Icon name={icon} size={30}/></span><h2>{title}</h2><p>{children}</p>{action}</div>;

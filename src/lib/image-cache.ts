@@ -2,8 +2,13 @@ import { getCache,putCache,hasCache } from './cache-store';
 import { desktopInvoke,isDesktop } from './desktop';
 
 const urls=new Map<string,{blob:Blob;url:string}>(),listeners=new Map<string,Set<()=>void>>();
-const pending=new Map<string,Promise<void>>(),checked=new Map<string,number>();
-let generation=0,active=0;const queue:Array<()=>Promise<void>>=[];
+interface ImageRequest {
+ url:string;priority:boolean;started:boolean;generation:number;
+ consumers:Set<symbol>;promise:Promise<void>;finish:()=>void;
+}
+const pending=new Map<string,ImageRequest>(),checked=new Map<string,number>();
+let generation=0,active=0,background=0;
+const queue:ImageRequest[]=[];
 export const canCacheImages=()=>typeof indexedDB!=='undefined'&&typeof URL.createObjectURL==='function';
 export function normalizeImage(url?:string){try{const value=new URL(url||'','https://static.yani.tv');return url&&value.protocol==='https:'?value.href:'';}catch{return '';}}
 export function beginImageRefresh(){generation++;for(const [key,epoch] of checked)if(epoch<generation-1)checked.delete(key);}
@@ -28,40 +33,46 @@ async function fetchImage(url:string){
  const response=await fetch(url,{signal:AbortSignal.timeout(15000),credentials:'omit',cache:'no-cache'});
  if(!response.ok)throw new Error('Image unavailable');return response.blob();
 }
-function run(){while(active<3&&queue.length){active++;void queue.shift()!().finally(()=>{active--;run();});}}
-export function refreshImage(url:string,priority=false):Promise<void>{
- if(!url||!canCacheImages())return Promise.resolve();
- if(pending.has(url))return pending.get(url)!;
- if(checked.get(url)===generation)return Promise.resolve();checked.set(url,generation);
- let finish!:()=>void;const promise=new Promise<void>(resolve=>{finish=resolve;});pending.set(url,promise);
- const task=async()=>{
-  try{
-   const blob=await fetchImage(url);if(!blob.type.startsWith('image/')||blob.size>8*1024*1024)return;
-   const old=getCache<Blob>('image',url)?.data;
-   let same=false;
-   if(old?.size===blob.size&&old.type===blob.type){const [a,b]=await Promise.all([old.arrayBuffer(),blob.arrayBuffer()]);const bytes=new Uint8Array(b);same=new Uint8Array(a).every((value,index)=>value===bytes[index]);}
-   if(!same){putCache('image',url,blob);for(const listener of listeners.get(url)||[])listener();}
-  }catch{/* The saved image remains usable during network errors. */}
-  finally{pending.delete(url);finish();}
- };
- if(priority)queue.unshift(task);else queue.push(task);run();return promise;
+async function execute(request:ImageRequest){
+ try{
+  const blob=await fetchImage(request.url);if(!blob.type.startsWith('image/')||blob.size>8*1024*1024)return;
+  const old=getCache<Blob>('image',request.url)?.data;
+  let same=false;
+  if(old?.size===blob.size&&old.type===blob.type){const [a,b]=await Promise.all([old.arrayBuffer(),blob.arrayBuffer()]);const bytes=new Uint8Array(b);same=new Uint8Array(a).every((value,index)=>value===bytes[index]);}
+  if(!same){putCache('image',request.url,blob);for(const listener of listeners.get(request.url)||[])listener();}
+ }catch{/* A saved image remains usable when its background refresh fails. */}
+ finally{checked.set(request.url,request.generation);pending.delete(request.url);request.finish();}
 }
-export function primeImages(data:unknown){
- if(!canCacheImages())return;
- const found=new Set<string>();
- const image=(value:unknown)=>{if(typeof value==='string'){const url=normalizeImage(value);if(url)found.add(url);}};
- const visit=(value:unknown)=>{
-  if(!value||typeof value!=='object')return;
-  if(Array.isArray(value)){for(const item of value)visit(item);return;}
-  const row=value as Record<string,unknown>;
-  for(const [key,child] of Object.entries(row)){
-   if(key==='poster'&&child&&typeof child==='object'){
-    const poster=child as Record<string,unknown>;for(const size of ['medium','big','huge'])image(poster[size]);
-   }
-   else if(['sizes','avatars'].includes(key)&&child&&typeof child==='object')for(const url of Object.values(child))image(url);
-   else if(['avatar','preview'].includes(key))image(child);
-   else if(typeof child==='object')visit(child);
+function run(){
+ // Reserve capacity for cold visible images; revalidation uses at most two slots.
+ while(active<6&&queue.length){
+  const foreground=queue.findIndex(request=>request.priority);
+  if(foreground<0&&background>=2)return;
+  const request=queue.splice(foreground<0?0:foreground,1)[0];
+  request.started=true;active++;if(!request.priority)background++;
+  void execute(request).finally(()=>{active--;if(!request.priority)background--;run();});
+ }
+}
+export function refreshImage(url:string,priority=false,signal?:AbortSignal):Promise<void>{
+ if(!url||!canCacheImages()||signal?.aborted)return Promise.resolve();
+ let request=pending.get(url);
+ if(!request){
+  if(checked.get(url)===generation)return Promise.resolve();
+  let finish!:()=>void;const promise=new Promise<void>(resolve=>{finish=resolve;});
+  request={url,priority,started:false,generation,consumers:new Set(),promise,finish};
+  pending.set(url,request);queue.push(request);
+ }else if(priority&&!request.started){request.priority=true;}
+ const current=request,consumer=Symbol();current.consumers.add(consumer);
+ const cancel=()=>{
+  current.consumers.delete(consumer);
+  if(!current.started&&!current.consumers.size){
+   const index=queue.indexOf(current);if(index>=0)queue.splice(index,1);
+   pending.delete(url);current.finish();
   }
  };
- visit(data);for(const url of [...found].slice(0,128))void refreshImage(url);
+ signal?.addEventListener('abort',cancel,{once:true});
+ void current.promise.then(()=>signal?.removeEventListener('abort',cancel));
+ // A started IPC request finishes under the cap: aborting its JS promise
+ // would not cancel Rust's network request and would falsely free a slot.
+ run();return current.promise;
 }

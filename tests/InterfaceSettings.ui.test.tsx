@@ -32,6 +32,18 @@ describe('media center preferences and sound',()=>{
   fireEvent.keyDown(screen.getByRole('textbox',{name:'Поле'}),{key:'Escape'});expect(back).not.toHaveBeenCalled();
   fireEvent.keyDown(document.body,{key:'Escape'});expect(back).toHaveBeenCalledOnce();
  });
+ it('keeps the video surface silent while retaining sounds on player buttons',()=>{
+  const start=vi.fn();
+  const parameter=()=>({setValueAtTime:vi.fn(),linearRampToValueAtTime:vi.fn(),exponentialRampToValueAtTime:vi.fn()});
+  vi.stubGlobal('AudioContext',class{state='running';currentTime=0;destination={};close=vi.fn().mockResolvedValue(undefined);createOscillator(){return{frequency:parameter(),connect:vi.fn(),start,stop:vi.fn(),disconnect:vi.fn()};}createGain(){return{gain:parameter(),connect:vi.fn(),disconnect:vi.fn()};}});
+  render(<><InterfaceEffects onBack={()=>{}} watching/><div class="video-controls"><button class="video-hit-area" aria-label="Поверхность видео"/><div class="video-toolbar"><button>Пауза</button></div></div></>);
+  const surface=screen.getByRole('button',{name:'Поверхность видео'}),control=screen.getByRole('button',{name:'Пауза'});
+  fireEvent.pointerDown(document.body);fireEvent.pointerOver(surface);fireEvent.focusIn(surface);fireEvent.click(surface);
+  expect(start).not.toHaveBeenCalled();
+  fireEvent.pointerOver(control);expect(start).toHaveBeenCalledOnce();
+  fireEvent.pointerOver(surface,{relatedTarget:control});expect(start).toHaveBeenCalledOnce();
+  fireEvent.click(control);expect(start).toHaveBeenCalledTimes(2);
+ });
  it('validates stored values instead of passing invalid volume to media elements',()=>{
   localStorage.setItem('yumiwatch:interface-settings',JSON.stringify({volume:3,effectsVolume:-1,style:'unknown'}));
   expect(interfaceSettings()).toMatchObject({volume:1,effectsVolume:0,style:'classic'});

@@ -1,6 +1,6 @@
 import { TOKEN_KEY } from './storage';
 import { getCache,putCache,deleteCache,dataRequests,cacheGeneration,resetRequests } from './cache-store';
-import { normalizeImage,primeImages } from './image-cache';
+import { normalizeImage } from './image-cache';
 import type { Anime, Params, Result, Video } from './types';
 import { clearSession, getSession } from './session';
 import { apiFetch } from './desktop';
@@ -86,7 +86,7 @@ export function request<T>(path:string,params:Params={},signal?:AbortSignal,opti
     // A screen leaving does not abort a shared refresh needed by another view.
     const data=await yaniFetch<T>(path,{params,token:options.token});
     const savedAt=Date.now();if(generation===cacheGeneration){
-     putCache('data',key,data,savedAt);primeImages(data);
+     putCache('data',key,data,savedAt);
      if(!options.token&&Array.isArray(data))for(const value of data){
       if(value&&Number.isInteger(value.anime_id)&&typeof value.title==='string'){
        const entityKey=keyFor(`/anime/${value.anime_id}`,{}),previous=getCache<Anime>('data',entityKey)?.data;

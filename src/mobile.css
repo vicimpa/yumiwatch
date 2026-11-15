@@ -280,7 +280,7 @@
 .video-heading strong { display:block;font-size:15px;line-height:1.5;font-weight:600;overflow:hidden;white-space:nowrap;text-overflow:ellipsis; }
 .video-brand { display:block;color:#ffb2b9;font-size:9px;letter-spacing:2.5px;font-weight:700;margin-bottom:8px; }
 .video-center-play { position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:72px;height:72px;border:1px solid #ffffff35;border-radius:50%;display:grid;place-items:center;background:#252229b8;backdrop-filter:blur(12px);z-index:1; }
-.video-center-play svg { margin-left:4px; }
+.video-center-play svg { position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);margin:0;display:block; }
 .video-bottom { bottom:0;padding:38px 20px 12px;background:linear-gradient(transparent,#08080de8);z-index:3; }
 .video-timeline { position:relative;height:24px;display:flex;align-items:center; }
 .video-timeline-track { position:absolute;left:0;right:0;height:4px;border-radius:4px;background:#ffffff35;overflow:hidden;pointer-events:none; }

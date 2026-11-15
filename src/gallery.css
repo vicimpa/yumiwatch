@@ -20,12 +20,11 @@
 .gallery-shelf-actions { display:flex;align-items:center;gap:8px;flex-shrink:0; }.gallery-shelf-actions .text-link { margin-right:8px;min-height:38px; }
 .gallery-shelf-actions .icon-button { width:36px;height:36px; }.gallery-shelf-actions button:disabled { opacity:.3;cursor:default; }
 .gallery-rail { display:grid;grid-auto-flow:column;grid-template-columns:none;grid-template-rows:none;overflow-x:auto;overflow-y:hidden;grid-auto-columns:clamp(156px,17vw,210px);gap:20px;padding:6px 4px 18px;margin:-6px -4px 0;scroll-padding-inline:4px;scroll-snap-type:x proximity; }
-.gallery-rail>.poster-skeleton { min-height:220px; }
 .gallery-grid { grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:28px 20px;padding:5px 0; }
 .gallery-rail .card-caption,.gallery-grid .card-caption { margin-top:12px; }.gallery-rail .card-title,.gallery-grid .card-title { font-size:14px;line-height:1.6; }
 .gallery-rail .card-caption p,.gallery-grid .card-caption p { font-size:11px;line-height:1.7; }
 .gallery-rail .card-image,.gallery-grid .card-image { border-radius:7px;transition:outline-color .15s; }
-.gallery-rail .anime-card:focus-within .card-image,.gallery-grid .anime-card:focus-within .card-image { outline:3px solid var(--accent);outline-offset:3px; }
+.gallery-rail .anime-card:focus-within .card-image,.gallery-grid .anime-card:focus-within .card-image { outline:none; }
 .gallery-rail .card-title:focus-visible,.gallery-grid .card-title:focus-visible { outline:none; }
 .gallery-rail .anime-card { scroll-snap-align:start; }
 .gallery-continue { display:block;min-width:0;scroll-snap-align:start; }
@@ -73,3 +72,24 @@
 .catalog-status svg { margin:0;flex-shrink:0; }.catalog-status span>span { min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis; }
 
 .schedule-status { display:block;height:16px;min-height:16px;margin-top:8px;font-size:10px;line-height:16px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+
+/* The same soft artwork fills pending, absent and failed posters. */
+.poster-artwork { position:relative;display:block;width:100%;height:100%;overflow:hidden;isolation:isolate; }
+.poster-placeholder { --poster-glow:218,139,163;display:grid;place-items:center;position:relative;overflow:hidden;aspect-ratio:250/350;background:radial-gradient(ellipse at 20% 15%,rgba(var(--poster-glow),.22),transparent 70%),radial-gradient(ellipse at 90% 90%,#8497be1c,transparent 65%),linear-gradient(145deg,#302c38,#24252d);color:#d4becd; }
+.poster-placeholder>svg { width:20%;max-width:34px;height:auto;opacity:.35; }
+.poster-artwork[data-tone="1"]>.poster-placeholder,.skeleton-card:nth-child(3n+2) .poster-placeholder { --poster-glow:155,147,215; }
+.poster-artwork[data-tone="2"]>.poster-placeholder,.skeleton-card:nth-child(3n) .poster-placeholder { --poster-glow:115,178,171; }
+.poster-artwork>.poster-placeholder { position:absolute;inset:0;aspect-ratio:auto; }
+.poster-artwork>img { position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .25s ease,transform .3s ease; }
+.poster-artwork.is-loaded>img { opacity:1; }
+.poster-artwork.is-loaded>.poster-placeholder:after { content:none;animation:none; }
+.poster-placeholder.skeleton:after { background:linear-gradient(105deg,transparent 25%,#ffffff09 50%,transparent 75%);animation-duration:2.6s; }
+.skeleton-card { min-width:0; }
+.skeleton-card .poster-skeleton { border-radius:7px; }
+.skeleton-caption { display:grid;align-content:start;gap:8px;min-height:70px;margin-top:12px; }
+.skeleton-caption .line { width:88%;height:11px;margin:0;border-radius:4px;background:#ffffff09; }
+.skeleton-caption .line.short { width:64%;height:11px;margin:0; }
+.skeleton-meta { width:38%;height:8px;margin-top:5px;border-radius:3px;background:#ffffff06; }
+.skeleton-caption .skeleton:after { background:linear-gradient(90deg,transparent,#ffffff05,transparent);animation-duration:2.6s; }
+html[data-motion=off] .poster-artwork>img { transition:none; }
+@media(prefers-reduced-motion:reduce) { .poster-artwork>img { transition:none; } }

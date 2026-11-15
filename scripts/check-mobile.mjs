@@ -8,33 +8,46 @@ const output = await build({ configFile:false, plugins:[preact()], logLevel:'err
 const bundle = (Array.isArray(output)?output[0]:output).output.find(item=>item.type==='chunk').code;
 const styles = (await Promise.all(['styles.css','yummy.css','mobile.css','gallery.css','media-center.css','desktop.css','interaction.css','touch.css'].map(file=>readFile(new URL(`../src/${file}`,import.meta.url),'utf8')))).join('\n');
 const anime = {anime_id:10531,anime_url:'mobile-long-title',title:'Реинкарнация безработного: История о приключениях в другом мире 3',year:2026,rating:{average:9.2},type:{name:'ТВ-сериал',shortname:'ТВ'},episodes:{aired:24,count:24},genres:[{id:14,title:'Детектив',alias:'detektiv'}],description:'Проверяем длинное описание на небольшом экране.',comments_count:12345};
+const poster=id=>Object.fromEntries(['medium','big','huge'].map(size=>[size,`https://static.yani.tv/posters/${id}/${size}.svg`]));
+anime.poster=poster(anime.anime_id);
 anime.viewing_order=[{anime_id:10530,title:'Первый сезон',year:2021},{anime_id:10531,title:anime.title,year:2026},{anime_id:10532,title:'Следующая история с очень длинным названием',year:2027}];
-const list = Array.from({length:12},(_,index)=>({...anime,anime_id:10531+index,title:index?`Длинное название аниме для мобильного экрана ${index}`:anime.title}));
+const list = Array.from({length:12},(_,index)=>({...anime,anime_id:10531+index,poster:poster(10531+index),title:index?`Длинное название аниме для мобильного экрана ${index}`:anime.title}));
 await mkdir('test-results/mobile',{recursive:true});
 for (const engine of [chromium,webkit]) {
+  if(process.env.MOBILE_BROWSER&&process.env.MOBILE_BROWSER!==engine.name())continue;
   const browser = await engine.launch(engine === chromium && !process.env.CI ? {channel:'chrome'} : {});
   try {
     for (const viewport of [{width:320,height:568},{width:390,height:844},{width:430,height:932},{width:844,height:390},{width:1280,height:820}]) {
+      if(process.env.MOBILE_WIDTH&&Number(process.env.MOBILE_WIDTH)!==viewport.width)continue;
       const phone = viewport.width <= 1000;
       const context = await browser.newContext({viewport,isMobile:phone,hasTouch:phone,deviceScaleFactor:1,reducedMotion:'reduce'});
-      const page = await context.newPage(), errors=[],paginationOffsets=[],paginationPending=new Map();
+      const page = await context.newPage(), errors=[],paginationOffsets=[],paginationPending=new Map(),imageRequests=[];
       page.setDefaultTimeout(10000);
       // This fixture has no service worker server; exercise the UI without an
       // artificial registration-error toast obscuring the screenshot.
       await page.addInitScript(()=>{delete Object.getPrototypeOf(navigator).serviceWorker;});
       page.on('pageerror',error=>errors.push(error.message));
+      if(process.env.MOBILE_DEBUG){
+        page.on('console',message=>console.log('Browser:',message.text()));
+        page.on('requestfailed',request=>console.log('Failed request:',request.url(),request.failure()));
+        await page.addInitScript(()=>document.addEventListener('error',event=>{if(event.target instanceof HTMLImageElement)console.log('Image error:',event.target.src,event.target.currentSrc,event.target.loading);},true));
+      }
       await page.route('**/*',async route=>{
         const url=new URL(route.request().url());
+        if(url.protocol==='blob:')return route.continue();
         if(url.hostname==='api.yani.tv') {
           if([390,1280].includes(viewport.width)&&url.pathname==='/anime'&&url.searchParams.get('limit')==='24'){
             const offset=Number(url.searchParams.get('offset')||0);paginationOffsets.push(offset);
             if(offset>0)await new Promise(resolve=>paginationPending.set(offset,resolve));
-            return route.fulfill({json:{response:offset>=120?[]:Array.from({length:24},(_,index)=>({...anime,anime_id:20000+offset+index,title:`Каталог ${offset+index}`}))}});
+            return route.fulfill({json:{response:offset>=120?[]:Array.from({length:24},(_,index)=>({...anime,anime_id:20000+offset+index,poster:poster(20000+offset+index),title:`Каталог ${offset+index}`}))}});
           }
           const response=url.pathname==='/anime/genres'?{genres:[{value:14,href:'detektiv',title:'Детектив'}]}:/\/anime\/\d+$/.test(url.pathname)?anime:/\/anime\/\d+\//.test(url.pathname)?[]:list;
           return route.fulfill({json:{response}});
         }
-        if(url.hostname==='static.yani.tv')return route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180"><rect width="320" height="180" fill="#3a5062"/><path d="M0 180 100 40 200 180 270 80 320 180" fill="#82978a"/></svg>'});
+        if(url.hostname==='static.yani.tv'){
+          imageRequests.push(url.pathname);
+          return route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180"><rect width="320" height="180" fill="#3a5062"/><path d="M0 180 100 40 200 180 270 80 320 180" fill="#82978a"/></svg>'});
+        }
         if(url.hostname!=='mobile.test')return route.abort();
         const name=url.pathname.slice(1);
         if(name.endsWith('.woff2'))return route.fulfill({body:await readFile(new URL(`../public/${name}`,import.meta.url)),contentType:'font/woff2'});
@@ -57,6 +70,11 @@ for (const engine of [chromium,webkit]) {
         };
         const checkPagination=async()=>{
             await page.waitForFunction(()=>document.querySelector('[data-total-items]')?.getAttribute('data-total-items')==='24');
+            await page.locator('[data-total-items] .poster-artwork.is-loaded').first().waitFor();
+            const requested=new Set(imageRequests.filter(path=>/^\/posters\/200\d\d\//.test(path)));
+            assert.ok(requested.size>0&&requested.size<24,`Offscreen posters were eagerly downloaded: ${requested.size}/24`);
+            assert.ok(!imageRequests.some(path=>path.endsWith('/huge.svg')),'Unused full-size posters are downloaded');
+            console.log(`${engine.name()} ${viewport.width}: visible catalog requested ${requested.size}/24 posters, no huge images`);
             const main=page.locator('.media-scroll');
             for(const count of [48,72,96]){
               await main.evaluate(element=>{element.scrollTop=element.scrollHeight;});
@@ -147,6 +165,9 @@ for (const engine of [chromium,webkit]) {
         assert.deepEqual(errors,[],'Browser errors');
         console.log(`${engine.name()} ${viewport.width}×${viewport.height}: layout, navigation and player OK`);
       } catch (error) {
+        console.error('Image requests:',imageRequests);
+        console.error('Image viewport:',await page.evaluate(()=>({hash:location.hash,screen:document.documentElement.dataset.screen,transition:document.documentElement.dataset.pageTransition,scroll:document.querySelector('.media-scroll')?.scrollTop,loaded:[...document.querySelectorAll('[data-total-items] .is-loaded')].map(el=>({src:el.querySelector('img')?.getAttribute('src'),box:el.getBoundingClientRect().toJSON()}))})));
+        console.error('Image state:',await page.locator('[data-total-items] img').evaluateAll(images=>images.slice(0,8).map(image=>({src:image.getAttribute('src'),loaded:image.complete,width:image.naturalWidth,loading:image.loading,box:image.getBoundingClientRect().toJSON()}))));
         await page.screenshot({path:`test-results/mobile/${engine.name()}-${viewport.width}-failure.png`});
         console.error(await page.evaluate(()=>[...document.querySelectorAll('.media-scroll-content *')].filter(element=>{const r=element.getBoundingClientRect();return r.width>0&&(r.right>innerWidth+1||r.left< -1)&&!element.closest('.gallery-rail,.gallery-categories,.screenshot-rail');}).slice(0,15).map(element=>({tag:element.tagName,class:element.className,width:element.getBoundingClientRect().width,right:element.getBoundingClientRect().right}))));
         console.error(await page.evaluate(()=>[...document.querySelectorAll('.overview-heading,.watch-title,.watch-title h1,.watch-title-actions,.detail-list-control,.anime-about-content,.anime-room')].map(element=>{const style=getComputedStyle(element),r=element.getBoundingClientRect();return {class:element.className,x:r.x,y:r.y,w:r.width,h:r.height,display:style.display,position:style.position,grid:style.gridTemplateColumns,scroll:element.scrollWidth};})));

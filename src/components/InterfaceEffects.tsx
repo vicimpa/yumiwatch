@@ -41,11 +41,11 @@ export function InterfaceEffects({onBack,watching}:{onBack:()=>void;watching:boo
    oscillator.connect(gain);gain.connect(audio.destination);oscillator.start(now);oscillator.stop(now+.05);oscillator.onended=()=>{oscillator.disconnect();gain.disconnect();};
   };
   const hover=(event:Event)=>{
-   const target=(event.target as HTMLElement).closest('button,a[href],[role=button]');if(!target||target.hasAttribute('disabled'))return;
+   const target=(event.target as HTMLElement).closest('button,a[href],[role=button]');if(!target||target.hasAttribute('disabled')||target.matches('.video-hit-area'))return;
    const related=(event as PointerEvent).relatedTarget;if(related instanceof Node&&target.contains(related))return;
    const now=performance.now();if(target===lastTarget&&now-lastTime<90)return;lastTarget=target;lastTime=now;sound('focus');
   };
-  const activate=()=>sound('activate');
+  const activate=(event:MouseEvent)=>{if(event.target instanceof Element&&event.target.closest('.video-hit-area,video'))return;sound('activate');};
   const keyboard=(event:KeyboardEvent)=>{
    if(event.defaultPrevented||event.isComposing||event.altKey||event.ctrlKey||event.metaKey)return;
    const target=event.target instanceof HTMLElement?event.target:null;
