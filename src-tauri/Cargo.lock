@@ -5248,9 +5248,10 @@ dependencies = [
 
 [[package]]
 name = "yummywatch"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
  "base64 0.22.1",
+ "gtk",
  "objc2-app-kit",
  "rand 0.9.5",
  "regex",

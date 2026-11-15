@@ -1,7 +1,7 @@
 {
   "name": "yummywatch",
   "private": true,
-  "version": "0.0.3",
+  "version": "0.0.4",
   "type": "module",
   "scripts": {
     "dev": "tauri dev",
@@ -32,7 +32,8 @@
     "build:android": "tauri android build",
     "build:ios": "tauri ios build",
     "check:mobile": "node scripts/check-mobile.mjs",
-    "icons": "node scripts/icons.mjs"
+    "icons": "node scripts/icons.mjs",
+    "check:playback-rate": "node scripts/check-playback-rate.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.4",

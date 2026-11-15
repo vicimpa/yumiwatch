@@ -7,6 +7,7 @@ import { VideoControls } from './VideoControls';
 import { PlaybackLoader } from './PlaybackLoader';
 import { Icon } from './Icon';
 import { StreamMedia } from './StreamMedia';
+import { selectedPlaybackRate, setPlaybackRate } from '../lib/playback-rate';
 import { warmQualitySwitch } from '../lib/quality-switch';
 import { mediaAtEnd } from '../lib/media-state';
 import { AutoActionCountdown } from './AutoActionCountdown';
@@ -78,7 +79,7 @@ export function VideoSurface({ stream, caption, identity, start, autoplay, media
     const live = videos[activeSlot.current].current!, next = videos[slot].current!, target = layers[slot]!;
     cancelSwitch.current = warmQualitySwitch(live, next, () => {
       const muted = live.muted, playing = !live.paused;
-      live.muted = true; next.muted = muted; next.volume = live.volume; next.playbackRate = live.playbackRate;
+      live.muted = true; next.muted = muted; next.volume = live.volume; setPlaybackRate(next,selectedPlaybackRate(live));
       saved.current = { time: next.currentTime, playing };
       activeSlot.current = slot; actualStream.current = target; media.current = next;
       cancelSwitch.current = undefined; setActive(slot); setSwitching(false);
@@ -192,7 +193,8 @@ export function VideoSurface({ stream, caption, identity, start, autoplay, media
     const restore = () => {
       if (disposed || activeSlot.current !== active) return;
       ready = true;
-      if (saved.current.time > 0 && Math.abs(video.currentTime - saved.current.time) > .01) video.currentTime = Math.min(saved.current.time, Number.isFinite(video.duration) ? Math.max(0, video.duration) : saved.current.time);
+      // StreamMedia owns startup seeks. Metadata updates only refresh the UI;
+      // another seek here can fight the streaming engine or rewind playback.
       if (video.readyState >= 2) setLoading(false);
       if (video.readyState >= 2) clearStall();
       emit('loadedmetadata'); tracksChanged();

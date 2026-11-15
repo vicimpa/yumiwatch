@@ -13,6 +13,7 @@ import { WindowChrome } from './components/WindowChrome';
 import { initializeCache } from './lib/cache-store';
 import { initializeSession } from './lib/session';
 import { notify } from './components/UI';
+import { initializeInterfaceScale } from './lib/interface-scale';
 class ErrorBoundary extends Component<{ children: ComponentChildren }, { failed: boolean }> {
   state = { failed: false };
   static getDerivedStateFromError() { return { failed: true }; }
@@ -25,6 +26,7 @@ async function start() {
   if (isDesktop()) render(<div class="fatal-error" role="status">Открываем YummyWatch…</div>, root);
   try {
     await initializeDesktop();
+    await initializeInterfaceScale();
     let sessionError='';
     try { await initializeSession(); } catch(error) { sessionError=(error as Error).message; }
     await initializeCache();

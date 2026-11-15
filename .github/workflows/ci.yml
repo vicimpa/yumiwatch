@@ -24,6 +24,9 @@ jobs:
       - run: npm test
       - run: npm run build:web
       - run: npx playwright install --with-deps chromium webkit
+      - name: Install decoder test fixture tools
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - run: npm run check:playback-rate
       - run: npm run check:mobile
       - name: Save mobile screenshots
         if: always()

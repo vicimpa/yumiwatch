@@ -4,7 +4,7 @@ import { readFile, mkdir } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 
 let bundle;
-async function playerBundle(){
+export async function playerBundle(){
  if(!bundle)bundle=build({configFile:false,plugins:[preact()],logLevel:'error',build:{write:false,lib:{entry:'scripts/player-surface-probe.tsx',formats:['iife'],name:'SurfaceProbe'},rollupOptions:{output:{inlineDynamicImports:true}}}}).then(result=>(Array.isArray(result)?result[0]:result).output.find(chunk=>chunk.type==='chunk').code);
  return bundle;
 }

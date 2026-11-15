@@ -33,6 +33,7 @@ export function WindowChrome() {
     const refresh = () => { void sync().catch(() => {}); };
     const resize = appWindow.onResized(refresh);
     const externalError = () => notify('Не удалось открыть ссылку в браузере.');
+    const scaleError = () => notify('Не удалось изменить масштаб интерфейса. Попробуй ещё раз.');
     const updateFullscreen = () => setFullscreen(desktopFullscreen() || !!document.fullscreenElement);
     const keyboard = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.isComposing || event.altKey || event.ctrlKey || event.metaKey) return;
@@ -44,12 +45,14 @@ export function WindowChrome() {
     refresh();
     document.addEventListener('fullscreenchange', refresh);
     window.addEventListener('yumiwatch:external-error', externalError);
+    window.addEventListener('yumiwatch:scale-error', scaleError);
     window.addEventListener('yumiwatch:fullscreen', updateFullscreen);
     window.addEventListener('keydown', keyboard, true);
     return () => {
       disposed = true; void resize.then(unlisten => unlisten());
       document.removeEventListener('fullscreenchange', refresh);
       window.removeEventListener('yumiwatch:external-error', externalError);
+      window.removeEventListener('yumiwatch:scale-error', scaleError);
       window.removeEventListener('yumiwatch:fullscreen', updateFullscreen);
       window.removeEventListener('keydown', keyboard, true);
     };

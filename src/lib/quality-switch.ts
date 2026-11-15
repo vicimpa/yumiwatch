@@ -1,3 +1,5 @@
+import { selectedPlaybackRate, setTemporaryPlaybackRate } from './playback-rate';
+
 // Decode the replacement silently while the live video keeps playing.
 export function warmQualitySwitch(live: HTMLVideoElement, next: HTMLVideoElement, commit: () => void, failed: () => void) {
   let cancelled = false, playing = false, frameReady = !next.requestVideoFrameCallback, aligned=false;
@@ -33,7 +35,7 @@ export function warmQualitySwitch(live: HTMLVideoElement, next: HTMLVideoElement
     lastTime=next.currentTime;
     // Repeatedly seeking to a moving clock starves slow decoders (notably
     // CVH). Align once, then let the muted replacement catch up naturally.
-    next.playbackRate=live.playbackRate*(live.paused?1:Math.abs(delta)>.1?(delta<0?1.25:.75):1);
+    setTemporaryPlaybackRate(next,selectedPlaybackRate(live)*(live.paused?1:Math.abs(delta)>.1?(delta<0?1.25:.75):1));
     if (!next.seeking && !aligned && Math.abs(delta) > .15) {
       aligned=true;
       next.currentTime = Math.min(live.currentTime + (live.paused ? 0 : .04), Number.isFinite(next.duration) ? Math.max(0, next.duration - .1) : Infinity);

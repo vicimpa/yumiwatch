@@ -4,6 +4,7 @@ import { mediaAtEnd } from '../lib/media-state';
 import { formatTime } from '../lib/player';
 import { Icon } from './Icon';
 import { Select } from './Select';
+import { PLAYBACK_RATE_EVENT, selectedPlaybackRate, setPlaybackRate } from '../lib/playback-rate';
 import { saveInterfaceSettings } from '../lib/interface-settings';
 import { PlaybackLoader } from './PlaybackLoader';
 import { desktopFullscreen, isDesktop, isDesktopWindow, toggleDesktopFullscreen } from '../lib/desktop';
@@ -20,6 +21,7 @@ export function VideoControls({ mediaVersion = 0, media, frame, title, position,
   const [offline, setOffline] = useState(() => navigator.onLine === false);
   const [duration, setDuration] = useState(0), [buffered, setBuffered] = useState(0);
   const [muted, setMuted] = useState(false), [volume, setVolume] = useState(1);
+  const [rate,setRate]=useState(1);
   const [visible, setVisible] = useState(true), [menu, setMenu] = useState(false);
   const [fullscreen, setFullscreen] = useState(false), [fullError, setFullError] = useState('');
   const [activity, setActivity] = useState(0), [focused, setFocused] = useState(false), [dragging, setDragging] = useState(false);
@@ -89,6 +91,7 @@ export function VideoControls({ mediaVersion = 0, media, frame, title, position,
       if (video.paused || mediaAtEnd(video) || video.readyState >= 3 || event?.type==='timeupdate'&&!video.seeking&&video.currentTime>lastPosition+.01) setBuffering(false);
       lastPosition=video.currentTime;
       setMuted(video.muted); setVolume(video.volume);
+      setRate(selectedPlaybackRate(video));
       let end = 0;
       for (let i = 0; i < video.buffered.length; i++) if (video.buffered.start(i) <= video.currentTime && video.buffered.end(i) >= video.currentTime) end = video.buffered.end(i);
       setBuffered(end);
@@ -96,7 +99,7 @@ export function VideoControls({ mediaVersion = 0, media, frame, title, position,
     const wait = () => setBuffering(!video.paused && !mediaAtEnd(video) && video.readyState < 3), ready = () => setBuffering(false);
     const full = () => { setFullscreen(desktopFullscreen() || (document.fullscreenElement || (document as Document & { webkitFullscreenElement?: Element }).webkitFullscreenElement) === frame.current); wake(); };
     const up = () => setDragging(false);
-    const events = ['play', 'pause', 'ended', 'loadedmetadata', 'durationchange', 'timeupdate', 'volumechange', 'progress', 'seeked', 'yumiwatch:complete'];
+    const events = ['play', 'pause', 'ended', 'loadedmetadata', 'durationchange', 'timeupdate', 'volumechange', 'progress', 'seeked', 'ratechange', PLAYBACK_RATE_EVENT, 'yumiwatch:complete'];
     for (const event of events) video.addEventListener(event, update);
     const disconnect = () => { setOffline(true); wait(); }, connect = () => { setOffline(false); wait(); };
     video.addEventListener('waiting', wait); video.addEventListener('stalled', wait); video.addEventListener('playing', ready); video.addEventListener('canplay', ready); video.addEventListener('pause', ready); video.addEventListener('error', ready);
@@ -168,7 +171,7 @@ export function VideoControls({ mediaVersion = 0, media, frame, title, position,
     {syncStatus && <span class="video-chrome video-save-status" role="status">{syncStatus}</span>}
     {paused && !loading && !failed && !buffering && <button class="video-center-play" aria-label={ended?'Смотреть заново':'Продолжить просмотр'} onClick={surfaceClick} onDblClick={surfaceDoubleClick}><Icon name="play" size={32}/></button>}
     {buffering && !paused && !loading && !failed && <PlaybackLoader label={offline ? 'Соединение потеряно' : 'Буферизация…'} detail={offline ? 'Ждём сеть. Позиция сохранена.' : 'Подгружаем видео'}/>}
-    {menu && <div ref={menuElement} class="video-settings" role="dialog" aria-label="Настройки плеера"><div class="video-settings-heading"><strong>Настройки плеера</strong><button aria-label="Закрыть настройки" onClick={() => setMenu(false)}><Icon name="close"/></button></div><div class="video-settings-selects">{quality}<label class="video-setting-field"><span>Скорость</span><Select aria-label="Скорость воспроизведения" value={media.current?.playbackRate || 1} onChange={event => { if (media.current) media.current.playbackRate = Number(event.currentTarget.value); wake(); }}>{[0.5,0.75,1,1.25,1.5,1.75,2].map(rate => <option value={rate} key={rate}>{rate}×</option>)}</Select></label></div>{settings}<p class="video-shortcuts">Пробел / K — пауза · J / L — ±10 с · M — звук · F — полный экран</p></div>}
+    {menu && <div ref={menuElement} class="video-settings" role="dialog" aria-label="Настройки плеера"><div class="video-settings-heading"><strong>Настройки плеера</strong><button aria-label="Закрыть настройки" onClick={() => setMenu(false)}><Icon name="close"/></button></div><div class="video-settings-selects">{quality}<label class="video-setting-field"><span>Скорость</span><Select aria-label="Скорость воспроизведения" value={rate} onChange={event => { if (media.current) setPlaybackRate(media.current,Number(event.currentTarget.value)); wake(); }}>{[0.5,0.75,1,1.25,1.5,1.75,2].map(rate => <option value={rate} key={rate}>{rate}×</option>)}</Select></label></div>{settings}<p class="video-shortcuts">Пробел / K — пауза · J / L — ±10 с · M — звук · F — полный экран</p></div>}
     <div class="video-chrome video-bottom" role="group" aria-label="Управление воспроизведением" inert={!visible}>
       <div class="video-timeline"><div class="video-timeline-track"><span class="video-buffered" style={{ width: `${duration ? buffered / duration * 100 : 0}%` }}/><span class="video-progress" style={{ width: `${duration ? Math.min(100, position / duration * 100) : 0}%` }}/></div><input type="range" min="0" max={duration || 0} step="0.1" value={Math.min(position, duration)} disabled={!duration} aria-label="Позиция воспроизведения" aria-valuetext={`${formatTime(position)} из ${formatTime(duration)}`} onPointerDown={() => setDragging(true)} onInput={event => seek(Number(event.currentTarget.value))}/></div>
       <div class="video-toolbar"><button aria-label={ended?'Смотреть заново':paused ? 'Воспроизвести' : 'Пауза'} title="Пауза / воспроизведение (K)" onClick={togglePlay}><Icon name={paused ? 'play' : 'pause'} size={22}/></button><button class="video-previous" aria-label="Предыдущая серия" disabled={!previous} onClick={previous}><Icon name="skipBack"/></button><button aria-label="Следующая серия" disabled={!next} onClick={next}><Icon name="skipNext"/></button><span class="video-time">{formatTime(position)}<span> / {formatTime(duration)}</span></span><div class="video-volume"><button aria-label={muted || !volume ? 'Включить звук' : 'Выключить звук'} title="Звук (M)" onClick={toggleMute}><Icon name={muted || !volume ? 'volumeOff' : 'volume'}/></button><input aria-label="Громкость" type="range" min="0" max="1" step="0.05" value={muted ? 0 : volume} onPointerDown={() => setDragging(true)} onInput={event => { if (media.current) { media.current.volume = Number(event.currentTarget.value); saveInterfaceSettings({volume:media.current.volume}); media.current.muted = false; } wake(); }}/></div>{onEpisodes&&<button aria-label="Серии" title="Серии (E)" onClick={onEpisodes}><Icon name="list"/></button>}{onComments&&<button aria-label="Комментарии" title="Комментарии (C)" onClick={onComments}><Icon name="comment"/></button>}<button ref={menuButton} aria-label="Настройки плеера" aria-expanded={menu} title="Настройки" onClick={() => { setMenu(value => !value); wake(); }}><Icon name="settings"/></button>{(!isDesktop() || isDesktopWindow()) && <button aria-label={fullscreen ? 'Выйти из полного экрана' : 'Полный экран'} title="Полный экран (F)" onClick={() => void toggleFullscreen()}><Icon name={fullscreen ? 'minimize' : 'fullscreen'}/></button>}</div>

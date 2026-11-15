@@ -25,6 +25,17 @@ beforeEach(()=>{
 });
 afterEach(()=>{cleanup();clearSession();resetAccountLibrary();vi.useRealTimers();vi.restoreAllMocks();vi.unstubAllGlobals();});
 describe('our player mode',()=>{
+ it('does not rewind on repeated decoder metadata during accelerated playback',async()=>{
+  const {container}=render(<Player anime={anime} history={{anime,episode:'1',videoId:video('1').video_id,group:'',updatedAt:Date.now(),position:120,duration:1400}}/>);
+  await waitFor(()=>expect(container.querySelector('video')?.getAttribute('src')).toContain('360'));
+  const media=container.querySelector('video')!;Object.defineProperty(media,'duration',{value:1400,configurable:true});fireEvent.loadedMetadata(media);
+  expect(media.currentTime).toBe(120);media.playbackRate=2;media.currentTime=180;fireEvent.timeUpdate(media);
+  // Metadata can repeat between timeupdate events; neither layer may restore
+  // an old history position or even the previous timeupdate's position.
+  media.currentTime=184;fireEvent.loadedMetadata(media);expect(media.currentTime).toBe(184);
+  media.currentTime=188;fireEvent.loadedMetadata(media);expect(media.currentTime).toBe(188);
+ });
+
  it('updates cached episodes in the background without resetting the chosen episode or decoder',async()=>{
   putCache('data',`/anime/${anime.anime_id}/videos?`,[video('1'),video('2')]);
   let finish!:(response:Response)=>void;vi.stubGlobal('fetch',vi.fn().mockReturnValue(new Promise<Response>(resolve=>{finish=resolve;})));

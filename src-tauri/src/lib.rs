@@ -1,6 +1,7 @@
 mod alloha;
 mod backend;
 mod images;
+mod interface_scale;
 mod media;
 mod providers;
 mod session;
@@ -253,6 +254,7 @@ pub fn run() {
         )
         .invoke_handler(tauri::generate_handler![
             desktop_info,
+            interface_scale::set_interface_scale,
             set_window_cursor_visible,
             load_account_session,
             save_account_session,

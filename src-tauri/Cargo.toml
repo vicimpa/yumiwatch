@@ -1,6 +1,6 @@
 [package]
 name = "yummywatch"
-version = "0.0.3"
+version = "0.0.4"
 description = "YummyWatch anime application"
 edition = "2021"
 rust-version = "1.90"
@@ -23,6 +23,9 @@ regex = "1"
 url = "2"
 rand = "0.9"
 base64 = "0.22"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk = "0.18"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2-app-kit = { version = "0.3", default-features = false, features = ["NSWindow", "NSButton", "NSView", "NSControl", "NSResponder", "NSCursor"] }

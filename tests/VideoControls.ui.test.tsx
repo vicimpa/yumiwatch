@@ -26,6 +26,13 @@ afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); });
 const idle = () => act(() => { vi.advanceTimersByTime(CONTROLS_IDLE_MS + 1); });
 
 describe('custom playback controls', () => {
+  it('keeps 2x selected during the decoder buffering and rate transitions',()=>{
+    const {video}=setup();fireEvent.click(screen.getByRole('button',{name:'Настройки плеера'}));
+    const speed=screen.getByRole('combobox',{name:'Скорость воспроизведения'}) as HTMLSelectElement;
+    fireEvent.change(speed,{target:{value:'2'}});expect(video.playbackRate).toBe(2);expect(video.defaultPlaybackRate).toBe(2);
+    for(const rate of [0,1,2]){video.playbackRate=rate;fireEvent.rateChange(video);fireEvent.timeUpdate(video);expect(speed.value).toBe('2');}
+  });
+
   it('waits for a single mouse click and cancels pending clicks when the player unmounts',()=>{
     const {playing,unmount}=setup();playing(false);
     const surface=document.querySelector('.video-hit-area')!;

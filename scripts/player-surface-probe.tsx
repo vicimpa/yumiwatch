@@ -7,7 +7,7 @@ import type { MediaUpdate } from '../src/lib/playback-session';
 
 declare global {
   interface Window {
-    surfaceInit: { streams: Stream[]; caption?: StreamCaption; provider: string; title: string };
+    surfaceInit: { streams: Stream[]; caption?: StreamCaption; provider: string; title: string; start?:number };
     surfaceProbe: { media: () => HTMLVideoElement | null; setStream: (stream: Stream) => void; failures: boolean[]; updates: MediaUpdate[]; qualityFailures: Stream[] };
   }
 }
@@ -18,7 +18,7 @@ function Probe() {
   const media=useRef<HTMLVideoElement>(null);
   const report=useRef({failures:[] as boolean[],updates:[] as MediaUpdate[],qualityFailures:[] as Stream[]});
   useLayoutEffect(()=>{window.surfaceProbe={media:()=>media.current,setStream,...report.current};},[]);
-  return <VideoSurface stream={stream} caption={init.caption} provider={init.provider} identity={1} start={0} autoplay={false} media={media}
+  return <VideoSurface stream={stream} caption={init.caption} provider={init.provider} identity={1} start={init.start||0} autoplay={false} media={media}
     title={init.title} poster="" skips={{}} autoOpening={false} autoEnding={false} retry={()=>{}}
     onUpdate={update=>{report.current.updates.push(update);if(report.current.updates.length>100)report.current.updates.shift();}}
     onStreamError={playing=>{report.current.failures.push(playing);}}

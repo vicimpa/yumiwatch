@@ -6,6 +6,7 @@ import type shaka from 'shaka-player';
 import type { Stream, StreamCaption } from '../lib/streams';
 import { hlsSkips, metadataSkips, mergeSkips, type SkipMarkers } from '../../shared/skips.mjs';
 import { isDesktopMedia } from '../lib/desktop';
+import { bindPlaybackRate } from '../lib/playback-rate';
 
 export function nativeHls(element:HTMLVideoElement){
   if(!element.canPlayType('application/vnd.apple.mpegurl'))return false;
@@ -39,11 +40,17 @@ export function StreamMedia({ stream, caption, video, active, title, poster, pro
   useEffect(() => {
     const element = video.current!; element.volume=interfaceSettings().volume; let disposed = false, notified = false, prepared=false, targetHeight=0;
     callbacks.current.onPending?.(false);
-    let player: shaka.Player | undefined;
+    let player: shaka.Player | undefined, releaseRate: (()=>void) | undefined;
+    let restored=false;
     let networkRetries=0,retryPosition=-Infinity;
     const discover = (skips: SkipMarkers) => { if (!disposed) callbacks.current.onSkips(skips); };
     const ready = () => { if (!disposed && prepared && element.readyState >= 2 && !element.seeking && (!targetHeight||element.videoHeight>=targetHeight)) { callbacks.current.onPending?.(false);if(!notified){notified = true; callbacks.current.onReady();} } };
     const restore = () => {
+      // Metadata can be emitted again after a decoder/rate reconfiguration.
+      // Resume is a startup operation, never a reason to rewind a running video.
+      // Managed streams already receive the resume position in player.load().
+      if(restored||player)return;
+      restored=true;
       const time = callbacks.current.start();
       if (time > 0 && Math.abs(element.currentTime - time) > .01) element.currentTime = Math.min(time, Number.isFinite(element.duration) ? Math.max(0, element.duration) : time);
     };
@@ -59,7 +66,7 @@ export function StreamMedia({ stream, caption, video, active, title, poster, pro
       }
       if (!disposed) { callbacks.current.onPending?.(false);callbacks.current.onError(new Error('Не удалось загрузить видеопоток.',{cause:detail})); }
     };
-    element.addEventListener('loadedmetadata', restore);
+    element.addEventListener('loadedmetadata', restore, true);
     for (const event of ['loadeddata','canplay','seeked','playing','resize','timeupdate']) element.addEventListener(event, ready);
     element.addEventListener('error', failed);
     void (async () => {
@@ -70,7 +77,7 @@ export function StreamMedia({ stream, caption, video, active, title, poster, pro
         // AVFoundation repeatedly stalls Kodik HLS while seeking a hidden
         // replacement. Use the same bounded, timestamp-aware engine as Windows.
         const useNative = stream.type === 'mp4' || provider!=='Kodik' && !relayed && stream.type === 'hls' && nativeHls(element);
-        if (useNative) { prepared=true;element.src = stream.url; element.load(); }
+        if (useNative) { prepared=true;element.src = stream.url; element.load();releaseRate=bindPlaybackRate(element);if(element.readyState>=1)restore(); }
         else {
           callbacks.current.onPending?.(true);
           const { default: shaka } = await import('shaka-player'); if (disposed) return;
@@ -102,6 +109,7 @@ export function StreamMedia({ stream, caption, video, active, title, poster, pro
           player.addEventListener('timelineregionadded', region); player.addEventListener('metadataadded', region); player.addEventListener('metadata', region);
           player.addEventListener('error', failed);
           await player.load(stream.url, callbacks.current.start(), stream.type === 'hls' ? 'application/vnd.apple.mpegurl' : 'application/dash+xml'); if (disposed) return;
+          releaseRate=bindPlaybackRate(element,player);
           // Only the standby decoder loses its startup buffer. The live layer
           // continues until the requested variant actually decodes a frame.
           targetHeight=selectQuality(player, desiredQuality.current, true)||0;prepared=true;
@@ -116,7 +124,8 @@ export function StreamMedia({ stream, caption, video, active, title, poster, pro
     })();
     return () => {
       disposed = true;
-      element.removeEventListener('loadedmetadata', restore);
+      releaseRate?.();
+      element.removeEventListener('loadedmetadata', restore, true);
       for (const event of ['loadeddata','canplay','seeked','playing','resize','timeupdate']) element.removeEventListener(event, ready);
       element.removeEventListener('error', failed);
       element.pause(); engine.current = undefined;

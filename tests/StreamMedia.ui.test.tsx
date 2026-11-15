@@ -1,15 +1,22 @@
 // @vitest-environment jsdom
 import { useRef } from 'preact/hooks';
-import { cleanup, render, waitFor } from '@testing-library/preact';
+import { cleanup, fireEvent, render, waitFor } from '@testing-library/preact';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { setPlaybackRate } from '../src/lib/playback-rate';
 import { StreamMedia, nativeHls } from '../src/components/StreamMedia';
-const engine=vi.hoisted(()=>({listeners:new Map<string,(event:Event)=>void>(),loaded:vi.fn(),retry:vi.fn().mockReturnValue(true),configure:vi.fn()}));
+const engine=vi.hoisted(()=>({listeners:new Map<string,(event:Event)=>void>(),loaded:vi.fn(),retry:vi.fn().mockReturnValue(true),configure:vi.fn(),rate:vi.fn()}));
 vi.mock('shaka-player',()=>({default:{polyfill:{installAll:()=>{}},net:{NetworkingEngine:{RequestType:{MANIFEST:1}}},Player:class{
- static isBrowserSupported(){return true;}async attach(){}configure(config:unknown){engine.configure(config);}getVariantTracks(){return [];}getNetworkingEngine(){return {registerResponseFilter:()=>{}};}addEventListener(name:string,callback:(event:Event)=>void){engine.listeners.set(name,callback);}retryStreaming(){return engine.retry();}async load(){await engine.loaded();}getChaptersTracks(){return [];}async destroy(){}
+ static isBrowserSupported(){return true;}async attach(){}trickPlay(rate:number){engine.rate(rate);}configure(config:unknown){engine.configure(config);}getVariantTracks(){return [];}getNetworkingEngine(){return {registerResponseFilter:()=>{}};}addEventListener(name:string,callback:(event:Event)=>void){engine.listeners.set(name,callback);}retryStreaming(){return engine.retry();}async load(){await engine.loaded();}getChaptersTracks(){return [];}async destroy(){}
 }}}));
 function Harness({failure,provider,type='hls',pending}:{failure:(error:Error)=>void;provider?:string;type?:'hls'|'mp4';pending?:(value:boolean)=>void}){const video=useRef<HTMLVideoElement>(null);return <StreamMedia provider={provider} stream={{quality:720,type,url:`https://cdn.example/video.${type==='hls'?'m3u8':'mp4'}`}} video={video} active title="Видео" poster="" start={()=>0} onReady={()=>{}} onError={failure} onPending={pending} onSkips={()=>{}}/>;}
-beforeEach(()=>{engine.listeners.clear();engine.loaded.mockClear();engine.retry.mockClear();engine.configure.mockClear();vi.spyOn(HTMLMediaElement.prototype,'pause').mockImplementation(()=>{});});afterEach(()=>{cleanup();vi.restoreAllMocks();vi.unstubAllGlobals();});
+beforeEach(()=>{engine.listeners.clear();engine.loaded.mockClear();engine.retry.mockClear();engine.configure.mockClear();engine.rate.mockClear();vi.spyOn(HTMLMediaElement.prototype,'pause').mockImplementation(()=>{});});afterEach(()=>{cleanup();vi.restoreAllMocks();vi.unstubAllGlobals();});
 describe('adaptive stream errors',()=>{
+ it('sends user speed to the adaptive controller rather than fighting its buffering rate',async()=>{
+  const {container}=render(<Harness failure={()=>{}}/>);await waitFor(()=>expect(engine.rate).toHaveBeenCalledWith(1));
+  const video=container.querySelector('video')!;setPlaybackRate(video,2);
+  expect(engine.rate).toHaveBeenLastCalledWith(2);expect(video.defaultPlaybackRate).toBe(2);
+ });
+
  it('keeps startup retries pending until the engine finishes loading',async()=>{
   let finish!:()=>void;engine.loaded.mockImplementationOnce(()=>new Promise<void>(resolve=>{finish=resolve;}));
   const pending=vi.fn(),failure=vi.fn();render(<Harness provider="CVH" failure={failure} pending={pending}/>);
