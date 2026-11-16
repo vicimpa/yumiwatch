@@ -1,44 +1,183 @@
 /* App labels behave like controls; content remains available for copying. */
-.media-brand>span { font-size:18px;white-space:nowrap; }
-@media(max-width:1050px) and (min-width:761px) { .media-brand>span { font-size:16px; } }
-body { -webkit-user-select:none;user-select:none; }
-::selection { background:#ffb2bc;color:#241b20;text-shadow:none; }
-.card-title { display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;min-height:3.2em;max-height:3.2em;overflow-wrap:anywhere; }
-.gallery-feature-copy h2 { min-height:2.7em; }
-.gallery-feature-description { min-height:3.6em; }
-.card-title-tooltip { position:fixed;z-index:1001;width:max-content;max-width:min(420px,calc(100vw - 24px));max-height:calc(100dvh - var(--window-inset,0px) - 32px);overflow:auto;padding:12px 15px;border:1px solid #ffb2bc70;border-radius:10px;background:#30282ff5;color:#fff;font-size:14px;font-weight:500;line-height:1.6;white-space:normal;overflow-wrap:anywhere;box-shadow:0 8px 28px #0009;-webkit-user-select:text;user-select:text; }
-:where(.card-title,.card-caption p,.gallery-feature-copy h2,.gallery-feature-description,.gallery-continue h3,
-  .result-copy,.history-copy,.schedule-card h3,.subscription-card h3,.poster-fallback span,.watch-title h1,.detail-meta,.full-synopsis,.anime-facts dd,
-  .viewing-order strong,.voice-tile strong,.sidebar-header p,.video-heading strong,
-  .comment-text,.comment-author,.comment-author-name,[data-selectable],input,textarea,[contenteditable=true]) {
-  -webkit-user-select:text;user-select:text;
+.media-brand > span {
+  font-size: 18px;
+  white-space: nowrap;
 }
-button,button *,select,option,input[type=range],input[type=checkbox],input[type=radio] { -webkit-user-select:none;user-select:none; }
+@media (max-width: 1050px) and (min-width: 761px) {
+  .media-brand > span {
+    font-size: 16px;
+  }
+}
+body {
+  -webkit-user-select: none;
+  user-select: none;
+}
+::selection {
+  background: #ffb2bc;
+  color: #241b20;
+  text-shadow: none;
+}
+.card-title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  min-height: 3.2em;
+  max-height: 3.2em;
+  overflow-wrap: anywhere;
+}
+.gallery-feature-copy h2 {
+  min-height: 2.7em;
+}
+.gallery-feature-description {
+  min-height: 3.6em;
+}
+.card-title-tooltip {
+  position: fixed;
+  z-index: 1001;
+  width: max-content;
+  max-width: min(420px, calc(100vw - 24px));
+  max-height: calc(100dvh - var(--window-inset, 0px) - 32px);
+  overflow: auto;
+  padding: 12px 15px;
+  border: 1px solid #ffb2bc70;
+  border-radius: 10px;
+  background: #30282ff5;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.6;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  box-shadow: 0 8px 28px #0009;
+  -webkit-user-select: text;
+  user-select: text;
+}
+:where(
+  .card-title,
+  .card-caption p,
+  .gallery-feature-copy h2,
+  .gallery-feature-description,
+  .gallery-continue h3,
+  .result-copy,
+  .history-copy,
+  .schedule-card h3,
+  .subscription-card h3,
+  .poster-fallback span,
+  .watch-title h1,
+  .detail-meta,
+  .full-synopsis,
+  .anime-facts dd,
+  .viewing-order strong,
+  .voice-tile strong,
+  .sidebar-header p,
+  .video-heading strong,
+  .comment-text,
+  .comment-author,
+  .comment-author-name,
+  [data-selectable],
+  input,
+  textarea,
+  [contenteditable='true']
+) {
+  -webkit-user-select: text;
+  user-select: text;
+}
+button,
+button *,
+select,
+option,
+input[type='range'],
+input[type='checkbox'],
+input[type='radio'] {
+  -webkit-user-select: none;
+  user-select: none;
+}
 
 /* Keep rings inside clipped panels and reveal whole cards during keyboard use. */
-.media-app :where(a[href],button,input,select,textarea,summary,[role=button]):focus-visible,
-.sidebar-presence :where(a[href],button,input,select,textarea,[role=button]):focus-visible,
-.mobile-sheet :where(a[href],button,input,select,textarea,[role=button]):focus-visible {
-  outline:2px solid var(--accent);outline-offset:-2px;
+.media-app :where(a[href], button, input, select, textarea, summary, [role='button']):focus-visible,
+.sidebar-presence :where(a[href], button, input, select, textarea, [role='button']):focus-visible,
+.mobile-sheet :where(a[href], button, input, select, textarea, [role='button']):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
-.media-scroll:focus,.video-controls:focus { outline:none; }
-html[data-screen=watch][data-player-chrome=hidden],
-html[data-screen=watch][data-player-chrome=hidden] body,
-html[data-screen=watch][data-player-chrome=hidden] body * { cursor:none!important; }
-.anime-card,.anime-card .card-image { border:0;outline:none; }
-.anime-card a:focus-visible { outline:none; }
-.anime-card:has(:focus-visible) .card-title { color:var(--accent);text-decoration:underline;text-underline-offset:5px;text-decoration-thickness:2px; }
-.gallery-rail,.screenshot-rail { scroll-padding:8px; }
-.gallery-rail:focus-within,.screenshot-rail:focus-within { scroll-snap-type:none; }
-.media-scroll,.media-nav,.sidebar-scroll,.modal-scroll { scroll-padding:12px; }
-.auto-load-marker { height:1px;pointer-events:none; }
-.catalog-loading-page { margin-top:28px; }
+.media-scroll:focus,
+.video-controls:focus {
+  outline: none;
+}
+html[data-screen='watch'][data-player-chrome='hidden'],
+html[data-screen='watch'][data-player-chrome='hidden'] body,
+html[data-screen='watch'][data-player-chrome='hidden'] body * {
+  cursor: none !important;
+}
+.anime-card,
+.anime-card .card-image {
+  border: 0;
+  outline: none;
+}
+.anime-card a:focus-visible {
+  outline: none;
+}
+.anime-card:has(:focus-visible) .card-title {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 5px;
+  text-decoration-thickness: 2px;
+}
+.gallery-rail,
+.screenshot-rail {
+  scroll-padding: 8px;
+}
+.gallery-rail:focus-within,
+.screenshot-rail:focus-within {
+  scroll-snap-type: none;
+}
+.media-scroll,
+.media-nav,
+.sidebar-scroll,
+.modal-scroll {
+  scroll-padding: 12px;
+}
+.auto-load-marker {
+  height: 1px;
+  pointer-events: none;
+}
+.catalog-loading-page {
+  margin-top: 28px;
+}
 /* Virtualized cards cannot be scroll anchors. Exclude the pagination marker and
    skeletons too, otherwise the browser follows them to the new end on append. */
-.catalog-gallery { overflow-anchor:none; }
-.auto-load-error { display:grid;justify-items:center;gap:12px;padding:24px;color:var(--muted);font-size:13px; }
-.virtual-grid { position:relative;overflow-anchor:none; }
-.virtual-item { min-width:0; }
-.virtual-grid .card-caption p { white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
-.virtual-grid.is-list { display:grid;grid-template-columns:minmax(0,1fr);gap:14px; }
-.virtual-grid.is-list .anime-result-row { height:124px;margin:0;overflow:hidden; }
+.catalog-gallery {
+  overflow-anchor: none;
+}
+.auto-load-error {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 24px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.virtual-grid {
+  position: relative;
+  overflow-anchor: none;
+}
+.virtual-item {
+  min-width: 0;
+}
+.virtual-grid .card-caption p {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.virtual-grid.is-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+}
+.virtual-grid.is-list .anime-result-row {
+  height: 124px;
+  margin: 0;
+  overflow: hidden;
+}

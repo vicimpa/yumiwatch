@@ -1,53 +1,185 @@
 /* Window controls float over the app; the same inset protects every screen. */
-html[data-desktop=macos],html[data-desktop=windows] { --window-inset:44px; }
-html[data-desktop-fullscreen=true],html:has(:fullscreen) { --window-inset:0px; }
-.window-chrome { position:fixed;inset:0 0 auto;height:var(--window-inset);z-index:1000;display:flex;pointer-events:none;user-select:none;view-transition-name:window-chrome; }
-.window-chrome { transition:opacity .18s ease,visibility .18s; }
-.window-chrome.is-hidden { opacity:0;visibility:hidden; }
-.window-chrome.is-hidden,.window-chrome.is-hidden * { pointer-events:none; }
-.window-drag-region { flex:1;pointer-events:auto;cursor:default; }
-html[data-desktop=macos] .window-drag-region { margin-left:90px; }
-.window-controls { display:flex;height:36px;pointer-events:auto; }
-.window-controls button { display:grid;place-items:center;width:46px;height:36px;border:0;border-radius:0;background:transparent;color:#ddd;cursor:default; }
-.window-controls button:hover { background:#ffffff18;color:#fff; }
-.window-controls button.window-close:hover { background:#c42b1c;color:#fff; }
-.window-controls button:focus-visible { outline:2px solid var(--accent);outline-offset:-3px; }
-.window-controls svg { fill:none;stroke:currentColor;stroke-width:1; }
-html[data-desktop] .media-nav { padding-top:calc(30px + var(--window-inset,0px)); }
-html[data-desktop] .media-nav>.media-brand { position:relative;top:-10px; }
+html[data-desktop='macos'],
+html[data-desktop='windows'] {
+  --window-inset: 44px;
+}
+html[data-desktop-fullscreen='true'],
+html:has(:fullscreen) {
+  --window-inset: 0px;
+}
+.window-chrome {
+  position: fixed;
+  inset: 0 0 auto;
+  height: var(--window-inset);
+  z-index: 1000;
+  display: flex;
+  pointer-events: none;
+  user-select: none;
+  view-transition-name: window-chrome;
+}
+.window-chrome {
+  transition:
+    opacity 0.18s ease,
+    visibility 0.18s;
+}
+.window-chrome.is-hidden {
+  opacity: 0;
+  visibility: hidden;
+}
+.window-chrome.is-hidden,
+.window-chrome.is-hidden * {
+  pointer-events: none;
+}
+.window-drag-region {
+  flex: 1;
+  pointer-events: auto;
+  cursor: default;
+}
+html[data-desktop='macos'] .window-drag-region {
+  margin-left: 90px;
+}
+.window-controls {
+  display: flex;
+  height: 36px;
+  pointer-events: auto;
+}
+.window-controls button {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 36px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #ddd;
+  cursor: default;
+}
+.window-controls button:hover {
+  background: #ffffff18;
+  color: #fff;
+}
+.window-controls button.window-close:hover {
+  background: #c42b1c;
+  color: #fff;
+}
+.window-controls button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -3px;
+}
+.window-controls svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1;
+}
+html[data-desktop] .media-nav {
+  padding-top: calc(30px + var(--window-inset, 0px));
+}
+html[data-desktop] .media-nav > .media-brand {
+  position: relative;
+  top: -10px;
+}
 /* Keep the scroll viewport edge-to-edge. Insets belong to its content, otherwise
    scrolling produces an opaque strip that crops posters and headings. */
-html[data-desktop] .media-scroll-content { padding-top:calc(32px + var(--window-inset,0px)); }
-html[data-desktop=macos] .media-scroll-content { padding-top:32px; }
-html[data-desktop] .media-menu-trigger { top:calc(16px + var(--window-inset,0px)); }
-html[data-desktop] .is-watching { top:0; }
-html[data-desktop] .is-playback .media-scroll-content { padding-top:0; }
-html[data-desktop] .video-top-actions { top:calc(18px + var(--window-inset,0px)); }
-html[data-desktop] .immersive-player .video-heading { padding-top:calc(78px + var(--window-inset,0px)); }
-html[data-desktop] .immersive-player .video-save-status { top:calc(77px + var(--window-inset,0px)); }
-html[data-desktop] .watch-state-back,html[data-desktop] .native-state-back { top:calc(20px + var(--window-inset,0px)); }
-html[data-desktop] .sidebar-header { padding-top:calc(17px + var(--window-inset,0px));min-height:calc(78px + var(--window-inset,0px)); }
-html[data-desktop] .mobile-sheet { max-height:calc(100dvh - var(--window-inset,0px)); }
-html[data-desktop] .thread-screen.mobile-sheet,html[data-desktop] .composer-screen.mobile-sheet { top:var(--window-inset,0px);height:calc(100dvh - var(--window-inset,0px)); }
-html[data-desktop] .fatal-error { padding-top:calc(40px + var(--window-inset,0px)); }
+html[data-desktop] .media-scroll-content {
+  padding-top: calc(32px + var(--window-inset, 0px));
+}
+html[data-desktop='macos'] .media-scroll-content {
+  padding-top: 32px;
+}
+html[data-desktop] .media-menu-trigger {
+  top: calc(16px + var(--window-inset, 0px));
+}
+html[data-desktop] .is-watching {
+  top: 0;
+}
+html[data-desktop] .is-playback .media-scroll-content {
+  padding-top: 0;
+}
+html[data-desktop] .video-top-actions {
+  top: calc(18px + var(--window-inset, 0px));
+}
+html[data-desktop] .immersive-player .video-heading {
+  padding-top: calc(78px + var(--window-inset, 0px));
+}
+html[data-desktop] .immersive-player .video-save-status {
+  top: calc(77px + var(--window-inset, 0px));
+}
+html[data-desktop] .watch-state-back,
+html[data-desktop] .native-state-back {
+  top: calc(20px + var(--window-inset, 0px));
+}
+html[data-desktop] .sidebar-header {
+  padding-top: calc(17px + var(--window-inset, 0px));
+  min-height: calc(78px + var(--window-inset, 0px));
+}
+html[data-desktop] .mobile-sheet {
+  max-height: calc(100dvh - var(--window-inset, 0px));
+}
+html[data-desktop] .thread-screen.mobile-sheet,
+html[data-desktop] .composer-screen.mobile-sheet {
+  top: var(--window-inset, 0px);
+  height: calc(100dvh - var(--window-inset, 0px));
+}
+html[data-desktop] .fatal-error {
+  padding-top: calc(40px + var(--window-inset, 0px));
+}
 /* The OS blurs the desktop behind the transparent WebView. These tints add
    contrast without painting over NSVisualEffectView with an opaque page. */
-html[data-desktop=macos] { background:transparent; }
-html[data-desktop=macos] body { background:rgba(22,23,27,.24); }
-html[data-desktop=macos]:not([data-interface-style=contrast]) { --bg:rgba(26,27,31,.32);--surface:rgba(49,50,55,.72);--surface-hover:rgba(61,62,68,.82);--line:rgba(255,255,255,.13); }
-html[data-desktop=macos] .media-nav { background:rgba(33,34,39,.48);border-right-color:rgba(255,255,255,.10); }
-html[data-desktop=macos] .gallery-feature { background:rgba(44,45,50,.62); }
-html[data-desktop=macos] .media-sidebar { background:rgba(36,37,42,.90);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px); }
-html[data-desktop=macos] .sidebar-header { background:rgba(48,49,54,.74); }
-html[data-desktop=macos][data-interface-style=contrast] body { background:#111; }
-html[data-desktop=macos][data-interface-style=contrast] .media-nav,html[data-desktop=macos][data-interface-style=contrast] .gallery-feature { background:#191919; }
-::view-transition-group(window-chrome),::view-transition-old(window-chrome),::view-transition-new(window-chrome) { animation:none; }
-::view-transition-group(window-chrome) { z-index:1000; }
-@media(max-width:1050px) and (min-width:761px) {
- html[data-desktop] .media-scroll-content { padding-top:calc(27px + var(--window-inset,0px)); }
- html[data-desktop=macos] .media-scroll-content { padding-top:27px; }
+html[data-desktop='macos'] {
+  background: transparent;
 }
-@media(max-width:760px) {
- html[data-desktop] .media-scroll-content { padding-top:calc(78px + var(--window-inset,0px)); }
- html[data-desktop] .is-playback .media-scroll-content { padding-top:0; }
+html[data-desktop='macos'] body {
+  background: rgba(22, 23, 27, 0.24);
+}
+html[data-desktop='macos']:not([data-interface-style='contrast']) {
+  --bg: rgba(26, 27, 31, 0.32);
+  --surface: rgba(49, 50, 55, 0.72);
+  --surface-hover: rgba(61, 62, 68, 0.82);
+  --line: rgba(255, 255, 255, 0.13);
+}
+html[data-desktop='macos'] .media-nav {
+  background: rgba(33, 34, 39, 0.48);
+  border-right-color: rgba(255, 255, 255, 0.1);
+}
+html[data-desktop='macos'] .gallery-feature {
+  background: rgba(44, 45, 50, 0.62);
+}
+html[data-desktop='macos'] .media-sidebar {
+  background: rgba(36, 37, 42, 0.9);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+html[data-desktop='macos'] .sidebar-header {
+  background: rgba(48, 49, 54, 0.74);
+}
+html[data-desktop='macos'][data-interface-style='contrast'] body {
+  background: #111;
+}
+html[data-desktop='macos'][data-interface-style='contrast'] .media-nav,
+html[data-desktop='macos'][data-interface-style='contrast'] .gallery-feature {
+  background: #191919;
+}
+::view-transition-group(window-chrome),
+::view-transition-old(window-chrome),
+::view-transition-new(window-chrome) {
+  animation: none;
+}
+::view-transition-group(window-chrome) {
+  z-index: 1000;
+}
+@media (max-width: 1050px) and (min-width: 761px) {
+  html[data-desktop] .media-scroll-content {
+    padding-top: calc(27px + var(--window-inset, 0px));
+  }
+  html[data-desktop='macos'] .media-scroll-content {
+    padding-top: 27px;
+  }
+}
+@media (max-width: 760px) {
+  html[data-desktop] .media-scroll-content {
+    padding-top: calc(78px + var(--window-inset, 0px));
+  }
+  html[data-desktop] .is-playback .media-scroll-content {
+    padding-top: 0;
+  }
 }

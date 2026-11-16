@@ -1,42 +1,78 @@
 import { convertFileSrc, invoke, isTauri } from '@tauri-apps/api/core';
+import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 
 // Kept for existing IPC consumers: the Rust backend also runs on phones.
 export const isDesktop = () => isTauri();
-export interface DesktopInfo { platform: 'macos' | 'windows' | 'linux' | 'android' | 'ios' }
+
+export interface DesktopInfo {
+  platform: 'macos' | 'windows' | 'linux' | 'android' | 'ios';
+}
+
 export const isDesktopWindow = () => isDesktop() && !document.documentElement.dataset.mobile;
+
 let desktop: DesktopInfo | undefined;
+
 export function desktopMediaRoot() {
   const url = new URL(convertFileSrc('', 'yumiwatch-media'));
+
   return new URL(`${url.protocol}//${url.host}/`);
 }
-export const isDesktopMedia = (url: string) => isDesktop() && (url.startsWith('yumiwatch-media:') || /^https?:\/\/yumiwatch-media\.localhost\//.test(url));
+
+export const isDesktopMedia = (url: string) =>
+  isDesktop() &&
+  (url.startsWith('yumiwatch-media:') || /^https?:\/\/yumiwatch-media\.localhost\//.test(url));
 
 export function handleDesktopLinkClick(event: MouseEvent) {
   if (event.defaultPrevented || event.button !== 0) return;
-  const link = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>('a[href]') : null;
+
+  const link =
+    event.target instanceof Element ? event.target.closest<HTMLAnchorElement>('a[href]') : null;
+
   if (!link || link.hasAttribute('download')) return;
   if (link.getAttribute('href')?.startsWith('#')) return;
+
   const url = new URL(link.href, location.href);
   const current = new URL(location.href);
+
   // WKWebView's Location and URL disagree about custom-scheme origins and
   // empty root paths. Compare parsed addresses instead of opaque origins.
-  if (url.protocol === current.protocol && url.host === current.host &&
-      (url.pathname || '/') === (current.pathname || '/') && url.search === current.search &&
-      url.username === current.username && url.password === current.password) return;
+  if (
+    url.protocol === current.protocol &&
+    url.host === current.host &&
+    (url.pathname || '/') === (current.pathname || '/') &&
+    url.search === current.search &&
+    url.username === current.username &&
+    url.password === current.password
+  )
+    return;
   event.preventDefault();
   if (url.protocol !== 'https:') return;
-  void import('@tauri-apps/plugin-opener').then(({ openUrl }) => openUrl(url.href)).catch(() => {
-    window.dispatchEvent(new CustomEvent('yumiwatch:external-error'));
-  });
+  void import('@tauri-apps/plugin-opener')
+    .then(({ openUrl }) => openUrl(url.href))
+    .catch(() => {
+      window.dispatchEvent(new CustomEvent('yumiwatch:external-error'));
+    });
 }
 
 export async function initializeDesktop() {
   if (!isDesktop()) return;
+
   // Set the inset before the first paint, including the startup/error screen.
-  const mobile = /Android/i.test(navigator.userAgent) ? 'android' : /iPad|iPhone|iPod/i.test(navigator.userAgent) || navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1 ? 'ios' : undefined;
+  const mobile = /Android/i.test(navigator.userAgent)
+    ? 'android'
+    : /iPad|iPhone|iPod/i.test(navigator.userAgent) ||
+        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+      ? 'ios'
+      : undefined;
+
   if (mobile) document.documentElement.dataset.mobile = mobile;
-  else document.documentElement.dataset.desktop = navigator.platform.startsWith('Mac') ? 'macos' : navigator.platform.startsWith('Win') ? 'windows' : 'linux';
+  else
+    document.documentElement.dataset.desktop = navigator.platform.startsWith('Mac')
+      ? 'macos'
+      : navigator.platform.startsWith('Win')
+        ? 'windows'
+        : 'linux';
   desktop = await invoke<DesktopInfo>('desktop_info');
   if (desktop.platform === 'android' || desktop.platform === 'ios') {
     delete document.documentElement.dataset.desktop;
@@ -51,23 +87,43 @@ export async function initializeDesktop() {
 /** Keep API requests independent of WebView CORS policies. Rust accepts only api.yani.tv. */
 export async function apiFetch(url: string, options: RequestInit): Promise<Response> {
   if (!isDesktop()) return fetch(url, options);
+
   const parsed = new URL(url);
+
   if (parsed.origin !== 'https://api.yani.tv') throw new Error('Некорректный адрес API.');
-  const result = await desktopInvoke<{ status: number; body: string }>('yani_request', { request: {
-    path: `${parsed.pathname}${parsed.search}`, method: options.method || 'GET',
-    headers: Object.fromEntries(new Headers(options.headers).entries()),
-    body: typeof options.body === 'string' ? options.body : null,
-  } }, options.signal);
-  return new Response([204,205,304].includes(result.status) ? null : result.body, { status: result.status, headers: { 'Content-Type': 'application/json' } });
+
+  const result = await desktopInvoke<{ status: number; body: string }>(
+    'yummy_request',
+    {
+      request: {
+        path: `${parsed.pathname}${parsed.search}`,
+        method: options.method || 'GET',
+        headers: Object.fromEntries(new Headers(options.headers).entries()),
+        body: typeof options.body === 'string' ? options.body : null,
+      },
+    },
+    options.signal
+  );
+
+  return new Response([204, 205, 304].includes(result.status) ? null : result.body, {
+    status: result.status,
+    headers: { 'Content-Type': 'application/json' },
+  });
 }
 
-export async function desktopInvoke<T>(command: string, args: Record<string, unknown>, signal?: AbortSignal | null): Promise<T> {
+export async function desktopInvoke<T>(
+  command: string,
+  args: Record<string, unknown>,
+  signal?: AbortSignal | null
+): Promise<T> {
   signal?.throwIfAborted();
+
   let abort: (() => void) | undefined;
   const cancelled = new Promise<never>((_, reject) => {
     abort = () => reject(new DOMException('Aborted', 'AbortError'));
     signal?.addEventListener('abort', abort, { once: true });
   });
+
   try {
     return await Promise.race([invoke<T>(command, args), cancelled]);
   } catch (error) {
@@ -75,25 +131,82 @@ export async function desktopInvoke<T>(command: string, args: Record<string, unk
     // expect Error.message; losing it leaves the player on an endless loader.
     if (error instanceof Error || error instanceof DOMException) throw error;
     throw new Error(typeof error === 'string' ? error : 'Не удалось выполнить запрос приложения.');
-  } finally { if (abort) signal?.removeEventListener('abort', abort); }
+  } finally {
+    if (abort) signal?.removeEventListener('abort', abort);
+  }
 }
 
-export const desktopFullscreen = () => document.documentElement.dataset.desktopFullscreen === 'true';
+export const desktopFullscreen = () =>
+  document.documentElement.dataset.desktopFullscreen === 'true';
+
+export const desktopFullscreenChanging = () =>
+  document.documentElement.dataset.desktopFullscreenChanging === 'true';
+
 export function syncDesktopFullscreen(fullscreen: boolean) {
+  if (document.documentElement.dataset.desktopFullscreen === String(fullscreen)) return;
   document.documentElement.dataset.desktopFullscreen = String(fullscreen);
   window.dispatchEvent(new Event('yumiwatch:fullscreen'));
 }
+
 let fullscreenChange: Promise<void> | undefined;
+
+/** AppKit acknowledges setFullscreen before its Space/resize animation finishes. */
+async function settleMacFullscreen(
+  appWindow: ReturnType<typeof getCurrentWindow>,
+  target: boolean
+) {
+  const started = Date.now();
+  let resized = started;
+  const unlisten = await appWindow.onResized(() => {
+    resized = Date.now();
+  });
+
+  try {
+    await appWindow.setFullscreen(target);
+    while (Date.now() - started < 5000) {
+      const actual = await appWindow.isFullscreen();
+
+      if (actual === target && Date.now() - resized >= 300) return actual;
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    throw new Error('Окно не завершило переключение полного экрана.');
+  } finally {
+    unlisten();
+  }
+}
+
 /** One window owns fullscreen across every route and player. */
 export function toggleDesktopFullscreen(): Promise<void> {
   if (!isDesktopWindow()) return Promise.resolve();
-  return fullscreenChange ??= (async () => {
+
+  return (fullscreenChange ??= (async () => {
     const appWindow = getCurrentWindow();
-    const fullscreen = !await appWindow.isFullscreen();
-    await appWindow.setFullscreen(fullscreen);
+    const fullscreen = !(await appWindow.isFullscreen());
+    const focused = document.activeElement;
+
+    document.documentElement.dataset.desktopFullscreenChanging = 'true';
+    if (document.documentElement.dataset.desktop === 'macos') {
+      await settleMacFullscreen(appWindow, fullscreen);
+      syncDesktopFullscreen(fullscreen);
+      // AppKit can return keyboard focus to another window when exiting fullscreen.
+      // Restore both the key window and WebView's first responder, not just DOM focus.
+      await appWindow.setFocus();
+      await getCurrentWebview().setFocus();
+
+      const target =
+        focused instanceof HTMLElement && focused.isConnected && !focused.closest('[inert]')
+          ? focused
+          : document.querySelector<HTMLElement>('.video-controls,#main');
+
+      target?.focus({ preventScroll: true });
+    } else await appWindow.setFullscreen(fullscreen);
     syncDesktopFullscreen(fullscreen);
-  })().finally(() => { fullscreenChange = undefined; });
+  })().finally(() => {
+    delete document.documentElement.dataset.desktopFullscreenChanging;
+    fullscreenChange = undefined;
+  }));
 }
+
 export async function exitPlayerFullscreen() {
   // Browser fullscreen belongs to the player; desktop fullscreen belongs to the app.
   if (!isDesktopWindow() && document.fullscreenElement) await document.exitFullscreen();

@@ -1,4 +1,8 @@
 {
-  "app": { "windows": [{ "label": "main", "title": "YummyWatch", "backgroundColor": "#222222", "theme": "Dark" }] },
+  "app": {
+    "windows": [
+      { "label": "main", "title": "YummyWatch", "backgroundColor": "#222222", "theme": "Dark" }
+    ]
+  },
   "bundle": { "android": { "minSdkVersion": 24 } }
 }

@@ -1,147 +1,304 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { flushSync } from 'preact/compat';
-import { interfaceSettings, INTERFACE_EVENT } from './interface-settings';
-import { pageDirection, pageSlide } from './page-transitions';
-import { rememberPageScroll, restorePageScroll } from './page-scroll';
-import { ApiError } from './api';
-import { LIBRARY_EVENT } from './storage';
-import { getLibraryState } from './library';
-import { getSession, restoreStoredSession, SESSION_EVENT, SESSION_KEY } from './session';
-import type { Result } from './types';
-import { beginImageRefresh } from './image-cache';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 
-export function useResource<T>(loader: (signal: AbortSignal) => Promise<Result<T>>, deps: unknown[],peek?:()=>Result<T>|undefined) {
-  const [value, setValue] = useState<Result<T>|undefined>(()=>peek?.());
+import { ApiError } from './api';
+import { beginImageRefresh } from './image-cache';
+import { INTERFACE_EVENT, interfaceSettings } from './interface-settings';
+import { getLibraryState } from './library';
+import { rememberPageScroll, restorePageScroll } from './page-scroll';
+import { pageDirection, pageSlide } from './page-transitions';
+import { getSession, restoreStoredSession, SESSION_EVENT, SESSION_KEY } from './session';
+import { LIBRARY_EVENT } from './storage';
+import type { Result } from './types';
+
+export function useResource<T>(
+  loader: (signal: AbortSignal) => Promise<Result<T>>,
+  deps: unknown[],
+  peek?: () => Result<T> | undefined
+) {
+  const [value, setValue] = useState<Result<T> | undefined>(() => peek?.());
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(!value);
   const [revision, setRevision] = useState(0);
+  const retry = useCallback(() => setRevision(n => n + 1), []);
   const [refreshing, setRefreshing] = useState(!!value);
-  const previousDeps = useRef<unknown[]>(); const latest = useRef(value); latest.current = value;
-  const different=!!previousDeps.current&&deps.some((dep,index)=>!Object.is(dep,previousDeps.current![index]));
-  const visible=different?peek?.():value;
+  const previousDeps = useRef<unknown[]>();
+  const latest = useRef(value);
+
+  latest.current = value;
+
+  const different =
+    !!previousDeps.current &&
+    deps.some((dep, index) => !Object.is(dep, previousDeps.current![index]));
+  const visible = different ? peek?.() : value;
+
   useEffect(() => {
     const controller = new AbortController();
-    const changed = !previousDeps.current || deps.some((dep, index) => !Object.is(dep, previousDeps.current![index]));
+    const changed =
+      !previousDeps.current ||
+      deps.some((dep, index) => !Object.is(dep, previousDeps.current![index]));
+
     previousDeps.current = [...deps];
-    const seed=changed?peek?.():latest.current;
-    setError(''); setRefreshing(!!seed); setLoading(!seed);
+
+    const seed = changed ? peek?.() : latest.current;
+
+    setError('');
+    setRefreshing(!!seed);
+    setLoading(!seed);
     if (changed) setValue(seed);
     void (async () => {
       try {
         const result = await loader(controller.signal);
+
         if (controller.signal.aborted) return;
-        setValue(result); setLoading(false); setRefreshing(!!result.revalidate);
+        setValue(result);
+        setLoading(false);
+        setRefreshing(!!result.revalidate);
         if (result.revalidate) {
           const fresh = await result.revalidate;
+
           if (!controller.signal.aborted) setValue(fresh);
         }
       } catch (error) {
         if (controller.signal.aborted) return;
-        if (error instanceof ApiError && [401, 403, 404].includes(error.status)) setValue(undefined);
+        if (error instanceof ApiError && [401, 403, 404].includes(error.status))
+          setValue(undefined);
         setError((error as Error).message);
-      } finally { if (!controller.signal.aborted) { setLoading(false); setRefreshing(false); } }
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+          setRefreshing(false);
+        }
+      }
     })();
+
     return () => controller.abort();
   }, [...deps, revision]);
-  return { value:visible, error:different?'':error, loading:different?!visible:loading, refreshing, retry: () => setRevision(n => n + 1) };
+
+  return {
+    value: visible,
+    error: different ? '' : error,
+    loading: different ? !visible : loading,
+    refreshing,
+    retry,
+  };
 }
 
 export function useLibrary() {
   const [library, setLibrary] = useState(getLibraryState);
+
   useEffect(() => {
     const update = () => setLibrary({ ...getLibraryState() });
+
     window.addEventListener(LIBRARY_EVENT, update);
     window.addEventListener(SESSION_EVENT, update);
     window.addEventListener('storage', update);
     update(); // A fast account restore may finish between render and subscribing.
-    return () => { window.removeEventListener(LIBRARY_EVENT, update); window.removeEventListener(SESSION_EVENT, update); window.removeEventListener('storage', update); };
+
+    return () => {
+      window.removeEventListener(LIBRARY_EVENT, update);
+      window.removeEventListener(SESSION_EVENT, update);
+      window.removeEventListener('storage', update);
+    };
   }, []);
+
   return library;
 }
+
 export function useSession() {
   const [session, setSession] = useState(getSession);
+
   useEffect(() => {
     const update = () => setSession(getSession());
-    const storage = (event: StorageEvent) => { if (event.key === SESSION_KEY || event.key === null) restoreStoredSession(); };
-    window.addEventListener(SESSION_EVENT, update); window.addEventListener('storage', storage);
+
+    const storage = (event: StorageEvent) => {
+      if (event.key === SESSION_KEY || event.key === null) restoreStoredSession();
+    };
+
+    window.addEventListener(SESSION_EVENT, update);
+    window.addEventListener('storage', storage);
     update();
-    return () => { window.removeEventListener(SESSION_EVENT, update); window.removeEventListener('storage', storage); };
+
+    return () => {
+      window.removeEventListener(SESSION_EVENT, update);
+      window.removeEventListener('storage', storage);
+    };
   }, []);
+
   return session;
 }
+
 export function useMediaQuery(query: string) {
   const [matches, setMatches] = useState(() => window.matchMedia?.(query).matches || false);
+
   useEffect(() => {
     const media = window.matchMedia?.(query);
+
     if (!media) return;
+
     const update = () => setMatches(media.matches);
-    update(); media.addEventListener('change', update);
+
+    update();
+    media.addEventListener('change', update);
+
     return () => media.removeEventListener('change', update);
   }, [query]);
+
   return matches;
 }
+
 export function useHash() {
   const [path, setPath] = useState(() => location.hash.slice(1) || '/');
   const current = useRef(path);
-  const cancelScrollRestore=useRef<()=>void>(()=>{});
+  const cancelScrollRestore = useRef<() => void>(() => {});
+
   useEffect(() => {
     const previousRestoration = history.scrollRestoration;
+
     history.scrollRestoration = 'manual';
-    let sequence = 0, transition: ViewTransition | undefined, arrival: Animation | undefined, arrivalFrame = 0;
+
+    let sequence = 0,
+      transition: ViewTransition | undefined,
+      arrival: Animation | undefined,
+      arrivalFrame = 0;
     const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+
     const motion = () => interfaceSettings().animations && !reducedMotion?.matches;
+
     const update = () => {
       beginImageRefresh();
+
       const navigation = ++sequence;
-      transition?.skipTransition(); arrival?.cancel(); arrival = undefined; cancelAnimationFrame(arrivalFrame); delete document.documentElement.dataset.pageFallback;
-      rememberPageScroll(current.current);cancelScrollRestore.current();
-      const next = location.hash.slice(1) || '/', direction = pageDirection(current.current, next), animate = !!direction && motion();
+
+      transition?.skipTransition();
+      arrival?.cancel();
+      arrival = undefined;
+      cancelAnimationFrame(arrivalFrame);
+      delete document.documentElement.dataset.pageFallback;
+      rememberPageScroll(current.current);
+      cancelScrollRestore.current();
+
+      const next = location.hash.slice(1) || '/',
+        direction = pageDirection(current.current, next),
+        animate = !!direction && motion();
+
       if (direction) document.documentElement.dataset.pageDirection = direction;
+
       const commit = () => {
         // A skipped transition still runs its callback; only the latest navigation may commit.
         if (navigation !== sequence) return;
         current.current = next;
         flushSync(() => setPath(next));
-        cancelScrollRestore.current=restorePageScroll(next);
+        cancelScrollRestore.current = restorePageScroll(next);
       };
+
       if (animate && document.startViewTransition) {
         try {
-          document.documentElement.dataset.pageTransition='active';
-          const active = document.startViewTransition(commit); transition = active;
+          document.documentElement.dataset.pageTransition = 'active';
+
+          const active = document.startViewTransition(commit);
+
+          transition = active;
           void active.ready.catch(() => {});
-          void active.finished.catch(() => {}).then(() => { if (transition === active) { transition = undefined; delete document.documentElement.dataset.pageTransition; } });
+          void active.finished
+            .catch(() => {})
+            .then(() => {
+              if (transition === active) {
+                transition = undefined;
+                delete document.documentElement.dataset.pageTransition;
+              }
+            });
+
           return;
-        } catch { delete document.documentElement.dataset.pageTransition; /* Older browsers still navigate and slide in the new screen. */ }
+        } catch {
+          delete document.documentElement.dataset
+            .pageTransition; /* Older browsers still navigate and slide in the new screen. */
+        }
       }
       commit();
-      if (animate) arrivalFrame = requestAnimationFrame(() => {
-        const element = document.querySelector<HTMLElement>('.media-workspace') || document.getElementById('main');
-        if (navigation !== sequence || !motion() || !element?.animate) return;
-        document.documentElement.dataset.pageFallback = 'active';
-        const active = element.animate([{ transform: pageSlide(direction!) }, { transform: 'none' }], { duration: 280, easing: 'cubic-bezier(.25,.85,.25,1)' });
-        arrival = active;
-        void active.finished.catch(() => {}).then(() => { if (arrival === active) { arrival = undefined; delete document.documentElement.dataset.pageFallback; } });
-      });
+      if (animate)
+        arrivalFrame = requestAnimationFrame(() => {
+          const element =
+            document.querySelector<HTMLElement>('.media-workspace') ||
+            document.getElementById('main');
+
+          if (navigation !== sequence || !motion() || !element?.animate) return;
+          document.documentElement.dataset.pageFallback = 'active';
+
+          const active = element.animate(
+            [{ transform: pageSlide(direction!) }, { transform: 'none' }],
+            { duration: 280, easing: 'cubic-bezier(.25,.85,.25,1)' }
+          );
+
+          arrival = active;
+          void active.finished
+            .catch(() => {})
+            .then(() => {
+              if (arrival === active) {
+                arrival = undefined;
+                delete document.documentElement.dataset.pageFallback;
+              }
+            });
+        });
     };
-    const stopMotion = () => { if (!motion()) { transition?.skipTransition(); arrival?.cancel(); delete document.documentElement.dataset.pageFallback; } };
-    window.addEventListener('hashchange', update);window.addEventListener(INTERFACE_EVENT, stopMotion);reducedMotion?.addEventListener('change', stopMotion);
-    return () => { ++sequence; transition?.skipTransition(); arrival?.cancel(); cancelAnimationFrame(arrivalFrame); window.removeEventListener('hashchange', update);window.removeEventListener(INTERFACE_EVENT, stopMotion);reducedMotion?.removeEventListener('change', stopMotion);delete document.documentElement.dataset.pageFallback;delete document.documentElement.dataset.pageTransition; history.scrollRestoration = previousRestoration; };
+
+    const stopMotion = () => {
+      if (!motion()) {
+        transition?.skipTransition();
+        arrival?.cancel();
+        delete document.documentElement.dataset.pageFallback;
+      }
+    };
+
+    window.addEventListener('hashchange', update);
+    window.addEventListener(INTERFACE_EVENT, stopMotion);
+    reducedMotion?.addEventListener('change', stopMotion);
+
+    return () => {
+      ++sequence;
+      transition?.skipTransition();
+      arrival?.cancel();
+      cancelAnimationFrame(arrivalFrame);
+      window.removeEventListener('hashchange', update);
+      window.removeEventListener(INTERFACE_EVENT, stopMotion);
+      reducedMotion?.removeEventListener('change', stopMotion);
+      delete document.documentElement.dataset.pageFallback;
+      delete document.documentElement.dataset.pageTransition;
+      history.scrollRestoration = previousRestoration;
+    };
   }, []);
+
   useLayoutEffect(() => {
-    cancelScrollRestore.current=restorePageScroll(current.current);
-    return()=>cancelScrollRestore.current();
+    cancelScrollRestore.current = restorePageScroll(current.current);
+
+    return () => cancelScrollRestore.current();
   }, []);
+
   return path;
 }
+
 export function useVisualViewport() {
   useEffect(() => {
     const viewport = window.visualViewport;
+
     const update = () => {
-      document.documentElement.style.setProperty('--visual-height', `${viewport?.height || window.innerHeight}px`);
+      document.documentElement.style.setProperty(
+        '--visual-height',
+        `${viewport?.height || window.innerHeight}px`
+      );
       document.documentElement.style.setProperty('--visual-top', `${viewport?.offsetTop || 0}px`);
-      document.documentElement.dataset.keyboard = viewport && window.innerHeight - viewport.height > 140 ? 'open' : 'closed';
+      document.documentElement.dataset.keyboard =
+        viewport && window.innerHeight - viewport.height > 140 ? 'open' : 'closed';
     };
-    update(); viewport?.addEventListener('resize', update); viewport?.addEventListener('scroll', update);
-    return () => { viewport?.removeEventListener('resize', update); viewport?.removeEventListener('scroll', update); delete document.documentElement.dataset.keyboard; };
+
+    update();
+    viewport?.addEventListener('resize', update);
+    viewport?.addEventListener('scroll', update);
+
+    return () => {
+      viewport?.removeEventListener('resize', update);
+      viewport?.removeEventListener('scroll', update);
+      delete document.documentElement.dataset.keyboard;
+    };
   }, []);
 }

@@ -1,50 +1,208 @@
-import { useEffect, useRef, useState } from 'preact/hooks';
-import { ApiError, imageUrl } from '../lib/api';
-import { initializeAccount, loginAccount, logoutAccount } from '../lib/account';
-import { useLibrary, useSession } from '../lib/hooks';
-import { syncLibrary } from '../lib/library';
-import { Icon } from './Icon';
-import { Avatar, notify } from './UI';
+import type { FunctionalComponent as FC, JSX } from 'preact';
+import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 
-interface HCaptchaAPI { render(container: HTMLElement, options: Record<string, unknown>): string; remove(id: string): void }
-declare global { interface Window { hcaptcha?: HCaptchaAPI } }
+import { initializeAccount, loginAccount, logoutAccount } from '~/lib/account';
+import { ApiError } from '~/lib/api';
+import { useLibrary, useSession } from '~/lib/hooks';
+import { syncLibrary } from '~/lib/library';
+import { notify } from '~/lib/notifications';
+
+import {
+  Avatar,
+  Button,
+  ButtonLink,
+  Field,
+  Form,
+  FormActions,
+  FormError,
+  Icon,
+  Input,
+  SettingsCard,
+} from '~/ui';
+
+interface HCaptchaAPI {
+  render(container: HTMLElement, options: Record<string, unknown>): string;
+  remove(id: string): void;
+}
+
+declare global {
+  interface Window {
+    hcaptcha?: HCaptchaAPI;
+  }
+}
+
 let captchaLoader: Promise<HCaptchaAPI> | undefined;
+
 function loadCaptcha() {
   if (window.hcaptcha) return Promise.resolve(window.hcaptcha);
   if (captchaLoader) return captchaLoader;
   captchaLoader = new Promise<HCaptchaAPI>((resolve, reject) => {
     const script = document.createElement('script');
-    const timeout = setTimeout(() => { script.remove(); reject(new Error('Капча Yani не загрузилась. Проверь соединение и попробуй снова.')); }, 15000);
-    script.src = 'https://js.hcaptcha.com/1/api.js?render=explicit&hl=ru'; script.async = true;
-    script.onload = () => { clearTimeout(timeout); window.hcaptcha ? resolve(window.hcaptcha) : reject(new Error('Капча Yani недоступна.')); };
-    script.onerror = () => { clearTimeout(timeout); script.remove(); reject(new Error('Не удалось загрузить капчу Yani.')); };
+    const timeout = setTimeout(() => {
+      script.remove();
+      reject(new Error('Капча Yummy не загрузилась. Проверь соединение и попробуй снова.'));
+    }, 15000);
+
+    script.src = 'https://js.hcaptcha.com/1/api.js?render=explicit&hl=ru';
+    script.async = true;
+    script.onload = () => {
+      clearTimeout(timeout);
+      window.hcaptcha ? resolve(window.hcaptcha) : reject(new Error('Капча Yummy недоступна.'));
+    };
+    script.onerror = () => {
+      clearTimeout(timeout);
+      script.remove();
+      reject(new Error('Не удалось загрузить капчу Yummy.'));
+    };
     document.head.appendChild(script);
-  }).catch(error => { captchaLoader = undefined; throw error; });
+  }).catch(error => {
+    captchaLoader = undefined;
+    throw error;
+  });
+
   return captchaLoader;
 }
-function Captcha({ onToken }: { onToken: (value: string) => void }) {
+
+type TCaptchaProps = { onToken: (value: string) => void };
+
+const Captcha: FC<TCaptchaProps> = ({ onToken }) => {
   const container = useRef<HTMLDivElement>(null);
-  const callback = useRef(onToken); callback.current = onToken;
+  const callback = useRef(onToken);
+
+  callback.current = onToken;
+
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
+
   useEffect(() => {
-    let cancelled = false; let widget: string | undefined;
+    let cancelled = false;
+    let widget: string | undefined;
+
     setError('');
-    loadCaptcha().then(api => {
-      if (cancelled || !container.current) return;
-      widget = api.render(container.current, { sitekey: 'b1847961-208e-4a90-9671-1e6bba9e0b36', theme: 'dark', size: 'compact', callback: (token: string) => callback.current(token), 'expired-callback': () => callback.current(''), 'error-callback': () => { callback.current(''); setError('Капча Yani не прошла проверку. Попробуй загрузить её снова.'); } });
-    }).catch(error => { if (!cancelled) setError(error.message); });
-    return () => { cancelled = true; if (widget !== undefined) window.hcaptcha?.remove(widget); };
+    loadCaptcha()
+      .then(api => {
+        if (cancelled || !container.current) return;
+        widget = api.render(container.current, {
+          sitekey: 'b1847961-208e-4a90-9671-1e6bba9e0b36',
+          theme: 'dark',
+          size: 'compact',
+          callback: (token: string) => callback.current(token),
+          'expired-callback': () => callback.current(''),
+          'error-callback': () => {
+            callback.current('');
+            setError('Капча Yummy не прошла проверку. Попробуй загрузить её снова.');
+          },
+        });
+      })
+      .catch(error => {
+        if (!cancelled) setError(error.message);
+      });
+
+    return () => {
+      cancelled = true;
+      if (widget !== undefined) window.hcaptcha?.remove(widget);
+    };
   }, [attempt]);
-  return <div class="login-captcha"><div ref={container}/>{error && <><p role="alert">{error}</p><button type="button" class="text-link" onClick={() => setAttempt(value => value + 1)}>Загрузить капчу снова</button></>}</div>;
-}
-export function AccountCard() {
+
+  const retryCaptcha = useCallback(() => setAttempt(value => value + 1), []);
+
+  return (
+    <div class="login-captcha">
+      <div ref={container} />
+      {error && (
+        <>
+          <FormError>{error}</FormError>
+          <Button type="button" onClick={retryCaptcha} variant="text">
+            Загрузить капчу снова
+          </Button>
+        </>
+      )}
+    </div>
+  );
+};
+
+export const AccountCard: FC = () => {
   const session = useSession();
   const library = useLibrary();
   const [retrying, setRetrying] = useState(false);
-  return <section class="settings-card account-card"><div class={`settings-icon ${session ? 'profile-avatar' : ''}`}>{session ? <Avatar url={session.user.avatar} name={session.user.nickname}/> : <Icon name="heart" size={25}/>}</div><div><h2>{session?.verified ? session.user.nickname : session ? 'Проверяем аккаунт' : 'Твои истории на всех устройствах'}</h2><p>{session?.verified ? 'Ты в аккаунте YummyAnime. Избранное и история синхронизируются с ним.' : session ? 'Чтобы открыть коллекцию, нужно подтвердить сохранённую сессию через Yani.' : 'Войди в свой аккаунт YummyAnime — здесь появятся твои избранные аниме и история просмотров.'}</p>{session ? <><div class="account-actions">{!session.verified && <button class="button secondary" disabled={retrying} onClick={async () => { setRetrying(true); try { await initializeAccount(); } catch (error) { notify((error as Error).message); } finally { setRetrying(false); } }}>{retrying ? 'Проверяем…' : 'Повторить проверку'}</button>}{session.verified && <button class="button secondary" disabled={library.loading} onClick={() => void syncLibrary()}><Icon name="refresh" size={16}/>{library.loading ? 'Обновляем…' : 'Обновить коллекцию'}</button>}<button class="text-link" onClick={() => { logoutAccount(); notify('Ты вышел из аккаунта'); }}>Выйти</button></div>{library.error && <p class="account-error" role="alert">{library.error}</p>}</> : <a href="#/account" class="button primary">Войти в YummyAnime<Icon name="arrow" size={17}/></a>}</div></section>;
-}
-export function AccountPage({ query }: { query: string }) {
+
+  const retryAccount = useCallback(async () => {
+    setRetrying(true);
+    try {
+      await initializeAccount();
+    } catch (error) {
+      notify((error as Error).message);
+    } finally {
+      setRetrying(false);
+    }
+  }, []);
+
+  const syncAccount = useCallback(() => void syncLibrary(), []);
+
+  const logout = useCallback(() => {
+    logoutAccount();
+    notify('Ты вышел из аккаунта');
+  }, []);
+
+  return (
+    <SettingsCard
+      class="account-card"
+      title={
+        session?.verified
+          ? session.user.nickname
+          : session
+            ? 'Проверяем аккаунт'
+            : 'Твои истории на всех устройствах'
+      }
+      description={
+        session?.verified
+          ? 'Ты в аккаунте YummyAnime. Избранное и история синхронизируются с ним.'
+          : session
+            ? 'Чтобы открыть коллекцию, нужно подтвердить сохранённую сессию через Yummy.'
+            : 'Войди в свой аккаунт YummyAnime — здесь появятся твои избранные аниме и история просмотров.'
+      }
+      icon={
+        session ? (
+          <Avatar url={session.user.avatar} name={session.user.nickname} />
+        ) : (
+          <Icon name="heart" size={25} />
+        )
+      }
+      iconClass={session ? 'profile-avatar' : ''}
+    >
+      {session ? (
+        <>
+          <FormActions class="account-actions">
+            {!session.verified && (
+              <Button disabled={retrying} onClick={retryAccount}>
+                {retrying ? 'Проверяем…' : 'Повторить проверку'}
+              </Button>
+            )}
+            {session.verified && (
+              <Button disabled={library.loading} onClick={syncAccount}>
+                <Icon name="refresh" size={16} />
+                {library.loading ? 'Обновляем…' : 'Обновить коллекцию'}
+              </Button>
+            )}
+            <Button onClick={logout} variant="text">
+              Выйти
+            </Button>
+          </FormActions>
+          {library.error && <FormError class="account-error">{library.error}</FormError>}
+        </>
+      ) : (
+        <ButtonLink href="#/account" variant="primary">
+          Войти в YummyAnime
+          <Icon name="arrow" size={17} />
+        </ButtonLink>
+      )}
+    </SettingsCard>
+  );
+};
+
+export type TAccountPageProps = { query: string };
+
+export const AccountPage: FC<TAccountPageProps> = ({ query }) => {
   const session = useSession();
   const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
@@ -55,22 +213,143 @@ export function AccountPage({ query }: { query: string }) {
   const [captcha, setCaptcha] = useState('');
   const [challenge, setChallenge] = useState(0);
   const controller = useRef<AbortController>();
+
   useEffect(() => () => controller.current?.abort(), []);
-  if (session) return <><div class="page-heading"><p class="eyebrow">ТВОЙ АККАУНТ</p><h1>{session.verified ? `Привет, ${session.user.nickname}` : 'Возвращаемся в твой мир'}</h1></div><AccountCard/><a class="text-link account-settings-link" href="#/settings"><Icon name="settings" size={16}/>Настройки приложения</a><br/><a class="button secondary" href="#/library">В мою коллекцию<Icon name="arrow" size={17}/></a></>;
-  return <div class="login-page"><a class="text-link account-settings-link" href="#/settings"><Icon name="settings" size={16}/>Настройки приложения</a><div class="page-heading"><p class="eyebrow">ТВОИ ИСТОРИИ ВСЕГДА С ТОБОЙ</p><h1>Войти в YummyAnime</h1><p>Используй почту и пароль своего аккаунта YummyAnime.</p></div><form class="login-form" onSubmit={async event => {
-    event.preventDefault(); if (busy) return;
-    setBusy(true); setError('');
-    controller.current = new AbortController();
-    try {
-      await loginAccount(login, password, remember, captcha, controller.current.signal);
-      setPassword('');
-      const next = new URLSearchParams(query).get('next');
-      location.hash = next?.startsWith('/') && !next.startsWith('//') ? next : '/library';
-      notify('Ты в аккаунте. Загружаем твою коллекцию');
-    } catch (error) {
-      if (controller.current.signal.aborted) return;
-      if (error instanceof ApiError && (error.status === 420 || error.code === 5)) { setCaptchaRequired(true); setCaptcha(''); setChallenge(value => value + 1); }
-      setError((error as Error).message);
-    } finally { if (!controller.current?.signal.aborted) setBusy(false); }
-  }}><label htmlFor="account-email">Почта на YummyAnime<input id="account-email" type="email" autoComplete="username" autoCapitalize="none" spellcheck={false} required maxLength={320} value={login} disabled={busy} onInput={event => setLogin(event.currentTarget.value)}/></label><label htmlFor="account-password">Пароль<input id="account-password" type="password" autoComplete="current-password" required maxLength={500} value={password} disabled={busy} onInput={event => setPassword(event.currentTarget.value)}/></label><label class="remember-account"><input type="checkbox" checked={remember} disabled={busy} onChange={event => setRemember(event.currentTarget.checked)}/><span>Оставаться в аккаунте на этом устройстве</span></label>{captchaRequired && <Captcha key={challenge} onToken={setCaptcha}/>}<div class="login-error" role="alert">{error}</div><button class="button primary" type="submit" disabled={busy || (captchaRequired && !captcha)} aria-busy={busy}>{busy ? 'Входим…' : 'Войти'}<Icon name="arrow" size={17}/></button><p class="login-privacy">Данные отправляются напрямую в Yani. Пароль не сохраняется в YummyWatch. Без «Оставаться в аккаунте» вход действует до закрытия браузерной сессии.</p><a class="text-link" href="https://ru.yummyani.me/" target="_blank" rel="noreferrer">Забыли пароль? Открыть YummyAnime<Icon name="external" size={15}/></a></form><p class="collection-note">Гостевая коллекция хранится отдельно и не добавляется в аккаунт автоматически.</p></div>;
-}
+
+  const submit = useCallback(
+    async (event: JSX.TargetedSubmitEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      if (busy) return;
+      setBusy(true);
+      setError('');
+      controller.current = new AbortController();
+      try {
+        await loginAccount(login, password, remember, captcha, controller.current.signal);
+        setPassword('');
+
+        const next = new URLSearchParams(query).get('next');
+
+        location.hash = next?.startsWith('/') && !next.startsWith('//') ? next : '/library';
+        notify('Ты в аккаунте. Загружаем твою коллекцию');
+      } catch (error) {
+        if (controller.current.signal.aborted) return;
+        if (error instanceof ApiError && (error.status === 420 || error.code === 5)) {
+          setCaptchaRequired(true);
+          setCaptcha('');
+          setChallenge(value => value + 1);
+        }
+        setError((error as Error).message);
+      } finally {
+        if (!controller.current?.signal.aborted) setBusy(false);
+      }
+    },
+    [busy, login, password, remember, captcha, query]
+  );
+
+  const changeLogin = useCallback(
+    (event: JSX.TargetedInputEvent<HTMLInputElement>) => setLogin(event.currentTarget.value),
+    []
+  );
+
+  const changePassword = useCallback(
+    (event: JSX.TargetedInputEvent<HTMLInputElement>) => setPassword(event.currentTarget.value),
+    []
+  );
+
+  const changeRemember = useCallback(
+    (event: JSX.TargetedEvent<HTMLInputElement>) => setRemember(event.currentTarget.checked),
+    []
+  );
+
+  if (session)
+    return (
+      <>
+        <div class="page-heading">
+          <p class="eyebrow">ТВОЙ АККАУНТ</p>
+          <h1>
+            {session.verified ? `Привет, ${session.user.nickname}` : 'Возвращаемся в твой мир'}
+          </h1>
+        </div>
+        <AccountCard />
+        <ButtonLink href="#/settings" variant="text" class="account-settings-link">
+          <Icon name="settings" size={16} />
+          Настройки приложения
+        </ButtonLink>
+        <br />
+        <ButtonLink href="#/library">
+          В мою коллекцию
+          <Icon name="arrow" size={17} />
+        </ButtonLink>
+      </>
+    );
+
+  return (
+    <div class="login-page">
+      <ButtonLink href="#/settings" variant="text" class="account-settings-link">
+        <Icon name="settings" size={16} />
+        Настройки приложения
+      </ButtonLink>
+      <div class="page-heading">
+        <p class="eyebrow">ТВОИ ИСТОРИИ ВСЕГДА С ТОБОЙ</p>
+        <h1>Войти в YummyAnime</h1>
+        <p>Используй почту и пароль своего аккаунта YummyAnime.</p>
+      </div>
+      <Form class="login-form" onSubmit={submit}>
+        <Field htmlFor="account-email" label="Почта на YummyAnime">
+          <Input
+            id="account-email"
+            type="email"
+            autoComplete="username"
+            autoCapitalize="none"
+            spellcheck={false}
+            required
+            maxLength={320}
+            value={login}
+            disabled={busy}
+            onInput={changeLogin}
+          />
+        </Field>
+        <Field htmlFor="account-password" label="Пароль">
+          <Input
+            id="account-password"
+            type="password"
+            autoComplete="current-password"
+            required
+            maxLength={500}
+            value={password}
+            disabled={busy}
+            onInput={changePassword}
+          />
+        </Field>
+        <label class="remember-account">
+          <Input type="checkbox" checked={remember} disabled={busy} onChange={changeRemember} />
+          <span>Оставаться в аккаунте на этом устройстве</span>
+        </label>
+        {captchaRequired && <Captcha key={challenge} onToken={setCaptcha} />}
+        <FormError class="login-error" as="div">
+          {error}
+        </FormError>
+        <Button
+          type="submit"
+          disabled={busy || (captchaRequired && !captcha)}
+          aria-busy={busy}
+          variant="primary"
+        >
+          {busy ? 'Входим…' : 'Войти'}
+          <Icon name="arrow" size={17} />
+        </Button>
+        <p class="login-privacy">
+          Данные отправляются напрямую в Yummy. Пароль не сохраняется в YummyWatch. Без «Оставаться
+          в аккаунте» вход действует до закрытия браузерной сессии.
+        </p>
+        <ButtonLink href="https://ru.yummyani.me/" target="_blank" rel="noreferrer" variant="text">
+          Забыли пароль? Открыть YummyAnime
+          <Icon name="external" size={15} />
+        </ButtonLink>
+      </Form>
+      <p class="collection-note">
+        Гостевая коллекция хранится отдельно и не добавляется в аккаунт автоматически.
+      </p>
+    </div>
+  );
+};

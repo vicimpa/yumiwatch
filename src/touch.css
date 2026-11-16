@@ -1,83 +1,396 @@
 /* Loaded last so phone layouts share the same rules in every interface theme. */
-.phone-header[hidden], .phone-nav[hidden] { display:none; }
-@media (max-width:760px), (max-width:1000px) and (pointer:coarse) {
- :root { --phone-top:calc(60px + var(--window-inset,0px) + env(safe-area-inset-top,0px));--phone-bottom:calc(64px + env(safe-area-inset-bottom,0px)); }
- .phone-header { position:fixed;inset:0 0 auto;z-index:40;height:var(--phone-top);padding:calc(var(--window-inset,0px) + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 0 max(16px,env(safe-area-inset-left,0px));display:flex;align-items:center;justify-content:space-between;background:var(--bg);border-bottom:1px solid var(--line); }
- .phone-brand { display:flex;align-items:center;gap:8px;font-size:17px;font-weight:700;letter-spacing:-.5px;min-height:44px; }
- .phone-brand>span { color:var(--muted);font-weight:400;margin-left:-8px; }
- .phone-account { width:44px;height:44px;border:0;overflow:hidden; }
- .phone-account img { width:32px;height:32px;border-radius:50%;object-fit:cover; }
- .phone-nav { position:fixed;inset:auto 0 0;z-index:40;height:var(--phone-bottom);display:grid;grid-template-columns:repeat(5,minmax(0,1fr));padding:4px max(6px,env(safe-area-inset-right,0px)) env(safe-area-inset-bottom,0px) max(6px,env(safe-area-inset-left,0px));border-top:1px solid var(--line);background:var(--bg);view-transition-name:phone-navigation; }
- .phone-nav>a,.phone-nav>.media-menu-trigger { position:static;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-width:0;width:auto;height:auto;min-height:52px;padding:5px 0;border:0;border-radius:9px;background:none;color:var(--muted);font-size:10px;line-height:1.3;transition:none; }
- .phone-nav .active { color:var(--accent);background:color-mix(in srgb,var(--accent) 9%,transparent); }
- .media-workspace { padding-left:0;left:0;height:100dvh;padding-top:var(--phone-top);padding-bottom:var(--phone-bottom); }
- .media-workspace>main.media-scroll { scrollbar-gutter:auto;scroll-padding-bottom:16px; }
- .media-scroll-content,html[data-desktop] .media-scroll-content { padding:20px max(16px,env(safe-area-inset-right,0px)) 24px max(16px,env(safe-area-inset-left,0px)); }
- .is-playback .media-workspace { padding:0; }
- .is-playback .media-scroll-content,html[data-desktop] .is-playback .media-scroll-content { padding:0; }
- .gallery-heading { margin-top:0;flex-wrap:wrap; }
- .gallery-actions { width:100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px; }
- .gallery-actions .button { min-width:0;padding-inline:10px; }
- .gallery-actions .gallery-collection-action { display:none; }
- .gallery-heading h1,.screen-title h1 { font-size:24px; }
- .gallery-actions .button,.gallery-feature-actions .button,.watch-title-actions .button,.anime-detail-screen .overview-heading .watch-title-actions .button { min-height:44px;font-size:12px; }
- .gallery-feature-copy h2 { min-height:0;font-size:18px; }
- .gallery-grid,.anime-grid.gallery-grid,html[data-interface-style=cinema] .gallery-grid { grid-template-columns:repeat(2,minmax(0,1fr));gap:22px 12px; }
- .gallery-rail,html[data-interface-style=cinema] .gallery-rail { grid-auto-columns:clamp(136px,38vw,180px);gap:14px; }
- .gallery-rail .card-title,.gallery-grid .card-title { font-size:13px; }
- .gallery-shelf-actions .text-link { min-height:44px;font-size:12px; }
- .catalog-gallery .results-heading { flex-wrap:wrap; }
- .catalog-gallery .sort-label select,.about-episodes-voice select,.media-sidebar .discussion-header .select-control>select,input:not([type=range]):not([type=checkbox]):not([type=radio]),textarea,select { font-size:16px; }
- .catalog-view-tools .icon-button,.sidebar-header .icon-button,.watch-state-back,.native-state-back { min-width:44px;min-height:44px; }
- .anime-detail-screen .overview-heading { display:grid;grid-template-columns:86px minmax(0,1fr);gap:14px; }
- .anime-detail-screen .overview-heading .watch-poster { width:86px; }
- .anime-detail-screen .overview-heading .watch-poster { grid-column:1;grid-row:1 / span 2; }
- .anime-detail-screen .overview-heading .watch-title { display:contents;padding:0; }
- .anime-detail-screen .overview-heading .watch-title h1 { font-size:21px;overflow-wrap:anywhere; }
- .anime-detail-screen .overview-heading .watch-title h1,.anime-detail-screen .overview-heading .detail-meta { grid-column:2;min-width:0; }
- .anime-detail-screen .overview-heading .detail-meta { margin:0;display:flex;flex-wrap:wrap;gap:8px;font-size:12px; }
- .anime-detail-screen .overview-heading .watch-title-actions { grid-column:1 / -1;position:static;display:flex;flex-wrap:wrap;margin:0;gap:8px; }
- .anime-detail-screen .overview-heading .watch-title-actions .button { width:auto;min-width:44px;padding:8px 10px;gap:6px; }
- .anime-detail-screen .overview-heading .detail-list-control { grid-column:1 / -1;margin:0;min-width:0; }
- .anime-detail-screen .overview-heading .list-status-button { min-height:44px;font-size:12px;min-width:0;max-width:100%;width:100%; }
- .anime-facts { grid-template-columns:repeat(2,minmax(0,1fr)); }
- .voice-gallery { grid-template-columns:1fr; }
- .mobile-sheet { inset:0;margin:auto 0 0;width:100%;height:min(94dvh,900px);border-radius:18px 18px 0 0;max-height:calc(var(--visual-height,100dvh) - var(--window-inset,0px)); }
- .mobile-sheet-header { padding-top:max(14px,env(safe-area-inset-top,0px)); }
- .mobile-sheet-footer { padding-bottom:max(16px,env(safe-area-inset-bottom,0px)); }
- .thread-screen.mobile-sheet,.composer-screen.mobile-sheet { width:100%;height:var(--visual-height,100dvh);top:var(--visual-top,0px);border-radius:0; }
- .is-overlay>.media-sidebar,.sidebar-presence.is-docked>.media-sidebar { width:100%;border-radius:0; }
- .navigation-sidebar.is-overlay>.media-sidebar { width:min(340px,92vw);border-radius:0 14px 14px 0; }
- .sidebar-header { padding:calc(var(--window-inset,0px) + max(16px,env(safe-area-inset-top,0px))) max(16px,env(safe-area-inset-right,0px)) 16px max(16px,env(safe-area-inset-left,0px)); }
- .sidebar-scroll { padding-bottom:max(20px,env(safe-area-inset-bottom,0px)); }
- .video-top-actions { top:calc(var(--window-inset,0px) + max(12px,env(safe-area-inset-top,0px)));left:max(12px,env(safe-area-inset-left,0px));right:max(12px,env(safe-area-inset-right,0px)); }
- .video-top-actions>button { min-height:44px; }
- .immersive-player .video-heading { padding-top:calc(70px + var(--window-inset,0px) + env(safe-area-inset-top,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px)); }
- .immersive-player .video-heading strong { padding-right:0;font-size:14px; }
- .immersive-player .video-save-status { top:calc(110px + var(--window-inset,0px) + env(safe-area-inset-top,0px));right:max(16px,env(safe-area-inset-right,0px)); }
- .video-bottom { padding:30px max(8px,env(safe-area-inset-right,0px)) max(8px,env(safe-area-inset-bottom,0px)) max(8px,env(safe-area-inset-left,0px)); }
- .video-toolbar { gap:0; }
- .video-toolbar button { width:44px;height:44px;flex-shrink:0; }
- .video-toolbar .video-previous,.video-volume { display:none!important; }
- .video-time { font-size:11px;margin-left:4px; }
- .video-time>span { display:none; }
- .video-timeline { min-height:32px; }
- .video-settings { top:calc(var(--window-inset,0px) + max(64px,calc(env(safe-area-inset-top,0px) + 58px)));right:max(12px,env(safe-area-inset-right,0px));bottom:calc(100px + env(safe-area-inset-bottom,0px));max-height:none; }
- .video-settings-selects { gap:10px; }
- .video-settings-heading>button { display:grid;place-items:center;width:44px;height:44px;flex-shrink:0; }
- .video-shortcuts { display:none; }
- .universal-frame>.native-skip-notice,.native-skip-overlay,.native-auto-action { bottom:calc(110px + env(safe-area-inset-bottom,0px)); }
- .native-auto-action .button,.native-skip-overlay { min-height:44px; }
- .toast { bottom:calc(var(--phone-bottom) + 12px);max-width:calc(100vw - 32px); }
- html[data-keyboard=open] .phone-nav { display:none; }
- html[data-keyboard=open] .media-workspace { padding-bottom:0;height:var(--visual-height,100dvh); }
+.phone-header[hidden],
+.phone-nav[hidden] {
+  display: none;
 }
-@media (max-height:500px) and (pointer:coarse) {
- :root { --phone-top:calc(48px + var(--window-inset,0px) + env(safe-area-inset-top,0px));--phone-bottom:calc(56px + env(safe-area-inset-bottom,0px)); }
- .phone-nav>a,.phone-nav>.media-menu-trigger { min-height:44px;gap:2px; }
- .immersive-player .video-heading { padding-top:calc(64px + var(--window-inset,0px)); }
- .immersive-player .video-save-status,.video-stream-meta { display:none; }
- .video-settings { top:calc(var(--window-inset,0px) + max(8px,env(safe-area-inset-top,0px)));bottom:calc(85px + env(safe-area-inset-bottom,0px)); }
+@media (max-width: 760px), (max-width: 1000px) and (pointer: coarse) {
+  :root {
+    --phone-top: calc(60px + var(--window-inset, 0px) + env(safe-area-inset-top, 0px));
+    --phone-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+  }
+  .phone-header {
+    position: fixed;
+    inset: 0 0 auto;
+    z-index: 40;
+    height: var(--phone-top);
+    padding: calc(var(--window-inset, 0px) + env(safe-area-inset-top, 0px))
+      max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px));
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--bg);
+    border-bottom: 1px solid var(--line);
+  }
+  .phone-brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    min-height: 44px;
+  }
+  .phone-brand > span {
+    color: var(--muted);
+    font-weight: 400;
+    margin-left: -8px;
+  }
+  .phone-account {
+    width: 44px;
+    height: 44px;
+    border: 0;
+    overflow: hidden;
+  }
+  .phone-account img {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+  .phone-nav {
+    position: fixed;
+    inset: auto 0 0;
+    z-index: 40;
+    height: var(--phone-bottom);
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    padding: 4px max(6px, env(safe-area-inset-right, 0px)) env(safe-area-inset-bottom, 0px)
+      max(6px, env(safe-area-inset-left, 0px));
+    border-top: 1px solid var(--line);
+    background: var(--bg);
+    view-transition-name: phone-navigation;
+  }
+  .phone-nav > a,
+  .phone-nav > .media-menu-trigger {
+    position: static;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-width: 0;
+    width: auto;
+    height: auto;
+    min-height: 52px;
+    padding: 5px 0;
+    border: 0;
+    border-radius: 9px;
+    background: none;
+    color: var(--muted);
+    font-size: 10px;
+    line-height: 1.3;
+    transition: none;
+  }
+  .phone-nav .active {
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 9%, transparent);
+  }
+  .media-workspace {
+    padding-left: 0;
+    left: 0;
+    height: 100dvh;
+    padding-top: var(--phone-top);
+    padding-bottom: var(--phone-bottom);
+  }
+  .media-workspace > main.media-scroll {
+    scrollbar-gutter: auto;
+    scroll-padding-bottom: 16px;
+  }
+  .media-scroll-content,
+  html[data-desktop] .media-scroll-content {
+    padding: 20px max(16px, env(safe-area-inset-right, 0px)) 24px
+      max(16px, env(safe-area-inset-left, 0px));
+  }
+  .is-playback .media-workspace {
+    padding: 0;
+  }
+  .is-playback .media-scroll-content,
+  html[data-desktop] .is-playback .media-scroll-content {
+    padding: 0;
+  }
+  .gallery-heading {
+    margin-top: 0;
+    flex-wrap: wrap;
+  }
+  .gallery-actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .gallery-actions .button {
+    min-width: 0;
+    padding-inline: 10px;
+  }
+  .gallery-actions .gallery-collection-action {
+    display: none;
+  }
+  .gallery-heading h1,
+  .screen-title h1 {
+    font-size: 24px;
+  }
+  .gallery-actions .button,
+  .gallery-feature-actions .button,
+  .watch-title-actions .button,
+  .anime-detail-screen .overview-heading .watch-title-actions .button {
+    min-height: 44px;
+    font-size: 12px;
+  }
+  .gallery-feature-copy h2 {
+    min-height: 0;
+    font-size: 18px;
+  }
+  .gallery-grid,
+  .anime-grid.gallery-grid,
+  html[data-interface-style='cinema'] .gallery-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 22px 12px;
+  }
+  .gallery-rail,
+  html[data-interface-style='cinema'] .gallery-rail {
+    grid-auto-columns: clamp(136px, 38vw, 180px);
+    gap: 14px;
+  }
+  .gallery-rail .card-title,
+  .gallery-grid .card-title {
+    font-size: 13px;
+  }
+  .gallery-shelf-actions .text-link {
+    min-height: 44px;
+    font-size: 12px;
+  }
+  .catalog-gallery .results-heading {
+    flex-wrap: wrap;
+  }
+  .catalog-gallery .sort-label select,
+  .about-episodes-voice select,
+  .media-sidebar .discussion-header .select-control > select,
+  input:not([type='range']):not([type='checkbox']):not([type='radio']),
+  textarea,
+  select {
+    font-size: 16px;
+  }
+  .catalog-view-tools .icon-button,
+  .sidebar-header .icon-button,
+  .watch-state-back,
+  .native-state-back {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .anime-detail-screen .overview-heading {
+    display: grid;
+    grid-template-columns: 86px minmax(0, 1fr);
+    gap: 14px;
+  }
+  .anime-detail-screen .overview-heading .watch-poster {
+    width: 86px;
+  }
+  .anime-detail-screen .overview-heading .watch-poster {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+  .anime-detail-screen .overview-heading .watch-title {
+    display: contents;
+    padding: 0;
+  }
+  .anime-detail-screen .overview-heading .watch-title h1 {
+    font-size: 21px;
+    overflow-wrap: anywhere;
+  }
+  .anime-detail-screen .overview-heading .watch-title h1,
+  .anime-detail-screen .overview-heading .detail-meta {
+    grid-column: 2;
+    min-width: 0;
+  }
+  .anime-detail-screen .overview-heading .detail-meta {
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 12px;
+  }
+  .anime-detail-screen .overview-heading .watch-title-actions {
+    grid-column: 1 / -1;
+    position: static;
+    display: flex;
+    flex-wrap: wrap;
+    margin: 0;
+    gap: 8px;
+  }
+  .anime-detail-screen .overview-heading .watch-title-actions .button {
+    width: auto;
+    min-width: 44px;
+    padding: 8px 10px;
+    gap: 6px;
+  }
+  .anime-detail-screen .overview-heading .detail-list-control {
+    grid-column: 1 / -1;
+    margin: 0;
+    min-width: 0;
+  }
+  .anime-detail-screen .overview-heading .list-status-button {
+    min-height: 44px;
+    font-size: 12px;
+    min-width: 0;
+    max-width: 100%;
+    width: 100%;
+  }
+  .anime-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .voice-gallery {
+    grid-template-columns: 1fr;
+  }
+  .mobile-sheet {
+    inset: 0;
+    margin: auto 0 0;
+    width: 100%;
+    height: min(94dvh, 900px);
+    border-radius: 18px 18px 0 0;
+    max-height: calc(var(--visual-height, 100dvh) - var(--window-inset, 0px));
+  }
+  .mobile-sheet-header {
+    padding-top: max(14px, env(safe-area-inset-top, 0px));
+  }
+  .mobile-sheet-footer {
+    padding-bottom: max(16px, env(safe-area-inset-bottom, 0px));
+  }
+  .thread-screen.mobile-sheet,
+  .composer-screen.mobile-sheet {
+    width: 100%;
+    height: var(--visual-height, 100dvh);
+    top: var(--visual-top, 0px);
+    border-radius: 0;
+  }
+  .is-overlay > .media-sidebar,
+  .sidebar-presence.is-docked > .media-sidebar {
+    width: 100%;
+    border-radius: 0;
+  }
+  .navigation-sidebar.is-overlay > .media-sidebar {
+    width: min(340px, 92vw);
+    border-radius: 0 14px 14px 0;
+  }
+  .sidebar-header {
+    padding: calc(var(--window-inset, 0px) + max(16px, env(safe-area-inset-top, 0px)))
+      max(16px, env(safe-area-inset-right, 0px)) 16px max(16px, env(safe-area-inset-left, 0px));
+  }
+  .sidebar-scroll {
+    padding-bottom: max(20px, env(safe-area-inset-bottom, 0px));
+  }
+  .video-top-actions {
+    top: calc(var(--window-inset, 0px) + max(12px, env(safe-area-inset-top, 0px)));
+    left: max(12px, env(safe-area-inset-left, 0px));
+    right: max(12px, env(safe-area-inset-right, 0px));
+  }
+  .video-top-actions > button {
+    min-height: 44px;
+  }
+  .immersive-player .video-heading {
+    padding-top: calc(70px + var(--window-inset, 0px) + env(safe-area-inset-top, 0px));
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  .immersive-player .video-heading strong {
+    padding-right: 0;
+    font-size: 14px;
+  }
+  .immersive-player .video-save-status {
+    top: calc(110px + var(--window-inset, 0px) + env(safe-area-inset-top, 0px));
+    right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  .video-bottom {
+    padding: 30px max(8px, env(safe-area-inset-right, 0px))
+      max(8px, env(safe-area-inset-bottom, 0px)) max(8px, env(safe-area-inset-left, 0px));
+  }
+  .video-toolbar {
+    gap: 0;
+  }
+  .video-toolbar button {
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+  }
+  .video-toolbar .video-previous,
+  .video-volume {
+    display: none !important;
+  }
+  .video-time {
+    font-size: 11px;
+    margin-left: 4px;
+  }
+  .video-time > span {
+    display: none;
+  }
+  .video-timeline {
+    min-height: 32px;
+  }
+  .video-settings {
+    top: calc(var(--window-inset, 0px) + max(64px, calc(env(safe-area-inset-top, 0px) + 58px)));
+    right: max(12px, env(safe-area-inset-right, 0px));
+    bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+    max-height: none;
+  }
+  .video-settings-selects {
+    gap: 10px;
+  }
+  .video-settings-heading > button {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+  }
+  .video-shortcuts {
+    display: none;
+  }
+  .universal-frame > .native-skip-notice,
+  .native-skip-overlay,
+  .native-auto-action {
+    bottom: calc(110px + env(safe-area-inset-bottom, 0px));
+  }
+  .native-auto-action .button,
+  .native-skip-overlay {
+    min-height: 44px;
+  }
+  .toast {
+    bottom: calc(var(--phone-bottom) + 12px);
+    max-width: calc(100vw - 32px);
+  }
+  html[data-keyboard='open'] .phone-nav {
+    display: none;
+  }
+  html[data-keyboard='open'] .media-workspace {
+    padding-bottom: 0;
+    height: var(--visual-height, 100dvh);
+  }
 }
-::view-transition-old(phone-navigation),::view-transition-new(phone-navigation) { animation:none; }
-::view-transition-old(phone-navigation) { display:none; }
+@media (max-height: 500px) and (pointer: coarse) {
+  :root {
+    --phone-top: calc(48px + var(--window-inset, 0px) + env(safe-area-inset-top, 0px));
+    --phone-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+  }
+  .phone-nav > a,
+  .phone-nav > .media-menu-trigger {
+    min-height: 44px;
+    gap: 2px;
+  }
+  .immersive-player .video-heading {
+    padding-top: calc(64px + var(--window-inset, 0px));
+  }
+  .immersive-player .video-save-status,
+  .video-stream-meta {
+    display: none;
+  }
+  .video-settings {
+    top: calc(var(--window-inset, 0px) + max(8px, env(safe-area-inset-top, 0px)));
+    bottom: calc(85px + env(safe-area-inset-bottom, 0px));
+  }
+}
+::view-transition-old(phone-navigation),
+::view-transition-new(phone-navigation) {
+  animation: none;
+}
+::view-transition-old(phone-navigation) {
+  display: none;
+}

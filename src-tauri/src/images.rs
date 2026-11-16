@@ -22,7 +22,7 @@ fn image_url(raw: &str) -> Result<url::Url, String> {
         || url.password().is_some()
         || url.port().is_some()
     {
-        return Err("Изображение должно находиться на CDN Yani или Kodik.".into());
+        return Err("Изображение должно находиться на CDN Yummy или Kodik.".into());
     }
     Ok(url)
 }

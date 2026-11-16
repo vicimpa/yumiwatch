@@ -1,163 +1,1589 @@
 /* A media center in the application's existing graphite and coral style. */
-.anime-room { display:grid;grid-template-columns:minmax(0,1fr) 0;align-items:start;gap:0;transition:grid-template-columns .22s ease,gap .22s ease; }
-.anime-room.has-chat { grid-template-columns:minmax(0,1fr) 370px;gap:24px; }
-.room-main { min-width:0;grid-column:1; }
-.anime-resume-row { display:flex;align-items:center;gap:17px;min-height:80px;margin-bottom:25px;padding:16px 20px;border:1px solid #ff777745;border-radius:10px;background:#ff77770a; }
-.anime-resume-row>span:nth-child(2) { flex:1;min-width:0; }.anime-resume-row strong { display:block;font-size:17px;font-weight:600; }.anime-resume-row small { display:block;font-size:12px;color:var(--muted);margin-top:6px;line-height:1.6; }
-.resume-row-play { display:grid;place-items:center;width:46px;height:46px;border-radius:50%;background:var(--accent);color:#222;flex-shrink:0; }.anime-resume-row>svg { color:var(--accent);flex-shrink:0; }
-.anime-detail-screen .overview-heading { max-width:none;margin-bottom:25px; }.anime-detail-screen .overview-heading .detail-list-control { margin:15px 0 0; }.anime-detail-screen .overview-heading .watch-title-actions .secondary { display:inline-flex; }
-.anime-detail-screen .anime-about-content { max-width:none; }
-.anime-about-content>section { margin-top:30px; }.anime-about-content>section:first-child { margin-top:0; }
-.anime-facts { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px 25px;margin-top:24px;padding-top:22px;border-top:1px solid var(--line); }
-.anime-facts dt { font-size:11px;color:var(--muted);margin-bottom:6px; }.anime-facts dd { margin:0;font-size:13px;line-height:1.6;overflow-wrap:anywhere; }
-.screenshot-rail { display:grid;grid-auto-flow:column;grid-auto-columns:min(280px,70vw);gap:14px;overflow-x:auto;scroll-snap-type:x proximity;padding:5px 2px 13px;scrollbar-width:thin; }
-.screenshot-rail>button { padding:0;position:relative;aspect-ratio:16/9;border-radius:8px;overflow:hidden;background:var(--surface);scroll-snap-align:start; }
-.screenshot-rail img { width:100%;height:100%;object-fit:cover; }.screenshot-rail>button>.screenshot-open { position:absolute;inset:0;display:grid;place-items:center;background:#0005;opacity:0;transition:opacity .15s; }.screenshot-rail>button:hover>.screenshot-open,.screenshot-rail>button:focus-visible>.screenshot-open { opacity:1; }
-.screenshot-rail small { position:absolute;bottom:8px;left:8px;font-size:10px;padding:4px 7px;border-radius:4px;background:#111a;color:white; }
-.voice-gallery { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px; }.voice-tile { display:flex;align-items:center;gap:13px;padding:15px;border:1px solid var(--line);border-radius:9px;background:var(--surface);min-height:85px; }
-.voice-tile-icon { color:var(--accent);flex-shrink:0; }.voice-tile>span:nth-child(2) { flex:1;min-width:0; }.voice-tile strong { display:block;font-size:13px;line-height:1.5; }.voice-tile small { display:block;color:var(--muted);font-size:11px;line-height:1.7;margin-top:5px; }.voice-tile>svg { color:var(--accent);flex-shrink:0; }
-.about-original { display:inline-flex;margin-top:26px;min-height:44px;align-items:center;gap:8px; }
-.screenshot-viewer.mobile-sheet { width:min(1100px,96vw);height:min(850px,94dvh); }.screenshot-viewer .modal-scroll { display:flex;align-items:center;justify-content:center;padding:10px;background:#111; }.screenshot-full { width:100%;height:100%;object-fit:contain; }.screenshot-viewer-actions { display:flex;align-items:center;justify-content:space-between;gap:15px; }.screenshot-viewer-actions .button { min-height:42px; }.screenshot-viewer-actions>span { color:var(--muted);font-size:12px; }
-.room-header { display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:20px; }.room-header>div:first-child { min-width:0; }.room-header h1 { font-size:23px;line-height:1.4; }.room-header p { font-size:12px;color:var(--muted);margin-top:5px; }.room-actions { display:flex;align-items:center;gap:9px;flex-shrink:0; }.room-actions .button { min-height:43px;padding:0 12px;gap:8px;border-radius:7px;font-size:12px; }.room-actions .selected { border-color:var(--accent);color:var(--accent); }
-.watch-room-buttons { display:flex;align-items:stretch;gap:12px; }.watch-room-buttons .episode-launcher { flex:1; }.watch-comments { margin-top:16px;min-height:65px;padding:0 17px; }
-.sidebar-presence.is-docked { position:sticky;top:100px;grid-column:2;grid-row:1;height:calc(100dvh - 125px);width:370px;max-width:100%;min-width:0;overflow:hidden; }
-.media-sidebar { height:100%;min-height:0;display:flex;flex-direction:column;background:#2a2a2d;border:1px solid var(--line);border-radius:11px;overflow:hidden;color:var(--text); }
-.sidebar-header { display:flex;align-items:center;gap:15px;padding:17px 18px;min-height:78px;flex-shrink:0;border-bottom:1px solid var(--line);background:#303033; }.sidebar-header>div { min-width:0;flex:1; }.sidebar-header h2 { font-size:19px;font-weight:600;line-height:1.4; }.sidebar-header p { font-size:11px;color:var(--muted);margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }.sidebar-header .icon-button { flex-shrink:0;width:38px;height:38px; }
-.sidebar-scroll { min-height:0;flex:1;overflow-x:hidden;overflow-y:auto;overscroll-behavior:none;padding:18px;scrollbar-width:thin; }
-.sidebar-presence.is-overlay { position:fixed;inset:0;z-index:75;pointer-events:none;overflow:hidden; }
-.sidebar-backdrop { position:fixed;inset:0;border:0;background:#0005;cursor:default;pointer-events:auto;animation:panel-backdrop .18s ease both; }
-.is-overlay>.media-sidebar { position:absolute;top:0;right:0;bottom:0;width:min(440px,94vw);border-radius:12px 0 0 12px;pointer-events:auto;box-shadow:-15px 0 50px #0006; }
-.sidebar-presence.is-open>.media-sidebar { animation:panel-enter .22s cubic-bezier(.2,.8,.2,1) both; }
-.sidebar-presence.is-closing>.media-sidebar { animation:panel-exit .18s ease both;pointer-events:none; }.sidebar-presence.is-closing>.sidebar-backdrop { pointer-events:none;opacity:0;transition:opacity .18s; }
-.media-sidebar .discussion-header { align-items:flex-start;gap:10px;padding-bottom:13px; }.media-sidebar .discussion-header h2 { font-size:17px; }.media-sidebar .discussion-header p { font-size:10px;line-height:1.5; }.media-sidebar .discussion-header>.select-control { width:108px; }.media-sidebar .discussion-header .select-control>select { font-size:13px;min-height:40px;padding:9px 32px 9px 10px; }
-.media-sidebar .comment-item { gap:10px;padding:17px 0; }.media-sidebar .comment-avatar { width:30px;height:30px; }.media-sidebar .comment-author { flex-wrap:wrap;gap:3px 8px; }.media-sidebar .comment-text { font-size:12px;line-height:1.8; }.media-sidebar .comment-actions { gap:12px;flex-wrap:wrap; }
-.media-sidebar .comments-section { padding-bottom:0; }.media-sidebar .discussion-compose-bar { position:sticky;bottom:-18px;left:auto;right:auto;z-index:2;padding:12px 0 0;margin-top:18px;background:#2a2a2d;box-shadow:none;border-radius:0; }.media-sidebar .discussion-compose-bar>button,.media-sidebar .discussion-compose-bar>a { min-height:48px;padding:10px;font-size:12px;border-radius:8px; }
-.episodes-sidebar .episode-toolbar { margin:0 0 16px; }.episodes-sidebar .episode-toolbar h2 { display:none; }.episodes-sidebar .episode-cards { display:grid;grid-template-columns:1fr;gap:11px;overflow:visible;max-height:none; }
-.episodes-sidebar .episode-card { display:flex;align-items:center;text-align:left;gap:13px;padding:8px;background:var(--surface);border:1px solid var(--line);border-radius:8px;min-height:55px; }.episodes-sidebar .episode-card.selected { border-color:var(--accent);background:#ff777710; }.episodes-sidebar .episode-preview { width:120px;min-width:120px;aspect-ratio:16/9;flex-shrink:0;border-radius:5px; }.episodes-sidebar .episode-caption { padding:0;min-width:0; }.episodes-sidebar .episode-caption strong { font-size:13px; }.episodes-sidebar .episode-caption small { font-size:11px;line-height:1.7; }.episodes-sidebar .episode-play { width:28px;height:28px; }.episodes-sidebar .episode-progress { height:3px; }
-.episodes-sidebar .episode-cards.numbers-only { grid-template-columns:repeat(5,minmax(0,1fr)); }.episodes-sidebar .numbers-only .episode-card { justify-content:center;padding:10px; }
-.anime-room:fullscreen { width:100vw;height:100dvh;background:#000;padding:0;overflow:hidden;align-items:stretch;gap:0; }.anime-room:fullscreen.has-chat { grid-template-columns:minmax(0,1fr) 370px; }.anime-room:fullscreen .room-main { min-height:0;display:flex;flex-direction:column;height:100%; }.anime-room:fullscreen .room-header,.anime-room:fullscreen .watch-now,.anime-room:fullscreen .watch-source-buttons,.anime-room:fullscreen .watch-preferences,.anime-room:fullscreen .episode-launcher,.anime-room:fullscreen .player-note,.anime-room:fullscreen .resume-notice { display:none; }
-.anime-room:fullscreen .watch-area { width:100%;max-width:none;min-height:0;height:100%;margin:0; }.anime-room:fullscreen .watch-sticky { height:100%;border:0;border-radius:0; }.anime-room:fullscreen .universal-stage,.anime-room:fullscreen .universal-frame { height:100%;width:100%;aspect-ratio:auto;min-height:0; }.anime-room:fullscreen .sidebar-presence.is-docked { top:0;height:100%;border-radius:0; }.anime-room:fullscreen .media-sidebar { border-radius:0; }
-.anime-room:fullscreen .video-bottom { padding-bottom:max(14px,env(safe-area-inset-bottom)); }
-.interface-settings .watch-toggle { margin-top:22px;min-height:30px;font-size:13px; }.interface-range { display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;margin-top:24px;font-size:13px; }.interface-range output { font-variant-numeric:tabular-nums;color:var(--muted);font-size:12px; }.interface-range input { grid-column:1/-1;width:100%;min-height:30px;padding:0;accent-color:var(--accent);border:0;background:none; }
-.interface-style { display:flex;align-items:center;justify-content:space-between;gap:18px;font-size:13px;margin-top:25px; }.interface-style .select-control { width:205px; }.interface-style select { min-height:44px;font-size:14px; }
-.keyboard-reference { padding-top:22px;margin-top:25px;border-top:1px solid var(--line); }.keyboard-reference h3 { font-size:14px; }.keyboard-reference kbd { display:inline-block;font:inherit;font-size:10px;padding:1px 5px;border:1px solid var(--line);border-radius:4px;background:#ffffff06; }.keyboard-reference p { line-height:2.1; }
-.screen-enter { animation:screen-enter .24s ease-out backwards; }
-.mobile-sheet[open] { animation:screen-enter .2s ease-out backwards; }
-@keyframes screen-enter { from { opacity:0; } to { opacity:1; } }
-@keyframes panel-enter { from { transform:translateX(100%); } to { transform:none; } }
-@keyframes panel-exit { to { transform:translateX(100%); } }
-@keyframes panel-backdrop { from { opacity:0; } to { opacity:1; } }
-html[data-motion=off] *,html[data-motion=off] *::before,html[data-motion=off] *::after { animation:none!important;transition:none!important;scroll-behavior:auto!important; }
-html[data-interface-style=cinema] { --bg:#18191c;--surface:#292b30;--surface-hover:#34373c;--line:#41434a; }
-html[data-interface-style=cinema] body { background:var(--bg); }html[data-interface-style=cinema] .topbar { background:#24262a; }html[data-interface-style=cinema] .gallery-feature,html[data-interface-style=cinema] .media-sidebar { background:#23252a; }html[data-interface-style=cinema] .gallery-rail { grid-auto-columns:clamp(174px,19vw,235px); }html[data-interface-style=cinema] .gallery-grid { grid-template-columns:repeat(auto-fill,minmax(195px,1fr)); }
-html[data-interface-style=contrast] { --bg:#111;--surface:#252525;--surface-hover:#343434;--line:#777;--muted:#d1d1d1;--text:#fff;--accent:#ff9c9c; }
-html[data-interface-style=contrast] body { background:var(--bg); }html[data-interface-style=contrast] .topbar,html[data-interface-style=contrast] .media-sidebar { background:#191919; }html[data-interface-style=contrast] :focus-visible { outline:3px solid #fff!important;outline-offset:4px; }
-@media(max-width:1100px) and (min-width:761px) { .anime-room.has-chat { grid-template-columns:minmax(0,1fr) 330px;gap:16px; }.sidebar-presence.is-docked { width:330px; }.has-chat .overview-heading .watch-poster { width:125px; }.has-chat .overview-heading .watch-title h1 { font-size:24px; }.has-chat .room-actions .button>span { display:none; }.has-chat .video-heading strong { font-size:12px; } }
-@media(max-width:760px) {
- .anime-room,.anime-room.has-chat { display:block; }.anime-detail-screen .back-link { display:flex!important;margin:4px 0 16px;font-size:12px; }
- .anime-resume-row { gap:12px;padding:14px;min-height:76px;margin-bottom:22px; }.anime-resume-row strong { font-size:15px; }.anime-resume-row small { font-size:11px; }.resume-row-play { width:40px;height:40px; }
- .anime-detail-screen .overview-heading { gap:17px; }.anime-detail-screen .overview-heading .watch-title h1 { font-size:21px; }.anime-detail-screen .overview-heading .watch-poster { width:100px; }.anime-detail-screen .overview-heading .watch-title-actions { gap:8px; }.anime-detail-screen .overview-heading .watch-title-actions .button { min-height:35px;padding:0 9px;font-size:10px; }.anime-detail-screen .overview-heading .watch-title-actions>.secondary:first-child { display:none; }.anime-detail-screen .overview-heading .detail-list-control { margin-top:10px; }.anime-detail-screen .overview-heading .list-status-button { min-height:36px;font-size:10px;padding:0 9px; }
- .anime-facts { grid-template-columns:repeat(2,minmax(0,1fr));gap:18px; }.anime-facts dd { font-size:12px; }.voice-gallery { grid-template-columns:1fr; }.voice-tile { min-height:76px;padding:13px; }.screenshot-rail { grid-auto-columns:245px; }
- .room-header { gap:12px;align-items:flex-start;margin-bottom:15px; }.room-header h1 { font-size:18px; }.room-header p { font-size:10px; }.room-actions { gap:6px; }.room-actions .button { width:38px;min-height:38px;padding:0; }.room-actions .button>span { display:none; }
- .sidebar-presence.is-docked { position:fixed;inset:0;top:0;width:100%;height:100dvh;max-width:none;z-index:75;pointer-events:none; }.sidebar-presence.is-docked>.media-sidebar { position:absolute;top:0;bottom:0;right:0;width:min(430px,94vw);border-radius:12px 0 0 12px;pointer-events:auto;box-shadow:-15px 0 50px #0006; }
- .sidebar-header { min-height:76px;padding-top:max(15px,env(safe-area-inset-top)); }.sidebar-scroll { padding:16px;padding-bottom:max(16px,env(safe-area-inset-bottom)); }.media-sidebar .discussion-compose-bar { bottom:-16px; }.media-sidebar .comments-section { padding-bottom:0; }.media-sidebar .discussion-header h2 { font-size:17px; }
- .watch-room-buttons { display:block; }.watch-room-buttons .watch-comments { width:100%;min-height:43px;margin-top:10px; }
- .video-toolbar button { width:35px; }.video-toolbar .video-volume input { display:none; }.video-time { font-size:10px; }.video-time>span { display:none; }
- .anime-room:fullscreen { display:block; }.anime-room:fullscreen.has-chat { display:block; }.anime-room:fullscreen .comments-sidebar { position:fixed; }
- .interface-style .select-control { width:165px; }.interface-style select { font-size:16px; }.keyboard-hints { display:none; }
- html[data-interface-style=cinema] .gallery-rail { grid-auto-columns:160px; }html[data-interface-style=cinema] .gallery-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
- html[data-screen=anime-about] .detail-workspace main,html[data-screen=watch] .detail-workspace main { padding-bottom:30px; }
+.anime-room {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 0;
+  align-items: start;
+  gap: 0;
+  transition:
+    grid-template-columns 0.22s ease,
+    gap 0.22s ease;
 }
-@media(prefers-reduced-motion:reduce) { *,*::before,*::after { animation:none!important;transition:none!important;scroll-behavior:auto!important; } }
+.anime-room.has-chat {
+  grid-template-columns: minmax(0, 1fr) 370px;
+  gap: 24px;
+}
+.room-main {
+  min-width: 0;
+  grid-column: 1;
+}
+.anime-resume-row {
+  display: flex;
+  align-items: center;
+  gap: 17px;
+  min-height: 80px;
+  margin-bottom: 25px;
+  padding: 16px 20px;
+  border: 1px solid #ff777745;
+  border-radius: 10px;
+  background: #ff77770a;
+}
+.anime-resume-row > span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+}
+.anime-resume-row strong {
+  display: block;
+  font-size: 17px;
+  font-weight: 600;
+}
+.anime-resume-row small {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 6px;
+  line-height: 1.6;
+}
+.resume-row-play {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #222;
+  flex-shrink: 0;
+}
+.anime-resume-row > svg {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.anime-detail-screen .overview-heading {
+  max-width: none;
+  margin-bottom: 25px;
+}
+.anime-detail-screen .overview-heading .detail-list-control {
+  margin: 15px 0 0;
+}
+.anime-detail-screen .overview-heading .watch-title-actions .secondary {
+  display: inline-flex;
+}
+.anime-detail-screen .anime-about-content {
+  max-width: none;
+}
+.anime-about-content > section {
+  margin-top: 30px;
+}
+.anime-about-content > section:first-child {
+  margin-top: 0;
+}
+.anime-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px 25px;
+  margin-top: 24px;
+  padding-top: 22px;
+  border-top: 1px solid var(--line);
+}
+.anime-facts dt {
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.anime-facts dd {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.screenshot-rail {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: min(280px, 70vw);
+  gap: 14px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  padding: 5px 2px 13px;
+  scrollbar-width: thin;
+}
+.screenshot-rail > button {
+  padding: 0;
+  position: relative;
+  aspect-ratio: 16/9;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface);
+  scroll-snap-align: start;
+}
+.screenshot-rail img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.screenshot-rail > button > .screenshot-open {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: #0005;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.screenshot-rail > button:hover > .screenshot-open,
+.screenshot-rail > button:focus-visible > .screenshot-open {
+  opacity: 1;
+}
+.screenshot-rail small {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  font-size: 10px;
+  padding: 4px 7px;
+  border-radius: 4px;
+  background: #111a;
+  color: white;
+}
+.voice-gallery {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.voice-tile {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  min-height: 85px;
+}
+.voice-tile-icon {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.voice-tile > span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+}
+.voice-tile strong {
+  display: block;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.voice-tile small {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.7;
+  margin-top: 5px;
+}
+.voice-tile > svg {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.about-original {
+  display: inline-flex;
+  margin-top: 26px;
+  min-height: 44px;
+  align-items: center;
+  gap: 8px;
+}
+.screenshot-viewer.mobile-sheet {
+  width: min(1100px, 96vw);
+  height: min(850px, 94dvh);
+}
+.screenshot-viewer .modal-scroll {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  background: #111;
+}
+.screenshot-full {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.screenshot-viewer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+}
+.screenshot-viewer-actions .button {
+  min-height: 42px;
+}
+.screenshot-viewer-actions > span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.room-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 20px;
+}
+.room-header > div:first-child {
+  min-width: 0;
+}
+.room-header h1 {
+  font-size: 23px;
+  line-height: 1.4;
+}
+.room-header p {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 5px;
+}
+.room-actions {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-shrink: 0;
+}
+.room-actions .button {
+  min-height: 43px;
+  padding: 0 12px;
+  gap: 8px;
+  border-radius: 7px;
+  font-size: 12px;
+}
+.room-actions .selected {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.watch-room-buttons {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+}
+.watch-room-buttons .episode-launcher {
+  flex: 1;
+}
+.watch-comments {
+  margin-top: 16px;
+  min-height: 65px;
+  padding: 0 17px;
+}
+.sidebar-presence.is-docked {
+  position: sticky;
+  top: 100px;
+  grid-column: 2;
+  grid-row: 1;
+  height: calc(100dvh - 125px);
+  width: 370px;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+.media-sidebar {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: #2a2a2d;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  overflow: hidden;
+  color: var(--text);
+}
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 17px 18px;
+  min-height: 78px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--line);
+  background: #303033;
+}
+.sidebar-header > div {
+  min-width: 0;
+  flex: 1;
+}
+.sidebar-header h2 {
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.sidebar-header p {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sidebar-header .icon-button {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+}
+.sidebar-scroll {
+  min-height: 0;
+  flex: 1;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: none;
+  padding: 18px;
+  scrollbar-width: thin;
+}
+.sidebar-presence.is-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 75;
+  pointer-events: none;
+  overflow: hidden;
+}
+.sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  border: 0;
+  background: #0005;
+  cursor: default;
+  pointer-events: auto;
+  animation: panel-backdrop 0.18s ease both;
+}
+.is-overlay > .media-sidebar {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(440px, 94vw);
+  border-radius: 12px 0 0 12px;
+  pointer-events: auto;
+  box-shadow: -15px 0 50px #0006;
+}
+.sidebar-presence.is-open > .media-sidebar {
+  animation: panel-enter 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.sidebar-presence.is-closing > .media-sidebar {
+  animation: panel-exit 0.18s ease both;
+  pointer-events: none;
+}
+.sidebar-presence.is-closing > .sidebar-backdrop {
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.18s;
+}
+.media-sidebar .discussion-header {
+  align-items: flex-start;
+  gap: 10px;
+  padding-bottom: 13px;
+}
+.media-sidebar .discussion-header h2 {
+  font-size: 17px;
+}
+.media-sidebar .discussion-header p {
+  font-size: 10px;
+  line-height: 1.5;
+}
+.media-sidebar .discussion-header > .select-control {
+  width: 108px;
+}
+.media-sidebar .discussion-header .select-control > select {
+  font-size: 13px;
+  min-height: 40px;
+  padding: 9px 32px 9px 10px;
+}
+.media-sidebar .comment-item {
+  gap: 10px;
+  padding: 17px 0;
+}
+.media-sidebar .comment-avatar {
+  width: 30px;
+  height: 30px;
+}
+.media-sidebar .comment-author {
+  flex-wrap: wrap;
+  gap: 3px 8px;
+}
+.media-sidebar .comment-text {
+  font-size: 12px;
+  line-height: 1.8;
+}
+.media-sidebar .comment-actions {
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.media-sidebar .comments-section {
+  padding-bottom: 0;
+}
+.media-sidebar .discussion-compose-bar {
+  position: sticky;
+  bottom: -18px;
+  left: auto;
+  right: auto;
+  z-index: 2;
+  padding: 12px 0 0;
+  margin-top: 18px;
+  background: #2a2a2d;
+  box-shadow: none;
+  border-radius: 0;
+}
+.media-sidebar .discussion-compose-bar > button,
+.media-sidebar .discussion-compose-bar > a {
+  min-height: 48px;
+  padding: 10px;
+  font-size: 12px;
+  border-radius: 8px;
+}
+.episodes-sidebar .episode-toolbar {
+  margin: 0 0 16px;
+}
+.episodes-sidebar .episode-toolbar h2 {
+  display: none;
+}
+.episodes-sidebar .episode-cards {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 11px;
+  overflow: visible;
+  max-height: none;
+}
+.episodes-sidebar .episode-card {
+  display: flex;
+  align-items: center;
+  text-align: left;
+  gap: 13px;
+  padding: 8px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  min-height: 55px;
+}
+.episodes-sidebar .episode-card.selected {
+  border-color: var(--accent);
+  background: #ff777710;
+}
+.episodes-sidebar .episode-preview {
+  width: 120px;
+  min-width: 120px;
+  aspect-ratio: 16/9;
+  flex-shrink: 0;
+  border-radius: 5px;
+}
+.episodes-sidebar .episode-caption {
+  padding: 0;
+  min-width: 0;
+}
+.episodes-sidebar .episode-caption strong {
+  font-size: 13px;
+}
+.episodes-sidebar .episode-caption small {
+  font-size: 11px;
+  line-height: 1.7;
+}
+.episodes-sidebar .episode-play {
+  width: 28px;
+  height: 28px;
+}
+.episodes-sidebar .episode-progress {
+  height: 3px;
+}
+.episodes-sidebar .episode-cards.numbers-only {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+.episodes-sidebar .numbers-only .episode-card {
+  justify-content: center;
+  padding: 10px;
+}
+.anime-room:fullscreen {
+  width: 100vw;
+  height: 100dvh;
+  background: #000;
+  padding: 0;
+  overflow: hidden;
+  align-items: stretch;
+  gap: 0;
+}
+.anime-room:fullscreen.has-chat {
+  grid-template-columns: minmax(0, 1fr) 370px;
+}
+.anime-room:fullscreen .room-main {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.anime-room:fullscreen .room-header,
+.anime-room:fullscreen .watch-now,
+.anime-room:fullscreen .watch-source-buttons,
+.anime-room:fullscreen .watch-preferences,
+.anime-room:fullscreen .episode-launcher,
+.anime-room:fullscreen .player-note,
+.anime-room:fullscreen .resume-notice {
+  display: none;
+}
+.anime-room:fullscreen .watch-area {
+  width: 100%;
+  max-width: none;
+  min-height: 0;
+  height: 100%;
+  margin: 0;
+}
+.anime-room:fullscreen .watch-sticky {
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+}
+.anime-room:fullscreen .universal-stage,
+.anime-room:fullscreen .universal-frame {
+  height: 100%;
+  width: 100%;
+  aspect-ratio: auto;
+  min-height: 0;
+}
+.anime-room:fullscreen .sidebar-presence.is-docked {
+  top: 0;
+  height: 100%;
+  border-radius: 0;
+}
+.anime-room:fullscreen .media-sidebar {
+  border-radius: 0;
+}
+.anime-room:fullscreen .video-bottom {
+  padding-bottom: max(14px, env(safe-area-inset-bottom));
+}
+.interface-settings .watch-toggle {
+  margin-top: 22px;
+  min-height: 30px;
+  font-size: 13px;
+}
+.interface-range {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  margin-top: 24px;
+  font-size: 13px;
+}
+.interface-range output {
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  font-size: 12px;
+}
+.interface-range input {
+  grid-column: 1/-1;
+  width: 100%;
+  min-height: 30px;
+  padding: 0;
+  accent-color: var(--accent);
+  border: 0;
+  background: none;
+}
+.interface-style {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  font-size: 13px;
+  margin-top: 25px;
+}
+.interface-style .select-control {
+  width: 205px;
+}
+.interface-style select {
+  min-height: 44px;
+  font-size: 14px;
+}
+.keyboard-reference {
+  padding-top: 22px;
+  margin-top: 25px;
+  border-top: 1px solid var(--line);
+}
+.keyboard-reference h3 {
+  font-size: 14px;
+}
+.keyboard-reference kbd {
+  display: inline-block;
+  font: inherit;
+  font-size: 10px;
+  padding: 1px 5px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #ffffff06;
+}
+.keyboard-reference p {
+  line-height: 2.1;
+}
+.screen-enter {
+  animation: screen-enter 0.24s ease-out backwards;
+}
+.mobile-sheet[open] {
+  animation: screen-enter 0.2s ease-out backwards;
+}
+@keyframes screen-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes panel-enter {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes panel-exit {
+  to {
+    transform: translateX(100%);
+  }
+}
+@keyframes panel-backdrop {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+html[data-motion='off'] *,
+html[data-motion='off'] *::before,
+html[data-motion='off'] *::after {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
+html[data-interface-style='cinema'] {
+  --bg: #18191c;
+  --surface: #292b30;
+  --surface-hover: #34373c;
+  --line: #41434a;
+}
+html[data-interface-style='cinema'] body {
+  background: var(--bg);
+}
+html[data-interface-style='cinema'] .topbar {
+  background: #24262a;
+}
+html[data-interface-style='cinema'] .gallery-feature,
+html[data-interface-style='cinema'] .media-sidebar {
+  background: #23252a;
+}
+html[data-interface-style='cinema'] .gallery-rail {
+  grid-auto-columns: clamp(174px, 19vw, 235px);
+}
+html[data-interface-style='cinema'] .gallery-grid {
+  grid-template-columns: repeat(auto-fill, minmax(195px, 1fr));
+}
+html[data-interface-style='contrast'] {
+  --bg: #111;
+  --surface: #252525;
+  --surface-hover: #343434;
+  --line: #777;
+  --muted: #d1d1d1;
+  --text: #fff;
+  --accent: #ff9c9c;
+}
+html[data-interface-style='contrast'] body {
+  background: var(--bg);
+}
+html[data-interface-style='contrast'] .topbar,
+html[data-interface-style='contrast'] .media-sidebar {
+  background: #191919;
+}
+html[data-interface-style='contrast'] :focus-visible {
+  outline: 3px solid #fff !important;
+  outline-offset: 4px;
+}
+@media (max-width: 1100px) and (min-width: 761px) {
+  .anime-room.has-chat {
+    grid-template-columns: minmax(0, 1fr) 330px;
+    gap: 16px;
+  }
+  .sidebar-presence.is-docked {
+    width: 330px;
+  }
+  .has-chat .overview-heading .watch-poster {
+    width: 125px;
+  }
+  .has-chat .overview-heading .watch-title h1 {
+    font-size: 24px;
+  }
+  .has-chat .room-actions .button > span {
+    display: none;
+  }
+  .has-chat .video-heading strong {
+    font-size: 12px;
+  }
+}
+@media (max-width: 760px) {
+  .anime-room,
+  .anime-room.has-chat {
+    display: block;
+  }
+  .anime-detail-screen .back-link {
+    display: flex !important;
+    margin: 4px 0 16px;
+    font-size: 12px;
+  }
+  .anime-resume-row {
+    gap: 12px;
+    padding: 14px;
+    min-height: 76px;
+    margin-bottom: 22px;
+  }
+  .anime-resume-row strong {
+    font-size: 15px;
+  }
+  .anime-resume-row small {
+    font-size: 11px;
+  }
+  .resume-row-play {
+    width: 40px;
+    height: 40px;
+  }
+  .anime-detail-screen .overview-heading {
+    gap: 17px;
+  }
+  .anime-detail-screen .overview-heading .watch-title h1 {
+    font-size: 21px;
+  }
+  .anime-detail-screen .overview-heading .watch-poster {
+    width: 100px;
+  }
+  .anime-detail-screen .overview-heading .watch-title-actions {
+    gap: 8px;
+  }
+  .anime-detail-screen .overview-heading .watch-title-actions .button {
+    min-height: 35px;
+    padding: 0 9px;
+    font-size: 10px;
+  }
+  .anime-detail-screen .overview-heading .watch-title-actions > .secondary:first-child {
+    display: none;
+  }
+  .anime-detail-screen .overview-heading .detail-list-control {
+    margin-top: 10px;
+  }
+  .anime-detail-screen .overview-heading .list-status-button {
+    min-height: 36px;
+    font-size: 10px;
+    padding: 0 9px;
+  }
+  .anime-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+  }
+  .anime-facts dd {
+    font-size: 12px;
+  }
+  .voice-gallery {
+    grid-template-columns: 1fr;
+  }
+  .voice-tile {
+    min-height: 76px;
+    padding: 13px;
+  }
+  .screenshot-rail {
+    grid-auto-columns: 245px;
+  }
+  .room-header {
+    gap: 12px;
+    align-items: flex-start;
+    margin-bottom: 15px;
+  }
+  .room-header h1 {
+    font-size: 18px;
+  }
+  .room-header p {
+    font-size: 10px;
+  }
+  .room-actions {
+    gap: 6px;
+  }
+  .room-actions .button {
+    width: 38px;
+    min-height: 38px;
+    padding: 0;
+  }
+  .room-actions .button > span {
+    display: none;
+  }
+  .sidebar-presence.is-docked {
+    position: fixed;
+    inset: 0;
+    top: 0;
+    width: 100%;
+    height: 100dvh;
+    max-width: none;
+    z-index: 75;
+    pointer-events: none;
+  }
+  .sidebar-presence.is-docked > .media-sidebar {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    width: min(430px, 94vw);
+    border-radius: 12px 0 0 12px;
+    pointer-events: auto;
+    box-shadow: -15px 0 50px #0006;
+  }
+  .sidebar-header {
+    min-height: 76px;
+    padding-top: max(15px, env(safe-area-inset-top));
+  }
+  .sidebar-scroll {
+    padding: 16px;
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+  .media-sidebar .discussion-compose-bar {
+    bottom: -16px;
+  }
+  .media-sidebar .comments-section {
+    padding-bottom: 0;
+  }
+  .media-sidebar .discussion-header h2 {
+    font-size: 17px;
+  }
+  .watch-room-buttons {
+    display: block;
+  }
+  .watch-room-buttons .watch-comments {
+    width: 100%;
+    min-height: 43px;
+    margin-top: 10px;
+  }
+  .video-toolbar button {
+    width: 35px;
+  }
+  .video-toolbar .video-volume input {
+    display: none;
+  }
+  .video-time {
+    font-size: 10px;
+  }
+  .video-time > span {
+    display: none;
+  }
+  .anime-room:fullscreen {
+    display: block;
+  }
+  .anime-room:fullscreen.has-chat {
+    display: block;
+  }
+  .anime-room:fullscreen .comments-sidebar {
+    position: fixed;
+  }
+  .interface-style .select-control {
+    width: 165px;
+  }
+  .interface-style select {
+    font-size: 16px;
+  }
+  .keyboard-hints {
+    display: none;
+  }
+  html[data-interface-style='cinema'] .gallery-rail {
+    grid-auto-columns: 160px;
+  }
+  html[data-interface-style='cinema'] .gallery-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  html[data-screen='anime-about'] .detail-workspace main,
+  html[data-screen='watch'] .detail-workspace main {
+    padding-bottom: 30px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
 
-.thread-screen.mobile-sheet,.composer-screen.mobile-sheet { inset:0 0 0 auto;margin:0;width:min(460px,96vw);height:100dvh;border-radius:12px 0 0 12px; }
-.thread-screen.mobile-sheet[open],.composer-screen.mobile-sheet[open] { animation:panel-enter .22s ease both; }
+.thread-screen.mobile-sheet,
+.composer-screen.mobile-sheet {
+  inset: 0 0 0 auto;
+  margin: 0;
+  width: min(460px, 96vw);
+  height: 100dvh;
+  border-radius: 12px 0 0 12px;
+}
+.thread-screen.mobile-sheet[open],
+.composer-screen.mobile-sheet[open] {
+  animation: panel-enter 0.22s ease both;
+}
 /* Kodi-style application chrome: a media menu, never a website header/footer. */
-.media-nav { position:fixed;left:0;top:0;bottom:0;width:200px;display:flex;flex-direction:column;padding:30px 14px 20px;background:#292a2d;border-right:1px solid #3d3e43;z-index:35; }
-.media-brand { display:flex;align-items:center;gap:10px;padding:0 7px;margin-bottom:36px; }.media-brand>span { font-size:21px;line-height:1;font-weight:700;letter-spacing:-.7px; }.media-brand>span>span { color:var(--muted);font-weight:400; }.media-brand small { display:block;font-size:6px;letter-spacing:1.8px;margin-top:9px;font-weight:400;color:var(--muted); }.media-brand img { flex-shrink:0; }
-.media-navigation { display:flex;flex-direction:column;gap:7px; }.media-navigation>a,.media-system-links>a { display:flex;align-items:center;gap:13px;min-height:51px;padding:11px 13px;border-radius:8px;font-size:13px;color:#c2c2c8; }.media-navigation>a svg,.media-system-links>a svg { flex-shrink:0; }.media-navigation>a.active,.media-system-links>a.active { color:var(--accent);background:#ff777712;box-shadow:inset 3px 0 var(--accent); }.media-navigation>a:hover,.media-system-links>a:hover { background:#ffffff08;color:#fff; }
-.media-system-links { margin-top:auto;padding-top:25px; }.media-account-avatar { width:27px;height:27px;display:grid;place-items:center;border-radius:50%;overflow:hidden;flex-shrink:0;background:#ffffff0a; }.media-account-avatar img { width:100%;height:100%;object-fit:cover; }.media-account>span:last-child { overflow:hidden;white-space:nowrap;text-overflow:ellipsis; }
-.media-workspace { margin-left:200px; }.media-workspace main { max-width:1480px;padding:32px 32px 40px;margin:0 auto; }.media-menu-trigger { position:fixed;top:max(16px,env(safe-area-inset-top));left:16px;z-index:40;width:42px;height:42px;background:#303136;border-color:#4c4c54;border-radius:8px; }
-.navigation-sidebar .media-brand { margin-top:8px;margin-bottom:26px; }.navigation-sidebar .media-system-links { margin-top:24px; }
-.navigation-sidebar.is-overlay>.media-sidebar { right:auto;left:0;border-radius:0 12px 12px 0;width:min(300px,88vw); }.navigation-sidebar.is-open>.media-sidebar { animation:menu-enter .22s ease both; }.navigation-sidebar.is-closing>.media-sidebar { animation:menu-exit .18s ease both; }
-@keyframes menu-enter { from { transform:translateX(-100%); } to { transform:none; } }@keyframes menu-exit { to { transform:translateX(-100%); } }
-.voice-source-group { min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:9px;overflow:hidden; }.voice-source-group .voice-tile { border:0;border-radius:0; }.voice-original-players { display:flex;align-items:center;flex-wrap:wrap;gap:7px 10px;padding:0 15px 14px; }.voice-original-players>small { width:100%;font-size:10px;color:var(--muted); }.voice-original-players>a { display:flex;align-items:center;gap:6px;padding:6px 9px;border:1px solid var(--line);border-radius:5px;font-size:11px; }
-.video-top-actions { top:18px;left:20px;right:20px;display:flex;align-items:center;justify-content:space-between;gap:18px;z-index:3;pointer-events:none; }.video-top-actions>button { display:flex;align-items:center;gap:9px;min-height:40px;padding:8px 12px;color:#f5eff7;background:#16141cb0;border:1px solid #ffffff20;border-radius:8px;font-size:12px;pointer-events:auto;max-width:min(340px,60%); }.video-top-actions>button svg { flex-shrink:0; }.video-top-actions>button span { white-space:nowrap;text-overflow:ellipsis;overflow:hidden; }.sidebar-auto-next { display:flex;margin-bottom:18px;padding-bottom:17px;border-bottom:1px solid var(--line);font-size:12px; }
-.is-watching { position:fixed;inset:0;z-index:50;margin:0;background:#000;overflow:hidden; }.media-app.is-playback .media-workspace { margin:0; }.media-app.is-playback main { padding:0!important;margin:0;max-width:none;width:100%;height:100dvh; }.is-watching .anime-room { display:block;width:100%;height:100%; }.is-watching .room-main { height:100%;min-height:0; }.is-watching .immersive-player,.is-watching .immersive-player .watch-sticky,.is-watching .immersive-player .universal-stage,.is-watching .immersive-player .universal-frame,.is-watching .immersive-player .native-placeholder { height:100%;width:100%;max-width:none;min-height:0;aspect-ratio:auto;margin:0;border:0;border-radius:0; }
-.immersive-player .video-heading { padding-top:78px; }.immersive-player .video-save-status { top:77px; }.immersive-player .video-bottom { padding-bottom:max(16px,env(safe-area-inset-bottom)); }.is-watching .player-skeleton { width:100%;height:100%;margin:0;border-radius:0;aspect-ratio:auto; }.is-watching .empty-state { position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:100%; }
-.watch-state-back,.native-state-back { position:absolute;top:20px;left:20px;z-index:12;display:flex;align-items:center;gap:10px;min-height:40px;padding:8px 12px;border:1px solid #ffffff25;border-radius:8px;background:#16141cb0;font-size:12px; }.is-watching:has(.universal-stage)>.watch-state-back { display:none; }
-@media(max-width:1050px) and (min-width:761px) { .media-nav { width:175px;padding:25px 9px 17px; }.media-workspace { margin-left:175px; }.media-brand { gap:8px; }.media-brand>span { font-size:18px; }.media-brand img { width:32px;height:32px; }.media-navigation>a,.media-system-links>a { gap:10px;padding:10px;min-height:48px;font-size:12px; }.media-workspace main { padding:27px 24px 35px; } }
-@media(max-width:760px) {
- .media-workspace { margin-left:0; }html[data-screen] .media-workspace main { padding:78px 16px 30px; }html[data-screen=watch] .media-workspace main { padding:0; }
- .video-top-actions { top:max(12px,env(safe-area-inset-top));left:12px;right:12px;gap:12px; }.video-top-actions>button { min-height:36px;padding:7px 10px;gap:7px;font-size:11px; }.video-top-actions>button:first-child span { display:none; }.video-top-actions>button:first-child { max-width:42px; }.video-top-actions>button:last-child { max-width:75%; }.immersive-player .video-heading { padding-top:65px; }.immersive-player .video-save-status { top:65px; }.immersive-player .video-heading strong { font-size:12px; }
- .voice-original-players { padding:0 13px 13px; }
+.media-nav {
+  position: fixed;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 200px;
+  display: flex;
+  flex-direction: column;
+  padding: 30px 14px 20px;
+  background: #292a2d;
+  border-right: 1px solid #3d3e43;
+  z-index: 35;
+}
+.media-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 7px;
+  margin-bottom: 36px;
+}
+.media-brand > span {
+  font-size: 21px;
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: -0.7px;
+}
+.media-brand > span > span {
+  color: var(--muted);
+  font-weight: 400;
+}
+.media-brand small {
+  display: block;
+  font-size: 6px;
+  letter-spacing: 1.8px;
+  margin-top: 9px;
+  font-weight: 400;
+  color: var(--muted);
+}
+.media-brand img {
+  flex-shrink: 0;
+}
+.media-navigation {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.media-navigation > a,
+.media-system-links > a {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-height: 51px;
+  padding: 11px 13px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #c2c2c8;
+}
+.media-navigation > a svg,
+.media-system-links > a svg {
+  flex-shrink: 0;
+}
+.media-navigation > a.active,
+.media-system-links > a.active {
+  color: var(--accent);
+  background: #ff777712;
+  box-shadow: inset 3px 0 var(--accent);
+}
+.media-navigation > a:hover,
+.media-system-links > a:hover {
+  background: #ffffff08;
+  color: #fff;
+}
+.media-system-links {
+  margin-top: auto;
+  padding-top: 25px;
+}
+.media-account-avatar {
+  width: 27px;
+  height: 27px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: #ffffff0a;
+}
+.media-account-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.media-account > span:last-child {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.media-workspace {
+  margin-left: 200px;
+}
+.media-workspace main {
+  max-width: 1480px;
+  padding: 32px 32px 40px;
+  margin: 0 auto;
+}
+.media-menu-trigger {
+  position: fixed;
+  top: max(16px, env(safe-area-inset-top));
+  left: 16px;
+  z-index: 40;
+  width: 42px;
+  height: 42px;
+  background: #303136;
+  border-color: #4c4c54;
+  border-radius: 8px;
+}
+.navigation-sidebar .media-brand {
+  margin-top: 8px;
+  margin-bottom: 26px;
+}
+.navigation-sidebar .media-system-links {
+  margin-top: 24px;
+}
+.navigation-sidebar.is-overlay > .media-sidebar {
+  right: auto;
+  left: 0;
+  border-radius: 0 12px 12px 0;
+  width: min(300px, 88vw);
+}
+.navigation-sidebar.is-open > .media-sidebar {
+  animation: menu-enter 0.22s ease both;
+}
+.navigation-sidebar.is-closing > .media-sidebar {
+  animation: menu-exit 0.18s ease both;
+}
+@keyframes menu-enter {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes menu-exit {
+  to {
+    transform: translateX(-100%);
+  }
+}
+.voice-source-group {
+  min-width: 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  overflow: hidden;
+}
+.voice-source-group .voice-tile {
+  border: 0;
+  border-radius: 0;
+}
+.voice-original-players {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px 10px;
+  padding: 0 15px 14px;
+}
+.voice-original-players > small {
+  width: 100%;
+  font-size: 10px;
+  color: var(--muted);
+}
+.voice-original-players > a {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 9px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  font-size: 11px;
+}
+.video-top-actions {
+  top: 18px;
+  left: 20px;
+  right: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  z-index: 3;
+  pointer-events: none;
+}
+.video-top-actions > button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 40px;
+  padding: 8px 12px;
+  color: #f5eff7;
+  background: #16141cb0;
+  border: 1px solid #ffffff20;
+  border-radius: 8px;
+  font-size: 12px;
+  pointer-events: auto;
+  max-width: min(340px, 60%);
+}
+.video-top-actions > button svg {
+  flex-shrink: 0;
+}
+.video-top-actions > button span {
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+.sidebar-auto-next {
+  display: flex;
+  margin-bottom: 18px;
+  padding-bottom: 17px;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+}
+.is-watching {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  margin: 0;
+  background: #000;
+  overflow: hidden;
+}
+.media-app.is-playback .media-workspace {
+  margin: 0;
+}
+.media-app.is-playback main {
+  padding: 0 !important;
+  margin: 0;
+  max-width: none;
+  width: 100%;
+  height: 100dvh;
+}
+.is-watching .anime-room {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.is-watching .room-main {
+  height: 100%;
+  min-height: 0;
+}
+.is-watching .immersive-player,
+.is-watching .immersive-player .watch-sticky,
+.is-watching .immersive-player .universal-stage,
+.is-watching .immersive-player .universal-frame,
+.is-watching .immersive-player .native-placeholder {
+  height: 100%;
+  width: 100%;
+  max-width: none;
+  min-height: 0;
+  aspect-ratio: auto;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+.immersive-player .video-heading {
+  padding-top: 78px;
+}
+.immersive-player .video-save-status {
+  top: 77px;
+}
+.immersive-player .video-bottom {
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+}
+.is-watching .player-skeleton {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  border-radius: 0;
+  aspect-ratio: auto;
+}
+.is-watching .empty-state {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%;
+}
+.watch-state-back,
+.native-state-back {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid #ffffff25;
+  border-radius: 8px;
+  background: #16141cb0;
+  font-size: 12px;
+}
+.is-watching:has(.universal-stage) > .watch-state-back {
+  display: none;
+}
+@media (max-width: 1050px) and (min-width: 761px) {
+  .media-nav {
+    width: 175px;
+    padding: 25px 9px 17px;
+  }
+  .media-workspace {
+    margin-left: 175px;
+  }
+  .media-brand {
+    gap: 8px;
+  }
+  .media-brand > span {
+    font-size: 18px;
+  }
+  .media-brand img {
+    width: 32px;
+    height: 32px;
+  }
+  .media-navigation > a,
+  .media-system-links > a {
+    gap: 10px;
+    padding: 10px;
+    min-height: 48px;
+    font-size: 12px;
+  }
+  .media-workspace main {
+    padding: 27px 24px 35px;
+  }
+}
+@media (max-width: 760px) {
+  .media-workspace {
+    margin-left: 0;
+  }
+  html[data-screen] .media-workspace main {
+    padding: 78px 16px 30px;
+  }
+  html[data-screen='watch'] .media-workspace main {
+    padding: 0;
+  }
+  .video-top-actions {
+    top: max(12px, env(safe-area-inset-top));
+    left: 12px;
+    right: 12px;
+    gap: 12px;
+  }
+  .video-top-actions > button {
+    min-height: 36px;
+    padding: 7px 10px;
+    gap: 7px;
+    font-size: 11px;
+  }
+  .video-top-actions > button:first-child span {
+    display: none;
+  }
+  .video-top-actions > button:first-child {
+    max-width: 42px;
+  }
+  .video-top-actions > button:last-child {
+    max-width: 75%;
+  }
+  .immersive-player .video-heading {
+    padding-top: 65px;
+  }
+  .immersive-player .video-save-status {
+    top: 65px;
+  }
+  .immersive-player .video-heading strong {
+    font-size: 12px;
+  }
+  .voice-original-players {
+    padding: 0 13px 13px;
+  }
 }
 
-@media(max-width:760px) { .anime-detail-screen .overview-heading .watch-title-actions>[aria-label="Поделиться аниме"] { display:inline-flex; } }
+@media (max-width: 760px) {
+  .anime-detail-screen .overview-heading .watch-title-actions > [aria-label='Поделиться аниме'] {
+    display: inline-flex;
+  }
+}
 
-.native-state-back { z-index:12;color:var(--text);cursor:pointer; }
+.native-state-back {
+  z-index: 12;
+  color: var(--text);
+  cursor: pointer;
+}
 
 /* Brief notices must not cover the title or the upper navigation buttons. */
-.universal-frame>.native-skip-notice { top:auto;bottom:110px;left:20px;right:20px;width:max-content;max-width:calc(100% - 40px); }
-@media(max-width:600px) { .universal-frame>.native-skip-notice { bottom:96px;left:12px;right:12px;max-width:calc(100% - 24px); } }
+.universal-frame > .native-skip-notice {
+  top: auto;
+  bottom: 110px;
+  left: 20px;
+  right: 20px;
+  width: max-content;
+  max-width: calc(100% - 40px);
+}
+@media (max-width: 600px) {
+  .universal-frame > .native-skip-notice {
+    bottom: 96px;
+    left: 12px;
+    right: 12px;
+    max-width: calc(100% - 24px);
+  }
+}
 
-.about-episodes-voice { display:flex;flex-direction:column;gap:9px;font-size:12px;color:var(--muted);margin-bottom:18px; }
-.about-episodes-voice .select-control { width:100%; }.about-episodes-voice select { width:100%;font-size:14px;min-height:44px; }
+.about-episodes-voice {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 18px;
+}
+.about-episodes-voice .select-control {
+  width: 100%;
+}
+.about-episodes-voice select {
+  width: 100%;
+  font-size: 14px;
+  min-height: 44px;
+}
 /* Keep the window tint live: a root snapshot flattens macOS transparency. */
-html { view-transition-name:none;--page-enter-x:100%;--page-enter-y:0px;--page-leave-x:-100%;--page-leave-y:0px; }
-html[data-page-direction=back] { --page-enter-x:-100%;--page-leave-x:100%; }
-html[data-page-direction=up] { --page-enter-x:0px;--page-leave-x:0px;--page-enter-y:-100dvh;--page-leave-y:100dvh; }
-html[data-page-direction=down] { --page-enter-x:0px;--page-leave-x:0px;--page-enter-y:100dvh;--page-leave-y:-100dvh; }
-html[data-page-fallback=active] { overflow-x:clip; }
-.media-workspace { view-transition-name:media-content; }
-.media-nav,.media-menu-trigger { view-transition-name:media-navigation; }
-::view-transition-group(root),::view-transition-old(root),::view-transition-new(root) { animation:none; }
-::view-transition-group(root) { z-index:0; }
-::view-transition-group(media-content) { z-index:1;animation:none;overflow:clip; }
-::view-transition-old(media-content) { animation:page-leave .3s cubic-bezier(.25,.85,.25,1) both;mix-blend-mode:normal; }
-::view-transition-new(media-content) { animation:page-arrive .3s cubic-bezier(.25,.85,.25,1) both;mix-blend-mode:normal; }
-::view-transition-group(media-navigation) { z-index:2;animation-duration:.3s;animation-timing-function:cubic-bezier(.25,.85,.25,1); }
-::view-transition-old(media-navigation),::view-transition-new(media-navigation) { animation:none; }
+html {
+  view-transition-name: none;
+  --page-enter-x: 100%;
+  --page-enter-y: 0px;
+  --page-leave-x: -100%;
+  --page-leave-y: 0px;
+}
+html[data-page-direction='back'] {
+  --page-enter-x: -100%;
+  --page-leave-x: 100%;
+}
+html[data-page-direction='up'] {
+  --page-enter-x: 0px;
+  --page-leave-x: 0px;
+  --page-enter-y: -100dvh;
+  --page-leave-y: 100dvh;
+}
+html[data-page-direction='down'] {
+  --page-enter-x: 0px;
+  --page-leave-x: 0px;
+  --page-enter-y: 100dvh;
+  --page-leave-y: -100dvh;
+}
+html[data-page-fallback='active'] {
+  overflow-x: clip;
+}
+.media-workspace {
+  view-transition-name: media-content;
+}
+.media-nav,
+.media-menu-trigger {
+  view-transition-name: media-navigation;
+}
+::view-transition-group(root),
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+::view-transition-group(root) {
+  z-index: 0;
+}
+::view-transition-group(media-content) {
+  z-index: 1;
+  animation: none;
+  overflow: clip;
+}
+::view-transition-old(media-content) {
+  animation: page-leave 0.3s cubic-bezier(0.25, 0.85, 0.25, 1) both;
+  mix-blend-mode: normal;
+}
+::view-transition-new(media-content) {
+  animation: page-arrive 0.3s cubic-bezier(0.25, 0.85, 0.25, 1) both;
+  mix-blend-mode: normal;
+}
+::view-transition-group(media-navigation) {
+  z-index: 2;
+  animation-duration: 0.3s;
+  animation-timing-function: cubic-bezier(0.25, 0.85, 0.25, 1);
+}
+::view-transition-old(media-navigation),
+::view-transition-new(media-navigation) {
+  animation: none;
+}
 /* A persistent translucent menu must be painted once, not old + new. */
-::view-transition-old(media-navigation) { display:none; }
-::view-transition-new(media-navigation) { mix-blend-mode:normal; }
-::view-transition-old(media-navigation):only-child { display:block;animation:page-menu-leave .3s cubic-bezier(.25,.85,.25,1) both; }
-::view-transition-new(media-navigation):only-child { animation:page-menu-arrive .3s cubic-bezier(.25,.85,.25,1) both; }
-@keyframes page-leave { to { opacity:0;transform:translate(var(--page-leave-x),var(--page-leave-y)); } }
-@keyframes page-arrive { from { transform:translate(var(--page-enter-x),var(--page-enter-y)); } }
-@keyframes page-menu-leave { to { transform:translateX(calc(-100% - 24px)); } }
-@keyframes page-menu-arrive { from { transform:translateX(calc(-100% - 24px)); } }
-html[data-motion=off]::view-transition-old(*),html[data-motion=off]::view-transition-new(*),html[data-motion=off]::view-transition-group(*) { animation:none!important; }
-@media(prefers-reduced-motion:reduce) { ::view-transition-old(*),::view-transition-new(*),::view-transition-group(*) { animation:none!important; } }
+::view-transition-old(media-navigation) {
+  display: none;
+}
+::view-transition-new(media-navigation) {
+  mix-blend-mode: normal;
+}
+::view-transition-old(media-navigation):only-child {
+  display: block;
+  animation: page-menu-leave 0.3s cubic-bezier(0.25, 0.85, 0.25, 1) both;
+}
+::view-transition-new(media-navigation):only-child {
+  animation: page-menu-arrive 0.3s cubic-bezier(0.25, 0.85, 0.25, 1) both;
+}
+@keyframes page-leave {
+  to {
+    opacity: 0;
+    transform: translate(var(--page-leave-x), var(--page-leave-y));
+  }
+}
+@keyframes page-arrive {
+  from {
+    transform: translate(var(--page-enter-x), var(--page-enter-y));
+  }
+}
+@keyframes page-menu-leave {
+  to {
+    transform: translateX(calc(-100% - 24px));
+  }
+}
+@keyframes page-menu-arrive {
+  from {
+    transform: translateX(calc(-100% - 24px));
+  }
+}
+html[data-motion='off']::view-transition-old(*),
+html[data-motion='off']::view-transition-new(*),
+html[data-motion='off']::view-transition-group(*) {
+  animation: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(*),
+  ::view-transition-new(*),
+  ::view-transition-group(*) {
+    animation: none !important;
+  }
+}
 
 /* Every screen scrolls inside one viewport-sized frame; snapshots never include page height or document scroll. */
-html,body,#app,.media-app { height:100%; }
-html,body { overflow:hidden;overscroll-behavior:none; }
-body { position:fixed;inset:0;width:100%; }
-.media-nav { overflow-x:hidden;overflow-y:auto;overscroll-behavior:none;scrollbar-width:thin; }
-.media-nav>* { flex-shrink:0; }
-.media-workspace { position:fixed;inset:0 0 0 200px;margin:0!important;height:100dvh;display:flex;flex-direction:column;overflow:clip; }
-.media-workspace>main.media-scroll { flex:1;min-height:0;width:100%;height:100%;max-width:none;margin:0;padding:0!important;overflow-y:auto;overflow-x:hidden;overscroll-behavior:none;scrollbar-gutter:stable; }
-.media-scroll-content { min-height:100%;max-width:1480px;margin:0 auto;padding:32px 32px 40px; }
-.media-workspace>.offline-bar,.media-workspace>.update-bar { flex-shrink:0; }
-.media-app.is-playback .media-workspace { left:0; }
-.media-app.is-playback main.media-scroll { overflow:clip;scrollbar-gutter:auto; }
-.media-app.is-playback .media-scroll-content { max-width:none;height:100%;padding:0; }
-@media(max-width:1050px) and (min-width:761px) { .media-workspace { left:175px; }.media-scroll-content { padding:27px 24px 35px; } }
-@media(max-width:760px) { .media-workspace { left:0; }.media-scroll-content { padding:78px 16px 30px; } }
+html,
+body,
+#app,
+.media-app {
+  height: 100%;
+}
+html,
+body {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+body {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+}
+.media-nav {
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: none;
+  scrollbar-width: thin;
+}
+.media-nav > * {
+  flex-shrink: 0;
+}
+.media-workspace {
+  position: fixed;
+  inset: 0 0 0 200px;
+  margin: 0 !important;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: clip;
+}
+.media-workspace > main.media-scroll {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0 !important;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: none;
+  scrollbar-gutter: stable;
+}
+.media-scroll-content {
+  min-height: 100%;
+  max-width: 1480px;
+  margin: 0 auto;
+  padding: 32px 32px 40px;
+}
+.media-workspace > .offline-bar,
+.media-workspace > .update-bar {
+  flex-shrink: 0;
+}
+.media-app.is-playback .media-workspace {
+  left: 0;
+}
+.media-app.is-playback main.media-scroll {
+  overflow: clip;
+  scrollbar-gutter: auto;
+}
+.media-app.is-playback .media-scroll-content {
+  max-width: none;
+  height: 100%;
+  padding: 0;
+}
+@media (max-width: 1050px) and (min-width: 761px) {
+  .media-workspace {
+    left: 175px;
+  }
+  .media-scroll-content {
+    padding: 27px 24px 35px;
+  }
+}
+@media (max-width: 760px) {
+  .media-workspace {
+    left: 0;
+  }
+  .media-scroll-content {
+    padding: 78px 16px 30px;
+  }
+}
 
 /* The transition frame always has the same geometry, including when the menu moves away. */
-.media-workspace { inset:0;left:0;padding-left:200px; }
-.media-app.is-playback .media-workspace { padding-left:0; }
-.media-nav { transition:transform .3s cubic-bezier(.25,.85,.25,1); }
-.media-nav.is-away { transform:translateX(-100%);pointer-events:none; }
-.media-menu-trigger { transition:transform .3s cubic-bezier(.25,.85,.25,1); }
-.media-menu-trigger.is-away { transform:translateX(calc(-100% - 24px));pointer-events:none; }
-@media(max-width:1050px) and (min-width:761px) { .media-workspace { left:0;padding-left:175px; } }
-@media(max-width:760px) { .media-workspace { left:0;padding-left:0; } }
+.media-workspace {
+  inset: 0;
+  left: 0;
+  padding-left: 200px;
+}
+.media-app.is-playback .media-workspace {
+  padding-left: 0;
+}
+.media-nav {
+  transition: transform 0.3s cubic-bezier(0.25, 0.85, 0.25, 1);
+}
+.media-nav.is-away {
+  transform: translateX(-100%);
+  pointer-events: none;
+}
+.media-menu-trigger {
+  transition: transform 0.3s cubic-bezier(0.25, 0.85, 0.25, 1);
+}
+.media-menu-trigger.is-away {
+  transform: translateX(calc(-100% - 24px));
+  pointer-events: none;
+}
+@media (max-width: 1050px) and (min-width: 761px) {
+  .media-workspace {
+    left: 0;
+    padding-left: 175px;
+  }
+}
+@media (max-width: 760px) {
+  .media-workspace {
+    left: 0;
+    padding-left: 0;
+  }
+}
 
-html[data-page-transition=active] .media-nav,html[data-page-transition=active] .media-menu-trigger { transition:none; }
+html[data-page-transition='active'] .media-nav,
+html[data-page-transition='active'] .media-menu-trigger {
+  transition: none;
+}
 
-.screenshot-artwork { background:#111; }
-.screenshot-artwork>img { object-fit:contain; }
-.screenshot-artwork.is-loaded>.poster-placeholder { opacity:0;transition:opacity .25s ease; }
+.screenshot-artwork {
+  background: #111;
+}
+.screenshot-artwork > img {
+  object-fit: contain;
+}
+.screenshot-artwork.is-loaded > .poster-placeholder {
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}

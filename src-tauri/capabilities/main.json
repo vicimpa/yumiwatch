@@ -10,6 +10,8 @@
     "core:window:allow-toggle-maximize",
     "core:window:allow-close",
     "core:window:allow-set-fullscreen",
+    "core:window:allow-set-focus",
+    "core:webview:allow-set-webview-focus",
     {
       "identifier": "opener:allow-open-url",
       "allow": [{ "url": "https://*" }]

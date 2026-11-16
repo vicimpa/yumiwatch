@@ -13,10 +13,15 @@ export interface Anime {
   min_age?: { title: string; title_long?: string };
   studios?: { title: string }[];
   videos?: Video[];
-  random_screenshots?: { episode?: string; time?: number; sizes: { small: string; full: string } }[];
+  random_screenshots?: {
+    episode?: string;
+    time?: number;
+    sizes: { small: string; full: string };
+  }[];
   comments_count?: number;
   viewing_order?: Anime[];
 }
+
 export interface Video {
   video_id: number;
   iframe_url: string;
@@ -25,9 +30,35 @@ export interface Video {
   index: number;
   duration?: number;
   watched?: { end_time: number; date: number };
-  skips?: { opening?: { time: number; length: number } | null; ending?: { time: number; length: number } | null };
+  skips?: {
+    opening?: { time: number; length: number } | null;
+    ending?: { time: number; length: number } | null;
+  };
 }
-export interface WatchEntry { anime: Anime; episode: string; group: string; videoId: number; updatedAt: number; position?: number; duration?: number; preview?: string; playing?: boolean }
-export interface Library { favorites: Anime[]; history: WatchEntry[]; lists?: Partial<Record<import('./lists').WatchListId, Anime[]>> }
-export interface Result<T> { data: T; cached: boolean; savedAt: number; revalidate?: Promise<Result<T>> }
+
+export interface WatchEntry {
+  anime: Anime;
+  episode: string;
+  group: string;
+  videoId: number;
+  updatedAt: number;
+  position?: number;
+  duration?: number;
+  preview?: string;
+  playing?: boolean;
+}
+
+export interface Library {
+  favorites: Anime[];
+  history: WatchEntry[];
+  lists?: Partial<Record<import('./lists').WatchListId, Anime[]>>;
+}
+
+export interface Result<T> {
+  data: T;
+  cached: boolean;
+  savedAt: number;
+  revalidate?: Promise<Result<T>>;
+}
+
 export type Params = Record<string, string | number | boolean | undefined>;

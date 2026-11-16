@@ -286,7 +286,7 @@ mod tests {
     use crate::providers::tests::candidate;
 
     #[tokio::test]
-    #[ignore = "requires live Yani/provider network access"]
+    #[ignore = "requires live Yummy/provider network access"]
     async fn live_provider_transport() {
         let backend = Backend::new().unwrap();
         let mut failures = Vec::new();
@@ -310,7 +310,7 @@ mod tests {
                 .json()
                 .await
                 .unwrap();
-            let videos = payload["response"].as_array().expect("Yani videos");
+            let videos = payload["response"].as_array().expect("Yummy videos");
             let video = videos
                 .iter()
                 .filter(|v| {

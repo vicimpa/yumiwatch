@@ -11,6 +11,7 @@
         "center": true,
         "backgroundColor": "#00000000",
         "transparent": true,
+        "backgroundThrottling": "disabled",
         "windowEffects": { "effects": ["sidebar"], "state": "active" },
         "theme": "Dark",
         "decorations": true,

@@ -1,7 +1,7 @@
 {
   "name": "yummywatch",
   "private": true,
-  "version": "0.0.4",
+  "version": "0.0.5",
   "type": "module",
   "scripts": {
     "dev": "tauri dev",
@@ -33,9 +33,12 @@
     "build:ios": "tauri ios build",
     "check:mobile": "node scripts/check-mobile.mjs",
     "icons": "node scripts/icons.mjs",
-    "check:playback-rate": "node scripts/check-playback-rate.mjs"
+    "check:playback-rate": "node scripts/check-playback-rate.mjs",
+    "format": "prettier --write . && cargo fmt --manifest-path src-tauri/Cargo.toml",
+    "format:check": "prettier --check . && cargo fmt --manifest-path src-tauri/Cargo.toml -- --check"
   },
   "dependencies": {
+    "@preact/signals": "2.11.4",
     "@tauri-apps/api": "^2.12.4",
     "@tauri-apps/plugin-opener": "^2.7.3",
     "preact": "^10.27.2",
@@ -48,6 +51,7 @@
     "@types/node": "^24.10.0",
     "jsdom": "^31.0.1",
     "playwright": "^1.65.1",
+    "prettier": "3.10.1",
     "typescript": "^5.9.3",
     "vite": "^7.2.2",
     "vitest": "^4.0.9"

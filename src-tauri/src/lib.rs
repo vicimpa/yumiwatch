@@ -1,5 +1,6 @@
 mod alloha;
 mod backend;
+mod discord;
 mod images;
 mod interface_scale;
 mod media;
@@ -153,7 +154,7 @@ struct ApiResponse {
 }
 
 #[tauri::command]
-async fn yani_request(
+async fn yummy_request(
     state: tauri::State<'_, backend::Backend>,
     request: ApiRequest,
 ) -> Result<ApiResponse, String> {
@@ -196,18 +197,19 @@ async fn yani_request(
         }
         builder = builder.body(body);
     }
-    let mut response = builder.send().await.map_err(|_| "Нет связи с Yani.")?;
+    let mut response = builder.send().await.map_err(|_| "Нет связи с Yummy.")?;
     let status = response.status().as_u16();
     let mut bytes = Vec::new();
-    while let Some(chunk) = response.chunk().await.map_err(|_| "Yani прервал ответ.")? {
+    while let Some(chunk) = response.chunk().await.map_err(|_| "Yummy прервал ответ.")?
+    {
         if bytes.len() + chunk.len() > 8_000_000 {
-            return Err("Слишком большой ответ Yani.".into());
+            return Err("Слишком большой ответ Yummy.".into());
         }
         bytes.extend_from_slice(&chunk);
     }
     Ok(ApiResponse {
         status,
-        body: String::from_utf8(bytes).map_err(|_| "Некорректный ответ Yani.")?,
+        body: String::from_utf8(bytes).map_err(|_| "Некорректный ответ Yummy.")?,
     })
 }
 
@@ -226,6 +228,7 @@ pub fn run() {
             }
         })
         .setup(|app| {
+            app.manage(discord::DiscordPresence::new());
             app.manage(backend::Backend::new()?);
             app.manage(session::SessionVault::new(
                 app.path().app_data_dir()?.join("account/session-v1.json"),
@@ -253,6 +256,7 @@ pub fn run() {
             },
         )
         .invoke_handler(tauri::generate_handler![
+            discord::set_discord_presence,
             desktop_info,
             interface_scale::set_interface_scale,
             set_window_cursor_visible,
@@ -260,7 +264,7 @@ pub fn run() {
             save_account_session,
             set_window_controls_visible,
             fetch_image,
-            yani_request,
+            yummy_request,
             resolve_candidates
         ])
         .run(tauri::generate_context!())

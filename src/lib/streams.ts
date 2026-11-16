@@ -1,61 +1,233 @@
-import { normalizeSkips, providerSkips, type SkipMarkers } from '../../shared/skips.mjs';
 import { selectCvhItem } from '../../shared/cvh.mjs';
-import type { Video } from './types';
+import { normalizeSkips, providerSkips, type SkipMarkers } from '../../shared/skips.mjs';
+
 import { desktopInvoke, desktopMediaRoot, isDesktop } from './desktop';
-export interface Stream { quality: number; url: string; type: 'mp4' | 'hls' | 'dash'; sourceHost?: string }
-export interface StreamCaption { url: string; label: string; language: string }
-export interface StreamResult { provider: string; videoId: number; duration: number; streams: Stream[]; relay?: boolean; caption?: StreamCaption; skips?: SkipMarkers }
-const voiceName = (name: string) => name.toLowerCase().replace(/(?:озвучка|субтитры)|[^a-zа-яё0-9]/g, '').replace(/aniliberty|anilibriatv/g,'anilibria');
-export const voiceKey = (name: string) => `${/субтитры/i.test(name)?'sub':'dub'}:${voiceName(name)}`;
+import type { Video } from './types';
+
+export interface Stream {
+  quality: number;
+  url: string;
+  type: 'mp4' | 'hls' | 'dash';
+  sourceHost?: string;
+}
+
+export interface StreamCaption {
+  url: string;
+  label: string;
+  language: string;
+}
+
+export interface StreamResult {
+  provider: string;
+  videoId: number;
+  duration: number;
+  streams: Stream[];
+  relay?: boolean;
+  caption?: StreamCaption;
+  skips?: SkipMarkers;
+}
+
+const voiceName = (name: string) =>
+  name
+    .toLowerCase()
+    .replace(/(?:озвучка|субтитры)|[^a-zа-яё0-9]/g, '')
+    .replace(/aniliberty|anilibriatv/g, 'anilibria');
+
+export const voiceKey = (name: string) =>
+  `${/субтитры/i.test(name) ? 'sub' : 'dub'}:${voiceName(name)}`;
+
+export function groupVoices(videos: Video[]) {
+  const groups = new Map<string, { key: string; name: string; videos: Video[] }>();
+
+  for (const video of videos) {
+    const key = voiceKey(video.data.dubbing);
+    const group = groups.get(key);
+
+    if (group) group.videos.push(video);
+    else groups.set(key, { key, name: video.data.dubbing, videos: [video] });
+  }
+
+  return [...groups.values()];
+}
+
 export function voiceVideos(videos: Video[], voice: string) {
   const sorted = videos.filter(video => voiceKey(video.data.dubbing) === voiceKey(voice));
-  return [...new Map(sorted.sort((a,b) => a.number.localeCompare(b.number,'ru',{numeric:true})).map(video => [video.number,video])).values()];
+
+  return [
+    ...new Map(
+      sorted
+        .sort((a, b) => a.number.localeCompare(b.number, 'ru', { numeric: true }))
+        .map(video => [video.number, video])
+    ).values(),
+  ];
 }
+
 export function selectStream(streams: Stream[], preferred: string) {
-  const sorted = [...streams].sort((a,b) => a.quality - b.quality);
+  const sorted = [...streams].sort((a, b) => a.quality - b.quality);
+
   if (!sorted.length) throw new Error('Источник не предоставил видео.');
+
   const limit = preferred === 'auto' ? 480 : Number(preferred);
+
   return sorted.filter(stream => stream.quality <= limit).at(-1) || sorted[0];
 }
+
 async function getJSON(url: string, signal: AbortSignal) {
-  const response = await fetch(url, { signal, credentials:'omit', cache:'no-store' });
+  const response = await fetch(url, { signal, credentials: 'omit', cache: 'no-store' });
+
   if (!response.ok) throw new Error(`Источник вернул HTTP ${response.status}.`);
+
   return response.json();
 }
+
 function validate(result: StreamResult, relayRoot?: URL): StreamResult {
-  if (!result || !Array.isArray(result.streams) || !Number.isInteger(result.videoId)) throw new Error('Некорректные данные потока.');
+  if (!result || !Array.isArray(result.streams) || !Number.isInteger(result.videoId))
+    throw new Error('Некорректные данные потока.');
+
   const streamUrl = (raw: string) => {
-    const relayed = result.relay && relayRoot && /^(?:alloha|media)\/[a-f0-9]{32}\/[a-f0-9]{32}$/.test(raw);
+    const relayed =
+      result.relay && relayRoot && /^(?:alloha|media)\/[a-f0-9]{32}\/[a-f0-9]{32}$/.test(raw);
     const url = relayed ? new URL(raw, relayRoot) : new URL(raw);
-    if ((url.protocol !== 'https:' && !(relayed && url.origin === relayRoot!.origin)) || url.username || url.password) throw new Error('Некорректный адрес видео.');
+
+    if (
+      (url.protocol !== 'https:' && !(relayed && url.origin === relayRoot!.origin)) ||
+      url.username ||
+      url.password
+    )
+      throw new Error('Некорректный адрес видео.');
+
     return url.href;
   };
-  const streams = result.streams.flatMap(stream => { try {
-    return Number.isFinite(stream.quality) && stream.quality > 0 && ['mp4','hls','dash'].includes(stream.type) ? [{ ...stream, url: streamUrl(stream.url) }] : [];
-  } catch { return []; } });
+
+  const streams = result.streams.flatMap(stream => {
+    try {
+      return Number.isFinite(stream.quality) &&
+        stream.quality > 0 &&
+        ['mp4', 'hls', 'dash'].includes(stream.type)
+        ? [{ ...stream, url: streamUrl(stream.url) }]
+        : [];
+    } catch {
+      return [];
+    }
+  });
+
   if (!streams.length) throw new Error('Источник не предоставил видео.');
-  return { ...result, streams, skips: normalizeSkips(result.skips), ...(result.caption ? { caption: { ...result.caption, url: streamUrl(result.caption.url) } } : {}) };
+
+  return {
+    ...result,
+    streams,
+    skips: normalizeSkips(result.skips),
+    ...(result.caption
+      ? { caption: { ...result.caption, url: streamUrl(result.caption.url) } }
+      : {}),
+  };
 }
-export async function resolveStream(videos: Video[], signal: AbortSignal, options: { preferredVideoId?: number } = {}): Promise<StreamResult> {
-  const candidates = videos.map(video => ({ url: video.iframe_url.startsWith('//') ? `https:${video.iframe_url}` : video.iframe_url, videoId: video.video_id, dubbing: video.data.dubbing, episode: video.number }));
-  const timeout = AbortSignal.timeout(30000); const combined = AbortSignal.any([signal,timeout]);
-  const order = (url: string) => url.includes('iframeCVH') ? 0 : url.includes('kodik') ? 1 : url.includes('aksor') ? 2 : 3;
-  const sorted = [...candidates].sort((a,b)=>(a.videoId===options.preferredVideoId?-1:order(a.url))-(b.videoId===options.preferredVideoId?-1:order(b.url))).slice(0,8);
+
+function sourcePriority(url: string) {
+  if (url.includes('iframeCVH')) return 0;
+  if (url.includes('kodik')) return 1;
+  if (url.includes('aksor')) return 2;
+
+  return 3;
+}
+
+export async function resolveStream(
+  videos: Video[],
+  signal: AbortSignal,
+  options: { preferredVideoId?: number } = {}
+): Promise<StreamResult> {
+  const candidates = videos.map(video => ({
+    url: video.iframe_url.startsWith('//') ? `https:${video.iframe_url}` : video.iframe_url,
+    videoId: video.video_id,
+    dubbing: video.data.dubbing,
+    episode: video.number,
+  }));
+  const timeout = AbortSignal.timeout(30000);
+  const combined = AbortSignal.any([signal, timeout]);
+
+  const sorted = [...candidates]
+    .sort(
+      (a, b) =>
+        (a.videoId === options.preferredVideoId ? -1 : sourcePriority(a.url)) -
+        (b.videoId === options.preferredVideoId ? -1 : sourcePriority(b.url))
+    )
+    .slice(0, 8);
+
   if (isDesktop()) {
-    const result = await desktopInvoke<StreamResult>('resolve_candidates', { candidates: sorted }, combined);
+    const result = await desktopInvoke<StreamResult>(
+      'resolve_candidates',
+      { candidates: sorted },
+      combined
+    );
+
     return validate(result, desktopMediaRoot());
   }
+
   let directError = '';
-  for (const candidate of sorted.filter(value => { try { const url = new URL(value.url); return url.protocol === 'https:' && !url.username && !url.password && !url.port && ['ru.yummyani.me','yummyani.me'].includes(url.hostname) && url.pathname.endsWith('/iframeCVH.html'); } catch { return false; } })) {
+
+  for (const candidate of sorted.filter(value => {
     try {
-      const url = new URL(candidate.url); const id = url.searchParams.get('anime_id');
+      const url = new URL(value.url);
+
+      return (
+        url.protocol === 'https:' &&
+        !url.username &&
+        !url.password &&
+        !url.port &&
+        ['ru.yummyani.me', 'yummyani.me'].includes(url.hostname) &&
+        url.pathname.endsWith('/iframeCVH.html')
+      );
+    } catch {
+      return false;
+    }
+  })) {
+    try {
+      const url = new URL(candidate.url);
+      const id = url.searchParams.get('anime_id');
+
       if (!/^\d+$/.test(id || '')) continue;
-      const playlist = await getJSON(`https://plapi.cdnvideohub.com/api/v1/player/sv/playlist?pub=745&aggr=mali&id=${id}`,combined);
-      const item = selectCvhItem(playlist,candidate.dubbing,candidate.episode,url.searchParams.get('dubbing_code'));
-      if (!item?.vkId || !/^\d+$/.test(String(item.vkId))) throw new Error('В CVH нет этой серии в выбранной озвучке.');
-      const data = await getJSON(`https://plapi.cdnvideohub.com/api/v1/player/sv/video/${item.vkId}`,combined);
-      return validate({ provider:'CVH',videoId:candidate.videoId,duration:data.duration || 0,skips:providerSkips(data),streams: Object.entries({ mpegTinyUrl:144,mpegLowestUrl:240,mpegLowUrl:360,mpegMediumUrl:480,mpegHighUrl:720,mpegFullHdUrl:1080 }).filter(([key]) => data.sources?.[key]).map(([key,quality]) => ({ quality,url:data.sources[key],type:'mp4' })) });
-    } catch (error) { if (combined.aborted) throw error; directError = (error as Error).message; }
+
+      const playlist = await getJSON(
+        `https://plapi.cdnvideohub.com/api/v1/player/sv/playlist?pub=745&aggr=mali&id=${id}`,
+        combined
+      );
+      const item = selectCvhItem(
+        playlist,
+        candidate.dubbing,
+        candidate.episode,
+        url.searchParams.get('dubbing_code')
+      );
+
+      if (!item?.vkId || !/^\d+$/.test(String(item.vkId)))
+        throw new Error('В CVH нет этой серии в выбранной озвучке.');
+
+      const data = await getJSON(
+        `https://plapi.cdnvideohub.com/api/v1/player/sv/video/${item.vkId}`,
+        combined
+      );
+
+      return validate({
+        provider: 'CVH',
+        videoId: candidate.videoId,
+        duration: data.duration || 0,
+        skips: providerSkips(data),
+        streams: Object.entries({
+          mpegTinyUrl: 144,
+          mpegLowestUrl: 240,
+          mpegLowUrl: 360,
+          mpegMediumUrl: 480,
+          mpegHighUrl: 720,
+          mpegFullHdUrl: 1080,
+        })
+          .filter(([key]) => data.sources?.[key])
+          .map(([key, quality]) => ({ quality, url: data.sources[key], type: 'mp4' })),
+      });
+    } catch (error) {
+      if (combined.aborted) throw error;
+      directError = (error as Error).message;
+    }
   }
-  throw new Error(directError || 'Прямой поток недоступен в браузере. Открой приложение или плеер источника.');
+  throw new Error(
+    directError || 'Прямой поток недоступен в браузере. Открой приложение или плеер источника.'
+  );
 }

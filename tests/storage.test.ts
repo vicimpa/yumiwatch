@@ -1,9 +1,13 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearHistory, LIBRARY_KEY, readLibrary, recordWatch, toggleFavorite } from '../src/lib/storage';
-import { groupKey } from '../src/lib/player';
+import { clearHistory, LIBRARY_KEY, readLibrary, recordWatch, toggleFavorite } from '~/lib/storage';
+import { groupKey } from '~/lib/player';
 import { anime, video } from './fixtures';
-beforeEach(() => { localStorage.clear(); vi.restoreAllMocks(); });
+
+beforeEach(() => {
+  localStorage.clear();
+  vi.restoreAllMocks();
+});
 describe('local collection', () => {
   it('toggles a favorite without duplicates', () => {
     expect(toggleFavorite(anime)).toBe(true);
@@ -18,10 +22,17 @@ describe('local collection', () => {
     expect(readLibrary()).toEqual({ favorites: [], history: [] });
   });
   it('remembers the episode and dubbing and replaces older history for the same anime', () => {
-    const first = video('1'); const second = video('2', 'AniDub');
-    recordWatch(anime, first, groupKey(first)); recordWatch(anime, second, groupKey(second));
+    const first = video('1');
+    const second = video('2', 'AniDub');
+
+    recordWatch(anime, first, groupKey(first));
+    recordWatch(anime, second, groupKey(second));
     expect(readLibrary().history).toHaveLength(1);
-    expect(readLibrary().history[0]).toMatchObject({ episode: '2', videoId: second.video_id, group: groupKey(second) });
+    expect(readLibrary().history[0]).toMatchObject({
+      episode: '2',
+      videoId: second.video_id,
+      group: groupKey(second),
+    });
   });
   it('does not persist the whole video list in the collection', () => {
     toggleFavorite({ ...anime, videos: [video('1')] });
@@ -37,7 +48,9 @@ describe('local collection', () => {
     expect(readLibrary().favorites).toHaveLength(1);
   });
   it('reports storage failure instead of pretending the favorite was saved', () => {
-    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('quota'); });
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('quota');
+    });
     expect(() => toggleFavorite(anime)).toThrow('Не удалось сохранить');
   });
 });

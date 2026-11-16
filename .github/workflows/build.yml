@@ -14,7 +14,8 @@ env:
   CARGO_INCREMENTAL: '0'
   CARGO_TERM_COLOR: always
   RELEASE_BUILD: ${{ inputs.release }}
-  VITE_YANI_APPLICATION_TOKEN: ${{ secrets.YANI_APPLICATION_TOKEN }}
+  VITE_YUMMY_APPLICATION_TOKEN: ${{ secrets.YUMMY_APPLICATION_TOKEN }}
+  VITE_DISCORD_APPLICATION_ID: ${{ secrets.DISCORD_APPLICATION_ID }}
 jobs:
   desktop:
     name: ${{ matrix.platform }}
@@ -47,6 +48,9 @@ jobs:
           node-version: 22
           cache: npm
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
       - name: macOS architectures
         if: runner.os == 'macOS'
         run: rustup target add ${{ matrix.target }}
