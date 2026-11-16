@@ -1,4 +1,4 @@
-## YummyWatch 0.0.6
+## YummyWatch 0.0.4
 
 Discord Rich Presence, единый интерфейс и исправления воспроизведения.
 

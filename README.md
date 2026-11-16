@@ -34,7 +34,7 @@ YummyWatch — приложение для просмотра аниме из к
 
 Linux-бинарник собирается на Ubuntu 24.04. AppImage включает медиа-компоненты GStreamer; DEB/RPM устанавливают системные зависимости. Пакет Arch собирается через `makepkg` и проверяется установкой в актуальном Arch Linux. Доступность кодеков зависит от дистрибутива.
 
-Для Arch скачай `.pkg.tar.zst` и установи через `sudo pacman -U ./linux-x64-yummywatch-0.0.6-1-x86_64.pkg.tar.zst`.
+Для Arch скачай `.pkg.tar.zst` и установи через `sudo pacman -U ./linux-x64-yummywatch-0.0.4-1-x86_64.pkg.tar.zst`.
 
 Первый выпуск desktop-пакетов — без сертификатов подписи Apple Developer ID и Windows Authenticode. Для каждого файла опубликована SHA-256 в `SHA256SUMS.txt`.
 
