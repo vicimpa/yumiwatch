@@ -20,12 +20,11 @@ pub fn set_interface_scale(
     }
     #[cfg(target_os = "linux")]
     {
-        use gtk::prelude::*;
+        use gtk::prelude::WidgetExt;
         let native = window.gtk_window().map_err(|error| error.to_string())?;
         // GDK already scales window pixels for HiDPI monitors. Only compensate
         // logical/text DPI here, otherwise a 2x display would be scaled twice.
-        let system = native
-            .screen()
+        let system = WidgetExt::screen(&native)
             .map(|screen| logical_scale(screen.resolution()))
             .unwrap_or(1.0);
         let factor = scale.unwrap_or(system);
