@@ -150,31 +150,6 @@ export function syncDesktopFullscreen(fullscreen: boolean) {
 
 let fullscreenChange: Promise<void> | undefined;
 
-/** AppKit acknowledges setFullscreen before its Space/resize animation finishes. */
-async function settleMacFullscreen(
-  appWindow: ReturnType<typeof getCurrentWindow>,
-  target: boolean
-) {
-  const started = Date.now();
-  let resized = started;
-  const unlisten = await appWindow.onResized(() => {
-    resized = Date.now();
-  });
-
-  try {
-    await appWindow.setFullscreen(target);
-    while (Date.now() - started < 5000) {
-      const actual = await appWindow.isFullscreen();
-
-      if (actual === target && Date.now() - resized >= 300) return actual;
-      await new Promise(resolve => setTimeout(resolve, 50));
-    }
-    throw new Error('Окно не завершило переключение полного экрана.');
-  } finally {
-    unlisten();
-  }
-}
-
 /** One window owns fullscreen across every route and player. */
 export function toggleDesktopFullscreen(): Promise<void> {
   if (!isDesktopWindow()) return Promise.resolve();
@@ -186,15 +161,18 @@ export function toggleDesktopFullscreen(): Promise<void> {
 
     document.documentElement.dataset.desktopFullscreenChanging = 'true';
     if (document.documentElement.dataset.desktop === 'macos') {
-      await settleMacFullscreen(appWindow, fullscreen);
+      // Never wait for an animation notification in the keyboard handler. The Rust
+      // observer repairs first-responder focus when AppKit actually finishes.
+      await appWindow.setFullscreen(fullscreen);
       syncDesktopFullscreen(fullscreen);
-      // AppKit can return keyboard focus to another window when exiting fullscreen.
-      // Restore both the key window and WebView's first responder, not just DOM focus.
+      // Also keep compatibility with a running backend during frontend HMR.
       await appWindow.setFocus();
       await getCurrentWebview().setFocus();
-
       const target =
-        focused instanceof HTMLElement && focused.isConnected && !focused.closest('[inert]')
+        focused instanceof HTMLElement &&
+        focused !== document.body &&
+        focused.isConnected &&
+        !focused.closest('[inert]')
           ? focused
           : document.querySelector<HTMLElement>('.video-controls,#main');
 

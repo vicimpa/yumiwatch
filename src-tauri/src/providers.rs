@@ -315,9 +315,14 @@ pub async fn resolve(candidate: &Candidate, upstream: &impl Upstream) -> Result<
                             let decoded = decode_kodik(raw)?;
                             let mut media =
                                 Url::parse(&decoded).map_err(|_| "Некорректная ссылка Kodik.")?;
-                            // These HLS manifests are generated from a public MP4.
-                            // Native range playback also handles old TS releases
-                            // whose later segments cannot be transmuxed by MSE.
+                            let mut stream = json!({
+                                "quality": quality,
+                                "type": media_type(&decoded),
+                                "url": decoded,
+                            });
+                            // Keep segmented startup; probing a full MP4 can take
+                            // many seconds. Old TS releases still need native MP4
+                            // when their later segments cannot be transmuxed.
                             if let Some(path) = media
                                 .path()
                                 .strip_suffix(":hls:manifest.m3u8")
@@ -325,11 +330,9 @@ pub async fn resolve(candidate: &Candidate, upstream: &impl Upstream) -> Result<
                                 .map(str::to_owned)
                             {
                                 media.set_path(&path);
+                                stream["fallback"] = json!({"type":"mp4", "url":media.to_string()});
                             }
-                            let url = media.to_string();
-                            streams.push(
-                                json!({"quality": quality,"type": media_type(&url),"url": url}),
-                            );
+                            streams.push(stream);
                         }
                     }
                 }
@@ -580,10 +583,14 @@ pub mod tests {
         )
         .await
         .unwrap();
-        assert_eq!(result["streams"][0]["type"], "mp4");
+        assert_eq!(result["streams"][0]["type"], "hls");
         assert_eq!(
             result["streams"][0]["url"],
-            "https://cloud2.solodcdn.com/video/360.mp4"
+            "https://cloud2.solodcdn.com/video/360.mp4:hls:manifest.m3u8"
+        );
+        assert_eq!(
+            result["streams"][0]["fallback"],
+            json!({"type":"mp4", "url":"https://cloud2.solodcdn.com/video/360.mp4"})
         );
         assert_eq!(result["skips"]["ending"]["time"], 1265.0);
         let requests = upstream.requests.lock().unwrap();

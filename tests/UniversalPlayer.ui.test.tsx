@@ -17,6 +17,16 @@ import { putCache } from '~/lib/cache-store';
 vi.mock('~/hooks/useDiscordPresence', () => ({ useDiscordPresence: vi.fn() }));
 
 vi.mock('~/lib/autoplay', () => ({ probeAudioPlayback: vi.fn().mockResolvedValue(false) }));
+vi.mock('shaka-player', () => ({
+  default: {
+    polyfill: { installAll: () => {} },
+    Player: class {
+      static isBrowserSupported() {
+        return false;
+      }
+    },
+  },
+}));
 
 function mediaError(media: HTMLMediaElement) {
   Object.defineProperty(media, 'error', { value: { code: 2 }, configurable: true });
@@ -67,6 +77,59 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe('our player mode', () => {
+  it('tries the same Kodik video as MP4 before discarding its provider and keeps the saved position', async () => {
+    const source = video('1');
+    vi.mocked(resolveStream).mockClear();
+    vi.mocked(resolveStream).mockResolvedValue({
+      provider: 'Kodik',
+      videoId: source.video_id,
+      duration: 5971,
+      streams: [
+        {
+          quality: 720,
+          type: 'hls',
+          url: 'https://cdn.example/video.m3u8',
+          fallback: { type: 'mp4', url: 'https://cdn.example/video.mp4' },
+        },
+      ],
+    });
+    const ready = vi.spyOn(HTMLMediaElement.prototype, 'readyState', 'get').mockReturnValue(0);
+    const { container } = render(
+      <Player
+        anime={anime}
+        history={{
+          anime,
+          videoId: source.video_id,
+          episode: '1',
+          group: '',
+          position: 2110,
+          duration: 5971,
+          updatedAt: Date.now(),
+        }}
+      />
+    );
+
+    await waitFor(() =>
+      expect(container.querySelector('video')?.getAttribute('src')).toBe(
+        'https://cdn.example/video.mp4'
+      )
+    );
+    const media = container.querySelector('video')!;
+    Object.defineProperty(media, 'duration', { value: 5971, configurable: true });
+    ready.mockReturnValue(4);
+    fireEvent.loadedMetadata(media);
+    fireEvent.loadedData(media);
+    expect(media.currentTime).toBe(2110);
+    expect(media.getAttribute('crossorigin')).toBeNull();
+    expect(resolveStream).toHaveBeenCalledOnce();
+    expect(container.querySelector('.playback-loader.is-error')).toBeNull();
+
+    // A failed MP4 must still leave the player recoverable rather than hang
+    // behind the old HLS failure flag or repeat the format switch forever.
+    mediaError(media);
+    await screen.findByRole('button', { name: 'Повторить загрузку' }, { timeout: 3000 });
+    expect(resolveStream).toHaveBeenCalledOnce();
+  });
   it('does not rewind on repeated decoder metadata during accelerated playback', async () => {
     const { container } = render(
       <Player
@@ -460,7 +523,7 @@ describe('our player mode', () => {
     mediaError(container.querySelector<HTMLVideoElement>('video[data-active=false]')!);
     await waitFor(() => expect((quality as HTMLSelectElement).value).toBe('360'));
     expect(container.querySelector<HTMLVideoElement>('video[data-active=true]')).toBe(live);
-    expect(container.querySelector('.native-error')).toBeNull();
+    expect(container.querySelector('.playback-loader.is-error')).toBeNull();
     expect(pause).not.toHaveBeenCalled();
     fireEvent.change(quality, { target: { value: '720' } });
     await waitFor(() => expect(container.querySelectorAll('video')).toHaveLength(2));
@@ -574,7 +637,9 @@ describe('our player mode', () => {
     await act(async () => reject(new Error('Последний источник недоступен')));
     expect(screen.queryByRole('alert')).toBeNull();
     await screen.findByRole('alert', {}, { timeout: 3000 });
-    expect(screen.getByText('Последний источник недоступен')).toBeTruthy();
+    expect(
+      within(screen.getByRole('alert')).getByText(/Последний источник недоступен/)
+    ).toBeTruthy();
   });
   it('restarts a failed media request even if resolving again returns the same URL', async () => {
     const { container } = render(<Player anime={anime} />);
@@ -593,7 +658,7 @@ describe('our player mode', () => {
       expect(vi.mocked(HTMLMediaElement.prototype.load).mock.calls.length).toBeGreaterThan(calls)
     );
     expect(container.querySelector('iframe')).toBeNull();
-    expect(container.querySelector('.native-error')).toBeNull();
+    expect(container.querySelector('.playback-loader.is-error')).toBeNull();
   });
   it.each([true, false])(
     'tries another provider for the same episode and voice, preserving position and playback intent (%s)',
@@ -738,10 +803,16 @@ describe('our player mode', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Об аниме' }));
     expect(back).toHaveBeenCalledOnce();
     await waitFor(() => expect(typeof reject).toBe('function'));
+    const loader = screen.getByText('Подбираем видеопоток…').closest('.playback-loader');
     reject(new Error('Нет доступного потока'));
     await screen.findByText('Нет доступного потока', {}, { timeout: 3000 });
+    expect(screen.getByRole('alert')).toBe(loader);
+    expect(loader?.querySelector('.playback-spinner')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Об аниме' }));
     expect(back).toHaveBeenCalledTimes(2);
+    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+    expect(screen.getByText('Подбираем видеопоток…').closest('.playback-loader')).toBe(loader);
   });
   it('syncs the resolved provider rather than the representative episode, including automatic skips', async () => {
     saveSession({

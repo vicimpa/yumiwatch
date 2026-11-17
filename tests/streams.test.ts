@@ -22,6 +22,14 @@ describe('universal playback', () => {
     expect(selectStream([high, low], '480')).toBe(low);
     expect(selectStream([high], '360')).toBe(high);
   });
+  it('keeps episode progress from the most recently watched provider when grouping a voice', () => {
+    const watched = { ...video('2'), watched: { date: 200, end_time: 30 } };
+    const older = { ...video('2', 'AniLiberty', 2), watched: { date: 100, end_time: 1200 } };
+    const unwatched = video('2', 'AniLibria', 3);
+
+    expect(voiceVideos([watched, older, unwatched], 'AniLibria')).toEqual([watched]);
+    expect(voiceVideos([unwatched, older, watched], 'AniLibria')).toEqual([watched]);
+  });
   it('keeps source mode by default and persists the explicit user choice', () => {
     expect(playbackSettings().mode).toBe('source');
     savePlaybackSettings({ mode: 'universal', quality: '240' });

@@ -7,6 +7,7 @@ import { INTERFACE_EVENT, interfaceSettings } from './interface-settings';
 import { getLibraryState } from './library';
 import { rememberPageScroll, restorePageScroll } from './page-scroll';
 import { pageDirection, pageSlide } from './page-transitions';
+import { canonicalPath, initializeNavigation, recordNavigation } from './navigation';
 import { getSession, restoreStoredSession, SESSION_EVENT, SESSION_KEY } from './session';
 import { LIBRARY_EVENT } from './storage';
 import type { Result } from './types';
@@ -147,13 +148,21 @@ export function useMediaQuery(query: string) {
   return matches;
 }
 
+function readPath() {
+  const raw = location.hash.slice(1) || '/';
+  const path = canonicalPath(raw);
+  if (path !== raw) history.replaceState(history.state, '', `#${path}`);
+  return path;
+}
+
 export function useHash() {
-  const [path, setPath] = useState(() => location.hash.slice(1) || '/');
+  const [path, setPath] = useState(readPath);
   const current = useRef(path);
   const cancelScrollRestore = useRef<() => void>(() => {});
 
   useEffect(() => {
     const previousRestoration = history.scrollRestoration;
+    initializeNavigation();
 
     history.scrollRestoration = 'manual';
 
@@ -166,6 +175,8 @@ export function useHash() {
     const motion = () => interfaceSettings().animations && !reducedMotion?.matches;
 
     const update = () => {
+      const next = readPath();
+      const travel = recordNavigation();
       beginImageRefresh();
 
       const navigation = ++sequence;
@@ -178,8 +189,10 @@ export function useHash() {
       rememberPageScroll(current.current);
       cancelScrollRestore.current();
 
-      const next = location.hash.slice(1) || '/',
-        direction = pageDirection(current.current, next),
+      const direction =
+          travel === 'back' && pageDirection(current.current, next)
+            ? 'back'
+            : pageDirection(current.current, next),
         animate = !!direction && motion();
 
       if (direction) document.documentElement.dataset.pageDirection = direction;
@@ -226,8 +239,11 @@ export function useHash() {
           document.documentElement.dataset.pageFallback = 'active';
 
           const active = element.animate(
-            [{ transform: pageSlide(direction!) }, { transform: 'none' }],
-            { duration: 280, easing: 'cubic-bezier(.25,.85,.25,1)' }
+            [
+              { opacity: 0, transform: pageSlide(direction!) },
+              { opacity: 1, transform: 'none' },
+            ],
+            { duration: 260, easing: 'cubic-bezier(.22,1,.36,1)' }
           );
 
           arrival = active;

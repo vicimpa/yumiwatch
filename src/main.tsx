@@ -17,6 +17,9 @@ import './media-center.css';
 import './desktop.css';
 import './interaction.css';
 import './touch.css';
+import './profile.css';
+import './scrollbars.css';
+import './social.css';
 
 class ErrorBoundary extends Component<{ children: ComponentChildren }, { failed: boolean }> {
   state = { failed: false };

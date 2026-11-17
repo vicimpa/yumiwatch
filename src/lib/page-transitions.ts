@@ -1,6 +1,17 @@
 export type PageDirection = 'forward' | 'back' | 'up' | 'down';
 
-const sections = ['/', '/catalog', '/search', '/library', '/schedule', '/settings', '/account'];
+const sections = [
+  '/',
+  '/catalog',
+  '/search',
+  '/schedule',
+  '/profile',
+  '/users',
+  '/notifications',
+  '/messages',
+  '/settings',
+  '/account',
+];
 
 function page(path: string) {
   const [route, query] = path.split('?'),
@@ -26,10 +37,10 @@ export function pageDirection(from: string, to: string): PageDirection | undefin
 }
 
 const slides: Record<PageDirection, string> = {
-  forward: 'translateX(100vw)',
-  back: 'translateX(-100vw)',
-  up: 'translateY(-100dvh)',
-  down: 'translateY(100dvh)',
+  forward: 'translateX(24px)',
+  back: 'translateX(-24px)',
+  up: 'translateY(-18px)',
+  down: 'translateY(18px)',
 };
 
 export function pageSlide(direction: PageDirection) {

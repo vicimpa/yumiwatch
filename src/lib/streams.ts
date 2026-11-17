@@ -9,6 +9,7 @@ export interface Stream {
   url: string;
   type: 'mp4' | 'hls' | 'dash';
   sourceHost?: string;
+  fallback?: { url: string; type: 'mp4' };
 }
 
 export interface StreamCaption {
@@ -53,13 +54,18 @@ export function groupVoices(videos: Video[]) {
 export function voiceVideos(videos: Video[], voice: string) {
   const sorted = videos.filter(video => voiceKey(video.data.dubbing) === voiceKey(voice));
 
-  return [
-    ...new Map(
-      sorted
-        .sort((a, b) => a.number.localeCompare(b.number, 'ru', { numeric: true }))
-        .map(video => [video.number, video])
-    ).values(),
-  ];
+  const episodes = new Map<string, Video>();
+
+  for (const video of sorted.sort((a, b) =>
+    a.number.localeCompare(b.number, 'ru', { numeric: true })
+  )) {
+    const previous = episodes.get(video.number);
+
+    if (!previous || (video.watched?.date || 0) >= (previous.watched?.date || 0))
+      episodes.set(video.number, video);
+  }
+
+  return [...episodes.values()];
 }
 
 export function selectStream(streams: Stream[], preferred: string) {
@@ -101,10 +107,20 @@ function validate(result: StreamResult, relayRoot?: URL): StreamResult {
 
   const streams = result.streams.flatMap(stream => {
     try {
+      let fallback: Stream['fallback'];
+
+      if (stream.type === 'hls' && stream.fallback?.type === 'mp4') {
+        try {
+          fallback = { type: 'mp4', url: streamUrl(stream.fallback.url) };
+        } catch {
+          // A bad optional fallback must not discard a valid primary stream.
+        }
+      }
+
       return Number.isFinite(stream.quality) &&
         stream.quality > 0 &&
         ['mp4', 'hls', 'dash'].includes(stream.type)
-        ? [{ ...stream, url: streamUrl(stream.url) }]
+        ? [{ ...stream, url: streamUrl(stream.url), fallback }]
         : [];
     } catch {
       return [];

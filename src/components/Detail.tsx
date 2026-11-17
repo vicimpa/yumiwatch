@@ -1,11 +1,11 @@
 import type { FunctionalComponent as FC } from 'preact';
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 
-import { animeDetail, peekAnimeDetail } from '~/lib/api';
+import { animeDetail, animeVideos, peekAnimeDetail, peekAnimeVideos } from '~/lib/api';
 import { exitPlayerFullscreen, isDesktop } from '~/lib/desktop';
 import { useLibrary, useResource, useSession } from '~/lib/hooks';
 import { readPlaybackRecovery } from '~/lib/playback-recovery';
-import { formatTime } from '~/lib/player';
+import { formatTime, latestWatchEntry } from '~/lib/player';
 import type { WatchEntry } from '~/lib/types';
 import { useAnimeDiscordContext } from '~/hooks/useAnimeDiscordContext';
 
@@ -33,6 +33,11 @@ export const Detail: FC<TDetailProps> = ({ id, query = '', returnTo = '/' }) => 
   );
   const library = useLibrary(),
     session = useSession();
+  const videos = useResource(
+    signal => animeVideos(Number(id), signal),
+    [id, session?.token, session?.verified],
+    () => peekAnimeVideos(Number(id))
+  );
   const checkpoint = useRef<{ token: string | null; entry: WatchEntry }>();
   const room = useRef<HTMLDivElement>(null);
 
@@ -62,10 +67,11 @@ export const Detail: FC<TDetailProps> = ({ id, query = '', returnTo = '/' }) => 
   }, [query]);
 
   const entries = [
+    anime && latestWatchEntry(anime, videos.value?.data || []),
     library.history.find(entry => entry.anime.anime_id === Number(id)),
     checkpoint.current?.token === (session?.token || null) ? checkpoint.current.entry : undefined,
     readPlaybackRecovery(Number(id)),
-  ].filter((entry): entry is WatchEntry => !!entry);
+  ].filter((entry): entry is WatchEntry => !!entry && entry.anime.anime_id === Number(id));
   const history = entries.sort((a, b) => b.updatedAt - a.updatedAt)[0];
 
   const openComments = useCallback(
@@ -134,9 +140,13 @@ export const Detail: FC<TDetailProps> = ({ id, query = '', returnTo = '/' }) => 
 
   const returnLabel = returnTo.startsWith('/search')
     ? 'Результаты поиска'
-    : returnTo.startsWith('/library')
-      ? 'Моя коллекция'
-      : 'Каталог аниме';
+    : returnTo.startsWith('/profile') || returnTo.startsWith('/users/')
+      ? 'Назад к профилю'
+      : returnTo.startsWith('/notifications')
+        ? 'Уведомления'
+        : returnTo.startsWith('/messages')
+          ? 'Сообщения'
+          : 'Каталог аниме';
 
   const toggleEpisodes = useCallback(
     () => setPanel(current => (current === 'episodes' ? null : 'episodes')),
@@ -190,9 +200,7 @@ export const Detail: FC<TDetailProps> = ({ id, query = '', returnTo = '/' }) => 
                         <Icon name="play" size={24} />
                       </span>
                       <span>
-                        <strong>
-                          {history?.position ? 'Продолжить просмотр' : 'Начать просмотр'}
-                        </strong>
+                        <strong>{history ? 'Продолжить просмотр' : 'Начать просмотр'}</strong>
                         <small>
                           {history
                             ? `Серия ${history.episode} · ${formatTime(history.position)}${history.duration ? ` / ${formatTime(history.duration)}` : ''}`
@@ -264,6 +272,7 @@ export const Detail: FC<TDetailProps> = ({ id, query = '', returnTo = '/' }) => 
                 ) : (
                   <AnimeAbout
                     anime={anime}
+                    videos={videos}
                     history={history}
                     episodesOpen={panel === 'episodes'}
                     closeEpisodes={closePanel}

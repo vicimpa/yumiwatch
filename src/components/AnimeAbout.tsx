@@ -1,17 +1,23 @@
 import type { FunctionalComponent as FC } from 'preact';
 import { useCallback, useLayoutEffect, useMemo, useState } from 'preact/hooks';
 
-import { animeVideos, imageUrl, peekAnimeVideos, plainText } from '~/lib/api';
-import { useResource, useSession } from '~/lib/hooks';
+import { imageUrl, plainText } from '~/lib/api';
 import { playbackUrl, videoPosition } from '~/lib/player';
 import { groupVoices } from '~/lib/streams';
-import type { Anime, Video, WatchEntry } from '~/lib/types';
+import type { Anime, Result, Video, WatchEntry } from '~/lib/types';
 
 import { AboutEpisodes } from './AboutEpisodes';
+import { EpisodeSubscriptionButton, useEpisodeSubscriptions } from './EpisodeSubscription';
 import { ArtworkImage, Button, ButtonLink, FormError, Icon, Sheet } from '~/ui';
 
 export type TAnimeAboutProps = {
   anime: Anime;
+  videos: {
+    value?: Result<Video[]>;
+    loading: boolean;
+    error: string;
+    retry: () => void;
+  };
   history?: WatchEntry;
   episodesOpen?: boolean;
   closeEpisodes?: () => void;
@@ -23,16 +29,12 @@ const closeNothing = () => {};
 
 export const AnimeAbout: FC<TAnimeAboutProps> = ({
   anime,
+  videos,
   history,
   episodesOpen = false,
   closeEpisodes = closeNothing,
 }) => {
-  const session = useSession();
-  const videos = useResource(
-    signal => animeVideos(anime.anime_id, signal),
-    [anime.anime_id, session?.token, session?.verified],
-    () => peekAnimeVideos(anime.anime_id)
-  );
+  const subscriptions = useEpisodeSubscriptions(anime.anime_id);
   const all = Array.isArray(videos.value?.data) ? videos.value.data : EMPTY_VIDEOS;
   const groups = useMemo(
     () =>
@@ -232,10 +234,13 @@ export const AnimeAbout: FC<TAnimeAboutProps> = ({
                 <div class="voice-original-players">
                   <small>Оригинальные плееры</small>
                   {group.providers.map(({ video, href }) => (
-                    <a key={video.data.player_id} href={href} target="_blank" rel="noreferrer">
-                      {video.data.player.replace(/^Плеер /, '')}
-                      <Icon name="external" size={13} />
-                    </a>
+                    <div key={video.data.player_id} class="voice-subscription">
+                      <a href={href} target="_blank" rel="noreferrer">
+                        {video.data.player.replace(/^Плеер /, '')}
+                        <Icon name="external" size={13} />
+                      </a>
+                      <EpisodeSubscriptionButton video={video} subscription={subscriptions} />
+                    </div>
                   ))}
                 </div>
               </div>

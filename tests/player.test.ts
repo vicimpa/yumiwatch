@@ -3,6 +3,7 @@ import {
   formatTime,
   groupKey,
   groupVideos,
+  latestWatchEntry,
   playbackEvent,
   playbackMessage,
   playbackUrl,
@@ -58,6 +59,25 @@ describe('video groups and resume', () => {
     const second = { ...video('3', 'AniDub'), watched: { date: 200, end_time: 300 } };
 
     expect(resumeVideo([first, second])).toBe(second);
+  });
+  it('builds a continue entry from per-title progress even outside the recent history page', () => {
+    const first = { ...video('1'), duration: 1400, watched: { date: 100, end_time: 1400 } };
+    const second = {
+      ...video('2', 'StudioBand'),
+      duration: 1441,
+      watched: { date: 200, end_time: 30 },
+    };
+
+    expect(latestWatchEntry(anime, [second, first, video('3')])).toEqual({
+      anime,
+      videoId: second.video_id,
+      group: groupKey(second),
+      episode: '2',
+      updatedAt: 200000,
+      position: 30,
+      duration: 1441,
+    });
+    expect(latestWatchEntry(anime, [video('1')])).toBeUndefined();
   });
   it('parses only finite progress from supported player messages', () => {
     expect(playbackMessage({ key: 'kodik_player_time_update', value: 120.5 })).toEqual({

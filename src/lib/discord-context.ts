@@ -9,6 +9,7 @@ const screens: Partial<Record<string, string>> = {
   '/settings': 'Настраивает приложение',
   '/settings/connection': 'Настраивает подключение',
   '/account': 'В аккаунте',
+  '/profile': 'В своём профиле',
 };
 
 export function searchPresence(query: string, location = 'В поиске'): DiscordActivity {
@@ -20,7 +21,12 @@ export function searchPresence(query: string, location = 'В поиске'): Dis
 export function routePresence(path: string): DiscordActivity {
   const [route, query = ''] = path.split('?');
   const screen =
-    screens[route] || (/^\/anime\/[^/]+$/.test(route) ? 'Открывает аниме' : 'В приложении');
+    screens[route] ||
+    (/^\/anime\/[^/]+$/.test(route)
+      ? 'Открывает аниме'
+      : /^\/users\/id\d+$/.test(route)
+        ? 'Смотрит профили'
+        : 'В приложении');
   const text =
     route === '/search' || route === '/catalog' ? new URLSearchParams(query).get('q') || '' : '';
 

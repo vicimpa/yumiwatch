@@ -37,6 +37,21 @@ function frame() {
 }
 
 describe('per-screen scrolling', () => {
+  it('preserves one scroll position across profile tabs and list filters, separately for each person', () => {
+    const element = frame();
+    element.scrollTop = 420;
+    rememberPageScroll('/profile?tab=overview');
+    element.scrollTop = 0;
+    restorePageScroll('/profile?tab=collection&list=watched');
+    expect(element.scrollTop).toBe(420);
+    element.scrollTop = 170;
+    rememberPageScroll('/users/id8?tab=stats');
+    element.scrollTop = 0;
+    restorePageScroll('/users/id8?tab=friends');
+    expect(element.scrollTop).toBe(170);
+    restorePageScroll('/profile?tab=stats');
+    expect(element.scrollTop).toBe(420);
+  });
   it('restores independent positions and normalizes the anime description route', () => {
     const element = frame();
 

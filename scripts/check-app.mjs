@@ -630,8 +630,8 @@ try {
         'Leaving playback left app fullscreen'
       );
       await page.setViewportSize({ width: 1280, height: 820 });
-      await nav('Моя коллекция');
-      await page.getByRole('link', { name: /Избранное/ }).click();
+      await nav('Твой профиль');
+      await page.getByRole('link', { name: 'Всё избранное' }).click();
       await page.locator('a[href^="#/anime/1486"]:visible').first().waitFor();
       await check('guest favorites');
       await nav('Настройки');

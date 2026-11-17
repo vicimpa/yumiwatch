@@ -2,12 +2,19 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/preact';
 
-import { AnimeAbout } from '~/components/AnimeAbout';
+import { AnimeAbout, type TAnimeAboutProps } from '~/components/AnimeAbout';
 import { groupKey } from '~/lib/player';
 import type { Video, WatchEntry } from '~/lib/types';
 import { anime, video } from './fixtures';
 
 const source = vi.hoisted(() => ({ videos: [] as Video[] }));
+
+const videosResource = (): TAnimeAboutProps['videos'] => ({
+  value: { data: source.videos, cached: false, savedAt: 0 },
+  loading: false,
+  error: '',
+  retry: vi.fn(),
+});
 
 vi.mock('~/lib/hooks', async original => ({
   ...(await original<typeof import('~/lib/hooks')>()),
@@ -27,7 +34,7 @@ it('counts unique episodes across providers and updates resume links and refresh
 
   source.videos = [first, second, video('1', 'AniLiberty', 2), video('1', 'Субтитры AniLibria')];
 
-  const { container, rerender } = render(<AnimeAbout anime={anime} />);
+  const { container, rerender } = render(<AnimeAbout anime={anime} videos={videosResource()} />);
   const voices = screen.getByRole('region', { name: 'Доступные озвучки' });
 
   expect(within(voices).getByText('Наш плеер · 2 серий')).toBeTruthy();
@@ -47,11 +54,11 @@ it('counts unique episodes across providers and updates resume links and refresh
     updatedAt: Date.now(),
   };
 
-  rerender(<AnimeAbout anime={anime} history={history} />);
+  rerender(<AnimeAbout anime={anime} videos={videosResource()} history={history} />);
   expect(within(voices).getAllByRole('link', { name: 'Player 1' })[0].getAttribute('href')).toBe(
     'https://kodik.info/two?start_from=115'
   );
   source.videos = [...source.videos, video('3')];
-  rerender(<AnimeAbout anime={{ ...anime }} history={history} />);
+  rerender(<AnimeAbout anime={{ ...anime }} videos={videosResource()} history={history} />);
   expect(within(voices).getByText('Наш плеер · 3 серий')).toBeTruthy();
 });

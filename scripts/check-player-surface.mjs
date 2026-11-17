@@ -103,7 +103,9 @@ export async function checkPlayerSurface(page, init, label) {
     });
   await page.addScriptTag({ content: await playerBundle() });
   await page.waitForFunction(
-    () => window.surfaceProbe?.media()?.readyState >= 2 && !document.querySelector('.native-error'),
+    () =>
+      window.surfaceProbe?.media()?.readyState >= 2 &&
+      !document.querySelector('.playback-loader.is-error'),
     { timeout: 35000 }
   );
   await page.evaluate(() => {
@@ -125,7 +127,7 @@ export async function checkPlayerSurface(page, init, label) {
 
   const clean = async () => {
     assert.equal(
-      await page.locator('.native-error').count(),
+      await page.locator('.playback-loader.is-error').count(),
       0,
       'Error overlay covers decoded video'
     );
@@ -147,12 +149,14 @@ export async function checkPlayerSurface(page, init, label) {
       Object.defineProperty(v, 'error', { value: { code: 2 }, configurable: true });
       v.dispatchEvent(new Event('yumiwatch:stream-error'));
     });
-    await page.waitForFunction(() => !!document.querySelector('.native-error'));
+    await page.waitForFunction(() => !!document.querySelector('.playback-loader.is-error'));
     await page.evaluate(() => {
       delete window.surfaceProbe.media().error;
     });
     await page.waitForFunction(
-      () => !document.querySelector('.native-error') && window.surfaceProbe.media().currentTime > 3,
+      () =>
+        !document.querySelector('.playback-loader.is-error') &&
+        window.surfaceProbe.media().currentTime > 3,
       { timeout: 10000 }
     );
     await clean();

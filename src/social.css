@@ -1,0 +1,603 @@
+.social-page {
+  max-width: 1120px;
+  margin: 0 auto;
+}
+.social-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.social-heading > div {
+  min-width: 0;
+}
+.social-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 21px;
+  height: 21px;
+  padding: 0 5px;
+  border-radius: 12px;
+  background: var(--accent, #ff7777);
+  color: #191919;
+  font-size: 11px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+.media-system-links a > .social-badge {
+  margin-left: auto;
+}
+.phone-notifications {
+  position: relative;
+  margin-left: auto;
+}
+.phone-notifications .social-badge {
+  position: absolute;
+  right: -3px;
+  top: -3px;
+}
+.phone-notifications + .phone-account {
+  margin-left: 6px;
+}
+.social-connection {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  margin: 0 0 22px;
+  min-height: 24px;
+}
+.social-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #8e8e8e;
+  flex-shrink: 0;
+}
+.is-connected .social-status-dot {
+  background: #86c79d;
+}
+.social-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.social-toolbar .profile-segment {
+  flex-wrap: wrap;
+}
+.notification-list {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.notification-card {
+  display: flex;
+  gap: 16px;
+  padding: 20px;
+  border-radius: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line, #ffffff14);
+}
+.notification-card.is-unread {
+  border-color: #ff77774d;
+  background: linear-gradient(110deg, #ff77770b, transparent), var(--surface);
+}
+.notification-symbol {
+  color: var(--accent, #ff7777);
+  padding-top: 2px;
+  flex-shrink: 0;
+}
+.notification-card > div {
+  flex: 1;
+  min-width: 0;
+}
+.notification-card h2 {
+  font-size: 15px;
+  line-height: 1.5;
+  margin: 0 0 5px;
+  overflow-wrap: anywhere;
+}
+.notification-card p {
+  font-size: 13px;
+  line-height: 1.7;
+  margin: 0;
+  color: var(--muted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.notification-meta {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  margin-top: 12px;
+  color: var(--muted);
+}
+.notification-meta a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--accent, #ff7777);
+}
+.notification-card > button {
+  align-self: flex-start;
+  flex-shrink: 0;
+}
+.social-settings {
+  display: grid;
+  gap: 16px;
+  margin-top: 20px;
+}
+.activity-notice {
+  position: fixed;
+  top: calc(22px + env(safe-area-inset-top, 0px));
+  right: 22px;
+  z-index: 500;
+  width: min(390px, calc(100vw - 32px));
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  padding: 16px;
+  border: 1px solid #ff777755;
+  background: #292929;
+  border-radius: 16px;
+  box-shadow: 0 12px 48px #0005;
+}
+[data-desktop] .activity-notice {
+  top: 54px;
+}
+.activity-notice > a {
+  display: flex;
+  flex: 1;
+  gap: 12px;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+.activity-notice > a > svg {
+  color: var(--accent, #ff7777);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.activity-notice a > span {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+.activity-notice strong {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.activity-notice a > span > span {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.6;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.messages-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+.dialog-list {
+  display: grid;
+  gap: 6px;
+}
+.dialog-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 12px;
+  text-decoration: none;
+  color: inherit;
+  min-width: 0;
+}
+.dialog-card:hover,
+.dialog-card.active {
+  background: var(--surface);
+}
+.social-avatar {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #ff77771a;
+  color: var(--accent, #ff7777);
+}
+.social-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.dialog-card > span:not(.social-badge):not(.social-avatar) {
+  display: grid;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+}
+.dialog-card strong,
+.dialog-card small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dialog-card strong {
+  font-size: 13px;
+}
+.dialog-card small {
+  font-size: 11px;
+  color: var(--muted);
+}
+.conversation {
+  min-width: 0;
+  background: var(--surface);
+  border: 1px solid var(--line, #ffffff14);
+  border-radius: 18px;
+  padding: 20px;
+}
+.conversation-heading {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  border-bottom: 1px solid var(--line, #ffffff14);
+  padding-bottom: 16px;
+}
+.conversation-heading > a:last-child {
+  display: grid;
+  gap: 5px;
+  color: inherit;
+  min-width: 0;
+}
+.conversation-heading strong {
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.conversation-heading small {
+  font-size: 11px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+}
+.conversation-refresh {
+  margin-left: auto;
+}
+.message-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 0;
+}
+.message-bubble {
+  max-width: 90%;
+  align-self: flex-start;
+  background: #ffffff08;
+  border-radius: 14px 14px 14px 3px;
+  padding: 12px 15px;
+}
+.message-bubble.is-own {
+  align-self: flex-end;
+  background: #ff777714;
+  border-radius: 14px 14px 3px 14px;
+}
+.message-bubble p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 1.7;
+  margin: 0 0 6px;
+}
+.message-bubble small {
+  display: block;
+  font-size: 10px;
+  color: var(--muted);
+}
+.message-bubble .message-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 4px;
+}
+.message-meta time {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+/* Both labels occupy the same cell, keeping the date and bubble in place
+   when a read receipt changes the visible label. */
+.message-delivery {
+  display: inline-grid;
+  white-space: nowrap;
+}
+.message-delivery > span {
+  grid-area: 1 / 1;
+  visibility: hidden;
+}
+.message-delivery > .is-current {
+  visibility: visible;
+}
+.message-composer {
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid var(--line, #ffffff14);
+  padding-top: 18px;
+}
+.message-composer textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 90px;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text, #eee);
+  background: #ffffff05;
+  border: 1px solid var(--line, #ffffff18);
+  border-radius: 10px;
+  padding: 12px;
+}
+.message-composer > button {
+  justify-self: end;
+}
+.voice-original-players .voice-subscription {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  width: 100%;
+}
+.voice-subscription > button,
+.voice-subscription > .button {
+  font-size: 11px;
+}
+.media-nav {
+  overflow-y: auto;
+}
+@media (max-width: 760px), (max-width: 1000px) and (pointer: coarse) {
+  .social-heading {
+    align-items: flex-start;
+  }
+  .social-heading h1 {
+    font-size: 26px;
+  }
+  .notification-card {
+    padding: 14px;
+    gap: 10px;
+  }
+  .notification-card h2 {
+    font-size: 14px;
+  }
+  .messages-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .messages-layout.has-conversation > .dialog-list {
+    display: none;
+  }
+  .messages-layout:not(.has-conversation) > .empty-state {
+    display: none;
+  }
+  .conversation {
+    padding: 14px;
+  }
+  .message-bubble {
+    max-width: 95%;
+  }
+  .activity-notice {
+    right: 16px;
+  }
+}
+
+/* A bounded messenger viewport: only the two lists scroll, the composer stays in place. */
+html[data-screen='messages'] #main.media-scroll {
+  overflow: hidden;
+  padding: 0 !important;
+  min-height: 0;
+  display: flex;
+}
+html[data-screen='messages'] .media-scroll-content {
+  padding: 0 !important;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.messages-page {
+  max-width: none;
+  margin: 0;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.messages-page .messages-layout {
+  flex: 1;
+  min-height: 0;
+  gap: 0;
+  grid-template-columns: minmax(240px, 310px) minmax(0, 1fr);
+  align-items: stretch;
+  border-top: 1px solid var(--line);
+}
+.messages-page .dialog-list {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 18px 12px 12px;
+  border-right: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface) 55%, var(--bg));
+}
+.dialogs-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 8px 12px;
+  gap: 8px;
+}
+.dialogs-heading h1 {
+  font-size: 20px;
+  margin: 0 0 6px;
+}
+.dialogs-heading .social-connection {
+  margin: 0;
+  font-size: 10px;
+  min-height: 18px;
+}
+.dialog-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #ffffff05;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0 12px;
+  margin: 0 4px 14px;
+  color: var(--muted);
+}
+.dialog-search input {
+  min-width: 0;
+  width: 100%;
+  background: transparent;
+  border: 0;
+  font: inherit;
+  font-size: 12px;
+  color: inherit;
+  height: 40px;
+  outline: none;
+}
+.dialog-scroll {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.messages-page .dialog-card {
+  border-radius: 10px;
+  margin: 2px 0;
+}
+.messages-page .dialog-card.active {
+  background: #ff777714;
+}
+.messages-page .conversation {
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  background: radial-gradient(ellipse at 70% 15%, #ff777704, transparent 65%), var(--bg);
+}
+.messages-page .conversation-heading {
+  flex-shrink: 0;
+  padding: 15px 24px;
+  background: color-mix(in srgb, var(--surface) 65%, var(--bg));
+}
+.conversation-scroll {
+  overflow-anchor: none;
+  scroll-behavior: auto;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 20px 24px 10px;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  display: flex;
+  flex-direction: column;
+}
+.chat-loading {
+  margin: auto;
+  padding: 24px;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+.dialog-scroll .chat-loading {
+  padding: 18px 8px;
+}
+.conversation-scroll > .message-list {
+  margin-top: auto;
+  padding: 0 0 8px;
+}
+.messages-page .message-bubble {
+  max-width: min(85%, 600px);
+}
+.messages-page .message-composer {
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px 10px;
+  padding: 12px 24px;
+  align-items: end;
+  background: color-mix(in srgb, var(--surface) 65%, var(--bg));
+}
+.messages-page .message-composer textarea {
+  min-height: 46px;
+  max-height: 160px;
+  resize: none;
+  padding: 10px 14px;
+}
+.message-compose-hint {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 10px;
+  padding-left: 2px;
+}
+.new-messages {
+  position: absolute;
+  bottom: 110px;
+  right: 24px;
+  box-shadow: 0 5px 20px #0004;
+}
+.messages-layout > .empty-state {
+  margin: auto;
+}
+.message-bubble p {
+  user-select: text;
+  -webkit-user-select: text;
+}
+@media (max-width: 760px), (max-width: 1000px) and (pointer: coarse) {
+  .navigation-history {
+    padding: 4px 12px;
+  }
+  .messages-page .messages-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .messages-page .conversation-heading {
+    padding: 10px 14px;
+  }
+  .messages-page .conversation-scroll {
+    padding: 16px 14px 4px;
+  }
+  .messages-page .message-composer {
+    padding: 10px 12px;
+  }
+  .messages-page .message-composer textarea {
+    font-size: 16px;
+  }
+  .message-compose-hint {
+    display: none;
+  }
+  .messages-page .message-bubble {
+    max-width: 92%;
+  }
+  .messages-page .dialog-list {
+    border-right: 0;
+  }
+}

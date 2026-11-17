@@ -129,7 +129,7 @@ for (const engine of [webkit, chromium]) {
       .getByRole('checkbox', { name: 'Оставаться в аккаунте на этом устройстве' })
       .check();
     await app.page.getByRole('button', { name: 'Войти', exact: true }).click();
-    await app.page.waitForFunction(() => location.hash.startsWith('#/library'));
+    await app.page.waitForFunction(() => location.hash.startsWith('#/profile'));
     assert.ok(saved?.token);
     assert.equal(await app.page.evaluate(() => localStorage.getItem('yumiwatch:session:v1')), null);
     await app.page

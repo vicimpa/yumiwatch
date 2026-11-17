@@ -71,7 +71,6 @@ export const VideoControls: FC<TVideoControlsProps> = ({
   const [visible, setVisible] = useState(true),
     [menu, setMenu] = useState(false);
   const [activity, setActivity] = useState(0),
-    [focused, setFocused] = useState(false),
     [dragging, setDragging] = useState(false);
   const keyboard = useRef(false);
   const controls = useRef<HTMLDivElement>(null);
@@ -97,6 +96,7 @@ export const VideoControls: FC<TVideoControlsProps> = ({
   useEffect(() => {
     const move = (event: PointerEvent) => {
       if (event.pointerType === 'touch') return;
+      keyboard.current = false;
 
       const target = event.target;
 
@@ -204,16 +204,23 @@ export const VideoControls: FC<TVideoControlsProps> = ({
   }, []);
 
   useEffect(() => {
-    if (paused || loading || failed || buffering || menu || focused || dragging) {
+    if (paused || loading || failed || buffering || menu || dragging) {
       setVisible(true);
 
       return;
     }
 
-    const timer = setTimeout(() => setVisible(false), CONTROLS_IDLE_MS);
+    const timer = setTimeout(() => {
+      // A hidden toolbar must not retain a keyboard activation target. Keep
+      // focus in the player so the next shortcut works without a mouse click.
+      const active = document.activeElement;
+      if (active !== controls.current && controls.current?.contains(active))
+        controls.current.focus({ preventScroll: true });
+      setVisible(false);
+    }, CONTROLS_IDLE_MS);
 
     return () => clearTimeout(timer);
-  }, [paused, loading, failed, buffering, menu, focused, dragging, activity]);
+  }, [paused, loading, failed, buffering, menu, dragging, activity]);
 
   useEffect(() => {
     onVisibility(visible);
@@ -314,36 +321,26 @@ export const VideoControls: FC<TVideoControlsProps> = ({
   const activatePointer = useCallback(
     (event: JSX.TargetedPointerEvent<HTMLDivElement>) => {
       keyboard.current = false;
-      setFocused(false);
       if (!(event.target as HTMLElement).closest('.video-hit-area')) wake();
     },
     [wake]
   );
 
-  const activateKeyboard = useCallback(
-    (event: JSX.TargetedKeyboardEvent<HTMLDivElement>) => {
-      keyboard.current = true;
-      if (event.key === 'Tab') {
-        setFocused(true);
-        wake();
-      }
-    },
-    [wake]
-  );
+  const activateKeyboard = useCallback(() => {
+    keyboard.current = true;
+    wake();
+  }, [wake]);
 
   const focusControls = useCallback(
     (event: JSX.TargetedFocusEvent<HTMLDivElement>) => {
-      if (keyboard.current || (event.target as HTMLElement).matches(':focus-visible')) {
-        setFocused(true);
+      if (
+        event.target !== event.currentTarget &&
+        (keyboard.current || document.documentElement.dataset.inputMode === 'keyboard')
+      )
         wake();
-      }
     },
     [wake]
   );
-
-  const blurControls = useCallback((event: JSX.TargetedFocusEvent<HTMLDivElement>) => {
-    if (!event.currentTarget.contains(event.relatedTarget as Node)) setFocused(false);
-  }, []);
 
   const closeSettings = useCallback(() => setMenu(false), []);
 
@@ -392,7 +389,6 @@ export const VideoControls: FC<TVideoControlsProps> = ({
       onPointerDown={activatePointer}
       onKeyDown={activateKeyboard}
       onFocusIn={focusControls}
-      onFocusOut={blurControls}
     >
       <button
         class="video-hit-area"

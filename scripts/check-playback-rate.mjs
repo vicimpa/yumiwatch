@@ -154,7 +154,7 @@ try {
       } catch (error) {
         console.error(
           await page.evaluate(() => ({
-            error: document.querySelector('.native-error')?.textContent,
+            error: document.querySelector('.playback-loader.is-error')?.textContent,
             video: window.surfaceProbe?.media()?.outerHTML,
             updates: window.surfaceProbe?.updates,
           }))

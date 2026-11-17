@@ -1,6 +1,6 @@
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import type { FunctionalComponent as FC, JSX } from 'preact';
-import { useCallback, useEffect, useState } from 'preact/hooks';
+import type { FunctionalComponent as FC } from 'preact';
+import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 
 import {
   desktopFullscreen,
@@ -17,10 +17,11 @@ const action = (run: () => Promise<void>) => {
   void run().catch(() => notify('Не удалось изменить окно.'));
 };
 
-export const WindowChrome: FC = () => {
+export const WindowChrome: FC<{ watching?: boolean }> = ({ watching = false }) => {
   const [maximized, setMaximized] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [visible, setVisible] = useState(playerChromeVisible);
+  const chrome = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const update = () => setVisible(playerChromeVisible());
@@ -121,13 +122,54 @@ export const WindowChrome: FC = () => {
     };
   }, []);
 
-  const dragWindow = useCallback((event: JSX.TargetedMouseEvent<HTMLDivElement>) => {
-    if (event.button !== 0) return;
-    event.preventDefault();
-    action(() =>
-      event.detail === 2 ? getCurrentWindow().toggleMaximize() : getCurrentWindow().startDragging()
-    );
-  }, []);
+  useEffect(() => {
+    if (!isDesktopWindow() || fullscreen) return;
+
+    const dragWindow = (event: MouseEvent) => {
+      if (
+        event.button !== 0 ||
+        event.defaultPrevented ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.altKey ||
+        event.shiftKey
+      )
+        return;
+      const target = event.target;
+
+      // Keep hit testing on the real content. Controls and cards never become
+      // drag handles when they scroll underneath the transparent titlebar.
+      if (
+        !(target instanceof Element) ||
+        target.closest(
+          'a[href],button,input,select,textarea,label,summary,video,audio,dialog,article,[data-gallery-item],.anime-card,.card-image,.poster-artwork,.episode-card,[role="dialog"],[role="button"],[role="link"],[role="slider"],[role="scrollbar"],[role="tab"],[role="tooltip"],[data-selectable],[tabindex]:not([tabindex="-1"]),[contenteditable]:not([contenteditable="false"]),[data-no-window-drag],.navigation-history,.window-controls'
+        )
+      )
+        return;
+
+      const bounds = chrome.current?.getBoundingClientRect();
+      const inTitlebar =
+        bounds &&
+        event.clientX >= bounds.left &&
+        event.clientX < bounds.right &&
+        event.clientY >= bounds.top &&
+        event.clientY < bounds.bottom;
+
+      if (!inTitlebar && !target.closest('.media-nav, .phone-header, .player-window-drag-region'))
+        return;
+
+      event.preventDefault();
+      action(() =>
+        event.detail === 2
+          ? getCurrentWindow().toggleMaximize()
+          : getCurrentWindow().startDragging()
+      );
+    };
+
+    document.addEventListener('mousedown', dragWindow);
+
+    return () => document.removeEventListener('mousedown', dragWindow);
+  }, [fullscreen]);
 
   const minimizeWindow = useCallback(() => action(() => getCurrentWindow().minimize()), []);
 
@@ -145,44 +187,48 @@ export const WindowChrome: FC = () => {
   const windows = document.documentElement.dataset.desktop === 'windows';
 
   return (
-    <div
-      class={`window-chrome ${visible ? '' : 'is-hidden'}`}
-      inert={!visible}
-      aria-hidden={!visible}
-    >
-      <div class="window-drag-region" aria-hidden="true" onMouseDown={dragWindow} />
-      {windows && (
-        <div class="window-controls" role="group" aria-label="Управление окном">
-          <button aria-label="Свернуть окно" title="Свернуть" onClick={minimizeWindow}>
-            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
-              <path d="M1 6.5h10" />
-            </svg>
-          </button>
-          <button
-            aria-label={maximized ? 'Восстановить окно' : 'Развернуть окно'}
-            title={maximized ? 'Восстановить' : 'Развернуть'}
-            onClick={maximizeWindow}
-          >
-            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
-              {maximized ? (
-                <path d="M3.5 3.5v-2h7v7h-2m-7-5h7v7h-7z" />
-              ) : (
-                <path d="M1.5 1.5h9v9h-9z" />
-              )}
-            </svg>
-          </button>
-          <button
-            class="window-close"
-            aria-label="Закрыть окно"
-            title="Закрыть"
-            onClick={closeWindow}
-          >
-            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
-              <path d="m1.5 1.5 9 9m0-9-9 9" />
-            </svg>
-          </button>
-        </div>
-      )}
-    </div>
+    <>
+      <div
+        ref={chrome}
+        class={`window-chrome ${visible ? '' : 'is-hidden'}`}
+        inert={!visible}
+        aria-hidden={!visible}
+      >
+        <div class="window-chrome-spacer" aria-hidden="true" />
+        {windows && (
+          <div class="window-controls" role="group" aria-label="Управление окном">
+            <button aria-label="Свернуть окно" title="Свернуть" onClick={minimizeWindow}>
+              <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+                <path d="M1 6.5h10" />
+              </svg>
+            </button>
+            <button
+              aria-label={maximized ? 'Восстановить окно' : 'Развернуть окно'}
+              title={maximized ? 'Восстановить' : 'Развернуть'}
+              onClick={maximizeWindow}
+            >
+              <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+                {maximized ? (
+                  <path d="M3.5 3.5v-2h7v7h-2m-7-5h7v7h-7z" />
+                ) : (
+                  <path d="M1.5 1.5h9v9h-9z" />
+                )}
+              </svg>
+            </button>
+            <button
+              class="window-close"
+              aria-label="Закрыть окно"
+              title="Закрыть"
+              onClick={closeWindow}
+            >
+              <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+                <path d="m1.5 1.5 9 9m0-9-9 9" />
+              </svg>
+            </button>
+          </div>
+        )}
+      </div>
+      {watching && <div class="player-window-drag-region" aria-hidden="true" />}
+    </>
   );
 };

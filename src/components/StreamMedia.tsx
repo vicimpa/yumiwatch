@@ -10,6 +10,7 @@ import { bindPlaybackRate } from '~/lib/playback-rate';
 import type { Stream, StreamCaption } from '~/lib/streams';
 
 const readyEvents = ['loadeddata', 'canplay', 'seeked', 'playing', 'resize', 'timeupdate'];
+export const STREAM_STARTUP_TIMEOUT_MS = 8000;
 
 export function nativeHls(element: HTMLVideoElement) {
   if (!element.canPlayType('application/vnd.apple.mpegurl')) return false;
@@ -107,6 +108,8 @@ export const StreamMedia: FC<TStreamMediaProps> = ({
 
     let player: shaka.Player | undefined, releaseRate: (() => void) | undefined;
     let restored = false;
+    let startupTimer: ReturnType<typeof setTimeout> | undefined;
+    let reportedFailure = false;
     let networkRetries = 0,
       retryPosition = -Infinity;
 
@@ -124,6 +127,7 @@ export const StreamMedia: FC<TStreamMediaProps> = ({
       ) {
         callbacks.current.onPending?.(false);
         if (!notified) {
+          clearTimeout(startupTimer);
           notified = true;
           callbacks.current.onReady();
         }
@@ -147,6 +151,7 @@ export const StreamMedia: FC<TStreamMediaProps> = ({
     };
 
     const failed = (event?: Event) => {
+      if (reportedFailure) return;
       const detail = (
         event as (Event & { detail?: { severity?: number; category?: number } }) | undefined
       )?.detail;
@@ -165,6 +170,8 @@ export const StreamMedia: FC<TStreamMediaProps> = ({
         }
       }
       if (!disposed) {
+        reportedFailure = true;
+        clearTimeout(startupTimer);
         callbacks.current.onPending?.(false);
         callbacks.current.onError(new Error('Не удалось загрузить видеопоток.', { cause: detail }));
       }
@@ -173,10 +180,25 @@ export const StreamMedia: FC<TStreamMediaProps> = ({
     element.addEventListener('loadedmetadata', restore, true);
     for (const event of readyEvents) element.addEventListener(event, ready);
     element.addEventListener('error', failed);
+    if (stream.fallback) {
+      const checkStartup = () => {
+        if (disposed || notified || reportedFailure) return;
+        if (navigator.onLine === false) {
+          startupTimer = setTimeout(checkStartup, STREAM_STARTUP_TIMEOUT_MS);
+
+          return;
+        }
+        reportedFailure = true;
+        callbacks.current.onPending?.(false);
+        callbacks.current.onError(new Error('Источник не подготовил видео вовремя.'));
+      };
+
+      startupTimer = setTimeout(checkStartup, STREAM_STARTUP_TIMEOUT_MS);
+    }
     void (async () => {
       try {
         await closing.current;
-        if (disposed) return;
+        if (disposed || reportedFailure) return;
 
         // WebKit's AVFoundation HLS loader cannot load an application scheme. Shaka
         // requests these bounded segments through WebView's in-process protocol.
@@ -188,6 +210,9 @@ export const StreamMedia: FC<TStreamMediaProps> = ({
 
         if (useNative) {
           prepared = true;
+          // Reset the actual attribute when reusing an HLS element: an empty
+          // crossorigin attribute still enables anonymous CORS for native MP4.
+          if (stream.type === 'mp4') element.removeAttribute('crossorigin');
           element.src = stream.url;
           element.load();
           releaseRate = bindPlaybackRate(element);
@@ -197,7 +222,7 @@ export const StreamMedia: FC<TStreamMediaProps> = ({
 
           const { default: shaka } = await import('shaka-player');
 
-          if (disposed) return;
+          if (disposed || reportedFailure) return;
           shaka.polyfill.installAll();
           if (relayed)
             shaka.net.NetworkingEngine.registerScheme(
@@ -208,7 +233,7 @@ export const StreamMedia: FC<TStreamMediaProps> = ({
             throw new Error('Этот браузер не поддерживает поток.');
           player = new shaka.Player();
           await player.attach(element);
-          if (disposed) {
+          if (disposed || reportedFailure) {
             await player.destroy();
 
             return;
@@ -223,14 +248,19 @@ export const StreamMedia: FC<TStreamMediaProps> = ({
               bufferingGoal: 15,
               rebufferingGoal: 2,
               bufferBehind: 15,
+              // Fetch the preceding segment when rounded HLS times put a seek
+              // just before the real segment start (WebKit defaults to zero).
+              ...(provider === 'Alloha' || provider === 'Kodik'
+                ? { inaccurateManifestTolerance: 2 }
+                : {}),
               ...(relayed ? { preferNativeHls: false, fallbackToNativeHlsOnMseError: false } : {}),
               retryParameters: { maxAttempts: 3, baseDelay: 1000, timeout: 20000 },
             },
             manifest: {
-              // Kodik's rounded EXTINF durations can disagree with continuous TS timestamps.
+              // Kodik and Alloha round EXTINF durations despite continuous TS timestamps.
               // Re-aligning every segment to the playlist introduces artificial gaps and skips whole seconds.
               hls:
-                provider === 'Kodik'
+                provider === 'Kodik' || provider === 'Alloha'
                   ? { sequenceMode: false, ignoreManifestTimestampsInSegmentsMode: true }
                   : {},
               retryParameters: { maxAttempts: 3, timeout: 20000 },
@@ -269,7 +299,7 @@ export const StreamMedia: FC<TStreamMediaProps> = ({
             callbacks.current.start(),
             stream.type === 'hls' ? 'application/vnd.apple.mpegurl' : 'application/dash+xml'
           );
-          if (disposed) return;
+          if (disposed || reportedFailure) return;
           releaseRate = bindPlaybackRate(element, player);
           // Only the standby decoder loses its startup buffer. The live layer
           // continues until the requested variant actually decodes a frame.
@@ -299,7 +329,9 @@ export const StreamMedia: FC<TStreamMediaProps> = ({
           ready();
         }
       } catch (error) {
-        if (!disposed) {
+        if (!disposed && !reportedFailure) {
+          reportedFailure = true;
+          clearTimeout(startupTimer);
           callbacks.current.onPending?.(false);
           callbacks.current.onError(error as Error);
         }
@@ -308,6 +340,7 @@ export const StreamMedia: FC<TStreamMediaProps> = ({
 
     return () => {
       disposed = true;
+      clearTimeout(startupTimer);
       releaseRate?.();
       element.removeEventListener('loadedmetadata', restore, true);
       for (const event of readyEvents) element.removeEventListener(event, ready);

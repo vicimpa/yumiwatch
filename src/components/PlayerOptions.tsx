@@ -2,9 +2,9 @@ import type { FunctionalComponent as FC } from 'preact';
 import { useMemo } from 'preact/hooks';
 
 import { imageUrl } from '~/lib/api';
-import { groupVideos } from '~/lib/player';
+import { formatTime, groupVideos, videoPosition } from '~/lib/player';
 import { groupVoices, voiceKey } from '~/lib/streams';
-import type { Anime, Video } from '~/lib/types';
+import type { Anime, Video, WatchEntry } from '~/lib/types';
 
 import { EpisodeCaption, EpisodePreview, OptionButton } from '~/ui';
 
@@ -116,6 +116,8 @@ type TEpisodeOptionsProps = {
   videos: Video[];
   episode: string;
   query: string;
+  history?: WatchEntry;
+  checkpoints?: WatchEntry[];
   onSelect: (episode: string) => void;
 };
 
@@ -124,6 +126,8 @@ export const EpisodeOptions: FC<TEpisodeOptionsProps> = ({
   videos,
   episode,
   query,
+  history,
+  checkpoints = [],
   onSelect,
 }) => {
   const frames = useMemo(
@@ -147,6 +151,14 @@ export const EpisodeOptions: FC<TEpisodeOptionsProps> = ({
     <div class="episode-cards">
       {episodes.map(({ video, frame, preview }) => {
         const selected = episode === video.number;
+        const entry = [history, ...checkpoints]
+          .filter((entry): entry is WatchEntry => !!entry && entry.episode === video.number)
+          .sort((a, b) => b.updatedAt - a.updatedAt)[0];
+        const saved = videoPosition(
+          video,
+          entry ? { ...entry, videoId: video.video_id } : undefined
+        );
+        const percent = saved.duration > 0 ? (saved.position / saved.duration) * 100 : 0;
 
         return (
           <button
@@ -156,9 +168,18 @@ export const EpisodeOptions: FC<TEpisodeOptionsProps> = ({
             class={`episode-card ${selected ? 'selected' : ''}`}
             onClick={() => onSelect(video.number)}
           >
-            <EpisodePreview src={preview} />
+            <EpisodePreview
+              src={preview}
+              progress={percent}
+              duration={saved.duration > 0 ? formatTime(saved.duration) : undefined}
+              icon={percent >= 95 ? 'check' : 'play'}
+            />
             <EpisodeCaption title={`Серия ${video.number}`}>
-              {frame ? 'Смотреть' : 'Без превью'}
+              {saved.position > 0
+                ? `Просмотрено ${formatTime(saved.position)}`
+                : frame
+                  ? 'Смотреть'
+                  : 'Без превью'}
             </EpisodeCaption>
           </button>
         );

@@ -8,6 +8,7 @@ import { AccountCard } from './Account';
 import { DiscordSettingsCard } from './DiscordSettings';
 import { InterfaceSettingsCard } from './InterfaceSettings';
 import { PlaybackSettingsCard } from './PlaybackSettings';
+import { NotificationSettingsCard } from './Social';
 import { Button, ButtonLink, Icon, SettingsCard } from '~/ui';
 
 export type { InstallPrompt } from '~/hooks/useInstallation';
@@ -27,6 +28,7 @@ export const Settings: FC<TSettingsProps> = ({ installPrompt, install, installed
     </div>
     <InterfaceSettingsCard />
     <AccountCard />
+    <NotificationSettingsCard />
     <PlaybackSettingsCard />
     <DiscordSettingsCard />
     {!isDesktop() && (

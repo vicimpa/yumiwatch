@@ -177,13 +177,23 @@ describe('unresponsive media sources', () => {
   it('fails a source that never delivers frames, only once', () => {
     const failure = vi.fn();
     const { container } = render(<Harness failure={failure} />);
+    const loader = container.querySelector('.playback-loader');
+    expect(loader?.getAttribute('role')).toBe('status');
 
     advance();
     expect(failure).toHaveBeenCalledOnce();
     expect(screen.getByRole('button', { name: 'Повторить загрузку' })).toBeTruthy();
+    expect(screen.getByRole('alert')).toBe(loader);
+    expect(container.querySelectorAll('.playback-loader')).toHaveLength(1);
+    expect(loader?.querySelector('.playback-spinner')).toBeNull();
     fireEvent.error(container.querySelector('video')!);
     advance();
     expect(failure).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole('button', { name: 'Повторить загрузку' }));
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(container.querySelector('.playback-loader')).toBe(loader);
+    expect(loader?.getAttribute('role')).toBe('status');
+    expect(loader?.querySelector('.playback-spinner')).toBeTruthy();
   });
   it('does not treat an offline device as a failed provider or fire after leaving', () => {
     const failure = vi.fn();

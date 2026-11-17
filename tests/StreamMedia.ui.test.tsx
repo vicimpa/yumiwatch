@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { useRef } from 'preact/hooks';
-import { cleanup, render, waitFor } from '@testing-library/preact';
+import { act, cleanup, render, waitFor } from '@testing-library/preact';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setPlaybackRate } from '~/lib/playback-rate';
-import { StreamMedia, nativeHls } from '~/components/StreamMedia';
+import { StreamMedia, nativeHls, STREAM_STARTUP_TIMEOUT_MS } from '~/components/StreamMedia';
 
 const engine = vi.hoisted(() => ({
   listeners: new Map<string, (event: Event) => void>(),
@@ -66,11 +66,13 @@ function Harness({
   provider,
   type = 'hls',
   pending,
+  fallback = false,
 }: {
   failure: (error: Error) => void;
   provider?: string;
   type?: 'hls' | 'mp4';
   pending?: (value: boolean) => void;
+  fallback?: boolean;
 }) {
   const video = useRef<HTMLVideoElement>(null);
 
@@ -81,6 +83,7 @@ function Harness({
         quality: 720,
         type,
         url: `https://cdn.example/video.${type === 'hls' ? 'm3u8' : 'mp4'}`,
+        fallback: fallback ? { type: 'mp4', url: 'https://cdn.example/video.mp4' } : undefined,
       }}
       video={video}
       active
@@ -105,10 +108,35 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 describe('adaptive stream errors', () => {
+  it('bounds setup of a stream with an MP4 fallback and ignores its late setup rejection', async () => {
+    vi.useFakeTimers();
+    let reject!: (error: Error) => void;
+    engine.loaded.mockImplementationOnce(
+      () =>
+        new Promise<void>((_, fail) => {
+          reject = fail;
+        })
+    );
+    const failure = vi.fn();
+    render(<Harness provider="Kodik" failure={failure} fallback />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(typeof reject).toBe('function');
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(STREAM_STARTUP_TIMEOUT_MS);
+    });
+    expect(failure).toHaveBeenCalledOnce();
+    await act(async () => {
+      reject(new Error('Late setup error'));
+    });
+    expect(failure).toHaveBeenCalledOnce();
+  });
   it('sends user speed to the adaptive controller rather than fighting its buffering rate', async () => {
     const { container } = render(<Harness failure={() => {}} />);
 
@@ -180,15 +208,18 @@ describe('adaptive stream errors', () => {
     await waitFor(() => expect(engine.loaded).toHaveBeenCalled());
     expect(container.querySelector('video')?.getAttribute('src')).toBeNull();
   });
-  it.each(['Kodik', 'Alloha'])(
-    'keeps segment timestamps continuous only for the affected Kodik HLS (%s)',
+  it.each(['Kodik', 'Alloha', 'CVH', 'Aksor'])(
+    'keeps segment timestamps continuous for Kodik and Alloha HLS (%s)',
     async provider => {
       render(<Harness provider={provider} failure={() => {}} />);
       await waitFor(() => expect(engine.loaded).toHaveBeenCalled());
 
       const hls = engine.configure.mock.calls[0][0].manifest.hls;
+      expect(engine.configure.mock.calls[0][0].streaming.inaccurateManifestTolerance).toBe(
+        provider === 'Alloha' || provider === 'Kodik' ? 2 : undefined
+      );
 
-      if (provider === 'Kodik')
+      if (provider === 'Kodik' || provider === 'Alloha')
         expect(hls).toEqual({ sequenceMode: false, ignoreManifestTimestampsInSegmentsMode: true });
       else expect(hls).toEqual({});
     }

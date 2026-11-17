@@ -1,4 +1,4 @@
-import type { FunctionalComponent as FC } from 'preact';
+import type { FunctionalComponent as FC, JSX } from 'preact';
 import { createPortal } from 'preact/compat';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 
@@ -23,6 +23,32 @@ export const CardTitleTooltip: FC = () => {
   }, [anchor]);
 
   useLayoutEffect(position, [anchor]);
+
+  const wheel = useCallback(
+    (event: JSX.TargetedWheelEvent<HTMLDivElement>) => {
+      const element = event.currentTarget;
+      const scroller = anchor?.closest<HTMLElement>('.media-scroll,.sidebar-scroll,.modal-scroll');
+      if (!scroller) return;
+      const unit = event.deltaMode === 1 ? 20 : event.deltaMode === 2 ? scroller.clientHeight : 1;
+      const dy = event.deltaY * unit,
+        dx = event.deltaX * unit;
+      // Fixed tooltips do not reliably participate in their ancestor's native
+      // wheel chain. Let a long title scroll internally, then pass its edge on.
+      const canScrollY =
+        dy < 0
+          ? element.scrollTop > 0
+          : element.scrollTop + element.clientHeight < element.scrollHeight - 1;
+      const canScrollX =
+        dx < 0
+          ? element.scrollLeft > 0
+          : element.scrollLeft + element.clientWidth < element.scrollWidth - 1;
+      if (Math.abs(dy) >= Math.abs(dx) ? canScrollY : canScrollX) return;
+      event.preventDefault();
+      scroller.scrollTop += dy;
+      scroller.scrollLeft += dx;
+    },
+    [anchor]
+  );
 
   useEffect(() => {
     const find = (target: EventTarget | null) =>
@@ -98,10 +124,12 @@ export const CardTitleTooltip: FC = () => {
 
   return anchor
     ? createPortal(
-        <div ref={tip} class="card-title-tooltip" role="tooltip" data-selectable>
+        <div ref={tip} class="card-title-tooltip" role="tooltip" data-selectable onWheel={wheel}>
           {anchor.textContent}
         </div>,
-        document.fullscreenElement || document.body
+        anchor.closest('.media-scroll,.sidebar-scroll,.modal-scroll') ||
+          document.fullscreenElement ||
+          document.body
       )
     : null;
 };

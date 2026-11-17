@@ -5,6 +5,8 @@ export function pageScrollKey(path: string) {
   const [route, query] = path.split('?'),
     params = new URLSearchParams(query);
 
+  if (route === '/profile' || /^\/users\/id[1-9]\d*$/.test(route)) return route;
+
   return /^\/anime\/[^/]+$/.test(route)
     ? `${route}:${params.get('view') === 'watch' || params.has('watch') ? 'watch' : 'about'}`
     : path;

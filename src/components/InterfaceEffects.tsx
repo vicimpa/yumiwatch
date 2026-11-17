@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'preact/hooks';
 
 import { useInterfaceSettings } from '~/lib/interface-settings';
 import { focusTarget, keyboardTargets, revealFocus } from '~/lib/keyboard-navigation';
+import { installSelectionPolicy } from '~/lib/text-selection';
 
 export type TInterfaceEffectsProps = { onBack: () => void; watching: boolean };
 
@@ -20,9 +21,13 @@ export const InterfaceEffects: FC<TInterfaceEffectsProps> = ({ onBack, watching 
   }, [settings]);
 
   useEffect(() => {
+    const releaseSelection = installSelectionPolicy();
     let lastTarget: Element | null = null,
-      lastTime = 0,
       keyboardInput = false,
+      pointerHoverArmed = true,
+      hoverMutedUntil = 0,
+      pointerX = -1,
+      pointerY = -1,
       focusFrame = 0;
 
     const reveal = () => {
@@ -34,6 +39,7 @@ export const InterfaceEffects: FC<TInterfaceEffectsProps> = ({ onBack, watching 
     };
 
     const pointerMode = () => {
+      document.documentElement.dataset.inputMode = 'pointer';
       keyboardInput = false;
       cancelAnimationFrame(focusFrame);
     };
@@ -43,9 +49,35 @@ export const InterfaceEffects: FC<TInterfaceEffectsProps> = ({ onBack, watching 
       unlock();
     };
 
+    const muteScrollHover = () => {
+      pointerHoverArmed = false;
+      hoverMutedUntil = performance.now() + 180;
+    };
+
+    const scrollInput = (event: Event) => {
+      pointerMode();
+      if (event instanceof MouseEvent) {
+        pointerX = event.clientX;
+        pointerY = event.clientY;
+      }
+      muteScrollHover();
+    };
+
+    const pointerMove = (event: PointerEvent) => {
+      if (event.clientX === pointerX && event.clientY === pointerY) return;
+      pointerX = event.clientX;
+      pointerY = event.clientY;
+      if (!pointerHoverArmed && performance.now() >= hoverMutedUntil) {
+        pointerHoverArmed = true;
+        lastTarget = null;
+        hover(event);
+      }
+    };
+
     const keyboardFocus = (event: KeyboardEvent) => {
       if (event.isComposing || event.altKey || event.ctrlKey || event.metaKey) return;
       keyboardInput = true;
+      document.documentElement.dataset.inputMode = 'keyboard';
       unlock();
       if (event.defaultPrevented || event.key !== 'Tab') return;
 
@@ -128,7 +160,15 @@ export const InterfaceEffects: FC<TInterfaceEffectsProps> = ({ onBack, watching 
     };
 
     const hover = (event: Event) => {
-      const target = (event.target as HTMLElement).closest('button,a[href],[role=button]');
+      if (event.type === 'focusin' ? !keyboardInput : !pointerHoverArmed) return;
+      if (event instanceof MouseEvent) {
+        pointerX = event.clientX;
+        pointerY = event.clientY;
+      }
+      const target =
+        event.target instanceof Element
+          ? event.target.closest('button,a[href],[role=button]')
+          : null;
 
       if (!target || target.hasAttribute('disabled') || target.matches('.video-hit-area')) return;
 
@@ -136,11 +176,8 @@ export const InterfaceEffects: FC<TInterfaceEffectsProps> = ({ onBack, watching 
 
       if (related instanceof Node && target.contains(related)) return;
 
-      const now = performance.now();
-
-      if (target === lastTarget && now - lastTime < 90) return;
+      if (target === lastTarget) return;
       lastTarget = target;
-      lastTime = now;
       sound('focus');
     };
 
@@ -286,8 +323,10 @@ export const InterfaceEffects: FC<TInterfaceEffectsProps> = ({ onBack, watching 
     };
 
     document.addEventListener('pointerdown', pointer, true);
-    document.addEventListener('wheel', pointerMode, { passive: true, capture: true });
-    document.addEventListener('touchstart', pointerMode, { passive: true, capture: true });
+    document.addEventListener('wheel', scrollInput, { passive: true, capture: true });
+    document.addEventListener('touchstart', scrollInput, { passive: true, capture: true });
+    document.addEventListener('scroll', muteScrollHover, { passive: true, capture: true });
+    document.addEventListener('pointermove', pointerMove, { passive: true });
     document.addEventListener('keydown', keyboardFocus, true);
     document.addEventListener('pointerover', hover);
     document.addEventListener('focusin', hover);
@@ -298,10 +337,13 @@ export const InterfaceEffects: FC<TInterfaceEffectsProps> = ({ onBack, watching 
     document.addEventListener('load', reveal, true);
 
     return () => {
+      releaseSelection();
       cancelAnimationFrame(focusFrame);
       document.removeEventListener('pointerdown', pointer, true);
-      document.removeEventListener('wheel', pointerMode, true);
-      document.removeEventListener('touchstart', pointerMode, true);
+      document.removeEventListener('wheel', scrollInput, true);
+      document.removeEventListener('touchstart', scrollInput, true);
+      document.removeEventListener('scroll', muteScrollHover, true);
+      document.removeEventListener('pointermove', pointerMove);
       document.removeEventListener('keydown', keyboardFocus, true);
       document.removeEventListener('pointerover', hover);
       document.removeEventListener('focusin', hover);

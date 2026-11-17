@@ -4,7 +4,7 @@ import { Button, ButtonLink } from './Button';
 import { Icon } from './Icon';
 
 export type TEmptyProps = {
-  icon?: 'search' | 'heart' | 'calendar' | 'wifi' | 'clock';
+  icon?: 'search' | 'heart' | 'calendar' | 'wifi' | 'clock' | 'bell' | 'user' | 'comment';
   title: string;
   children: ComponentChildren;
   action?: ComponentChildren;

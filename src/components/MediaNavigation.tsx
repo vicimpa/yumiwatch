@@ -1,8 +1,10 @@
-import type { FunctionalComponent as FC } from 'preact';
+import type { ComponentChildren, FunctionalComponent as FC } from 'preact';
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 
 import { useMediaQuery, useSession } from '~/lib/hooks';
 import { focusTarget, keyboardTargets } from '~/lib/keyboard-navigation';
+import { social } from '~/lib/social';
+import { UnreadBadge } from './Social';
 
 import { Avatar, ButtonLink, Icon, Sidebar, type IconName } from '~/ui';
 
@@ -10,21 +12,25 @@ const sections: { href: string; icon: IconName; title: string }[] = [
   { href: '/', icon: 'home', title: 'Каталог' },
   { href: '/catalog', icon: 'grid', title: 'Все аниме' },
   { href: '/search', icon: 'search', title: 'Поиск' },
-  { href: '/library', icon: 'bookmark', title: 'Моя коллекция' },
   { href: '/schedule', icon: 'calendar', title: 'Расписание' },
 ];
-const phoneSections = sections.filter(section => section.href !== '/catalog');
+const phoneSections = [
+  ...sections.filter(section => section.href !== '/catalog'),
+  { href: '/profile', icon: 'user' as const, title: 'Профиль' },
+];
 
 export type TMediaNavigationProps = {
   path: string;
   selected: string;
   watching?: boolean;
+  history?: ComponentChildren;
 };
 
 export const MediaNavigation: FC<TMediaNavigationProps> = ({
   path,
   selected,
   watching = false,
+  history,
 }) => {
   const mobile = useMediaQuery('(max-width: 760px), (max-width: 1000px) and (pointer: coarse)'),
     session = useSession(),
@@ -72,27 +78,54 @@ export const MediaNavigation: FC<TMediaNavigationProps> = ({
         ))}
       </nav>
       <div class="media-system-links">
+        {session && (
+          <>
+            <a
+              href="#/notifications"
+              class={selected === '/notifications' ? 'active' : ''}
+              aria-current={selected === '/notifications' ? 'page' : undefined}
+            >
+              <Icon name="bell" size={22} />
+              <span>Уведомления</span>
+              <UnreadBadge
+                count={social.value.userId === session.user.id ? social.value.notificationCount : 0}
+              />
+            </a>
+            <a
+              href="#/messages"
+              class={selected === '/messages' ? 'active' : ''}
+              aria-current={selected === '/messages' ? 'page' : undefined}
+            >
+              <Icon name="comment" size={22} />
+              <span>Сообщения</span>
+              <UnreadBadge
+                count={social.value.userId === session.user.id ? social.value.messageCount : 0}
+              />
+            </a>
+          </>
+        )}
         <a class={path.startsWith('/settings') ? 'active' : ''} href="#/settings">
           <Icon name="settings" size={22} />
           <span>Настройки</span>
         </a>
         <a
-          class="media-account"
-          href="#/account"
+          class={`media-account ${selected === '/profile' || selected === '/account' ? 'active' : ''}`}
+          href="#/profile"
+          aria-current={selected === '/profile' || selected === '/account' ? 'page' : undefined}
           aria-label={
             session
               ? `${session.verified ? 'Аккаунт' : 'Проверяем аккаунт'} ${session.user.nickname}`
-              : 'Войти в аккаунт'
+              : 'Твой профиль'
           }
         >
           <span class="media-account-avatar">
             {session ? (
               <Avatar url={session.user.avatar} name={session.user.nickname} />
             ) : (
-              <Icon name="heart" size={20} />
+              <Icon name="user" size={20} />
             )}
           </span>
-          <span>{session?.user.nickname || 'Войти'}</span>
+          <span>{session?.user.nickname || 'Твой профиль'}</span>
         </a>
       </div>
     </>
@@ -105,20 +138,34 @@ export const MediaNavigation: FC<TMediaNavigationProps> = ({
   return mobile ? (
     <>
       <header class="phone-header" hidden={watching}>
+        {history && <div class="media-sidebar-chrome">{history}</div>}
         <a href="#/" class="phone-brand" aria-label="YummyWatch — каталог">
           <img src={`${import.meta.env.BASE_URL}icons/icon.svg`} width="30" height="30" alt="" />
           Yummy<span>Watch</span>
         </a>
+        {session && (
+          <ButtonLink
+            href="#/notifications"
+            variant="icon"
+            aria-label="Уведомления"
+            class="phone-notifications"
+          >
+            <Icon name="bell" size={22} />
+            <UnreadBadge
+              count={social.value.userId === session.user.id ? social.value.notificationCount : 0}
+            />
+          </ButtonLink>
+        )}
         <ButtonLink
-          href="#/account"
-          aria-label={session ? `Аккаунт ${session.user.nickname}` : 'Войти в аккаунт'}
+          href="#/profile"
+          aria-label={session ? `Аккаунт ${session.user.nickname}` : 'Твой профиль'}
           variant="icon"
           class="phone-account"
         >
           {session ? (
             <Avatar url={session.user.avatar} name={session.user.nickname} />
           ) : (
-            <Icon name="heart" size={22} />
+            <Icon name="user" size={22} />
           )}
         </ButtonLink>
       </header>
@@ -135,12 +182,12 @@ export const MediaNavigation: FC<TMediaNavigationProps> = ({
               aria-current={active ? 'page' : undefined}
             >
               <Icon name={section.icon} size={22} />
-              <span>{section.href === '/library' ? 'Коллекция' : section.title}</span>
+              <span>{section.title}</span>
             </a>
           );
         })}
         <button
-          class={`media-menu-trigger ${path.startsWith('/settings') || path.startsWith('/account') ? 'active' : ''}`}
+          class={`media-menu-trigger ${/^\/(settings|account|users|notifications|messages)(\/|\?|$)/.test(path) ? 'active' : ''}`}
           aria-label="Открыть меню"
           aria-expanded={open}
           onClick={openMenu}
@@ -166,6 +213,7 @@ export const MediaNavigation: FC<TMediaNavigationProps> = ({
       inert={watching}
       aria-label="Навигация медиакаталога"
     >
+      {history && <div class="media-sidebar-chrome">{history}</div>}
       {content}
     </aside>
   );

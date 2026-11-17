@@ -48,6 +48,21 @@ function transition() {
 }
 
 describe('page slides', () => {
+  it('replaces an initial legacy collection URL without adding a history entry', () => {
+    history.replaceState({ custom: 'preserved' }, '', '#/library?tab=will');
+    const length = history.length;
+    render(<Screen />);
+    expect(screen.getByText('/profile?tab=collection&list=will')).toBeTruthy();
+    expect(location.hash).toBe('#/profile?tab=collection&list=will');
+    expect(history.length).toBe(length);
+    expect(history.state.custom).toBe('preserved');
+  });
+  it('canonicalizes legacy URLs during navigation too', () => {
+    render(<Screen />);
+    navigate('/library?tab=history');
+    expect(screen.getByText('/profile?tab=history')).toBeTruthy();
+    expect(location.hash).toBe('#/profile?tab=history');
+  });
   it('uses depth for forward/back and menu position for sibling screens, leaving filters and episode changes in place', () => {
     expect(pageDirection('/catalog', '/anime/10531')).toBe('forward');
     expect(pageDirection('/anime/10531', '/anime/10531?view=watch')).toBe('forward');
@@ -123,7 +138,7 @@ describe('page slides', () => {
     container.querySelector('main')!.animate = animate;
     navigate('/search');
     await waitFor(() => expect(animate).toHaveBeenCalledOnce());
-    expect(animate.mock.calls[0][0][0].transform).toBe('translateY(100dvh)');
+    expect(animate.mock.calls[0][0][0].transform).toBe('translateY(18px)');
     expect(screen.getByText('/search')).toBeTruthy();
   });
 });

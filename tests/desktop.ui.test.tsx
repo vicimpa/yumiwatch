@@ -96,44 +96,19 @@ afterEach(() => {
 });
 
 describe('desktop IPC and application chrome', () => {
-  it('waits for an existing native Space to exit and the final resize before restoring focus', async () => {
-    vi.useFakeTimers();
-    try {
-      document.documentElement.dataset.desktop = 'macos';
-      native.isFullscreen.mockResolvedValue(true);
-
-      let resized!: () => void;
-      const unlisten = vi.fn();
-
-      native.onResized.mockImplementation(callback => {
-        resized = callback;
-
-        return Promise.resolve(unlisten);
-      });
-
-      const first = toggleDesktopFullscreen();
-
-      await vi.advanceTimersByTimeAsync(400);
-      expect(native.setFullscreen).toHaveBeenCalledExactlyOnceWith(false);
-      expect(document.documentElement.dataset.desktopFullscreen).toBeUndefined();
-      expect(toggleDesktopFullscreen()).toBe(first);
-      native.isFullscreen.mockResolvedValue(false);
-      resized();
-      await vi.advanceTimersByTimeAsync(200);
-      resized();
-      await vi.advanceTimersByTimeAsync(200);
-      expect(document.documentElement.dataset.desktopFullscreenChanging).toBe('true');
-      await vi.advanceTimersByTimeAsync(100);
-      await first;
-      expect(document.documentElement.dataset.desktopFullscreen).toBe('false');
-      expect(native.setFocus).toHaveBeenCalledOnce();
-      expect(native.setWebviewFocus).toHaveBeenCalledOnce();
-      expect(document.documentElement.dataset.desktopFullscreenChanging).toBeUndefined();
-      expect(unlisten).toHaveBeenCalledOnce();
-    } finally {
-      vi.useRealTimers();
-    }
+  it('does not wait for resize or animation notifications to release fullscreen controls', async () => {
+    document.documentElement.dataset.desktop = 'macos';
+    native.isFullscreen.mockResolvedValue(true);
+    await toggleDesktopFullscreen();
+    expect(native.setFullscreen).toHaveBeenCalledExactlyOnceWith(false);
+    expect(document.documentElement.dataset.desktopFullscreenChanging).toBeUndefined();
+    expect(document.documentElement.dataset.desktopFullscreen).toBe('false');
+    expect(native.setWebviewFocus).toHaveBeenCalledOnce();
+    expect(native.onResized).not.toHaveBeenCalled();
+    await toggleDesktopFullscreen();
+    expect(native.setFullscreen).toHaveBeenCalledTimes(2);
   });
+
   it('does not let an old resize query overwrite the most recent native fullscreen state', async () => {
     let old!: (value: boolean) => void, resized!: () => void;
 
@@ -558,6 +533,31 @@ describe('desktop IPC and application chrome', () => {
       'не предоставил видео'
     );
   });
+  it('validates the optional native MP4 fallback without losing a safe HLS stream', async () => {
+    const stream = { quality: 720, type: 'hls', url: 'https://cdn.example/video.m3u8' };
+    for (const raw of [
+      'javascript:alert(1)',
+      'https://user:password@cdn.example/video.mp4',
+      'http://cdn.example/video.mp4',
+    ]) {
+      native.invoke.mockResolvedValue({
+        provider: 'Kodik',
+        videoId: 1,
+        streams: [{ ...stream, fallback: { type: 'mp4', url: raw } }],
+      });
+      const result = await resolveStream([video('1')], new AbortController().signal);
+      expect(result.streams[0].url).toBe(stream.url);
+      expect(result.streams[0].fallback).toBeUndefined();
+    }
+    native.invoke.mockResolvedValue({
+      provider: 'Kodik',
+      videoId: 1,
+      streams: [{ ...stream, fallback: { type: 'mp4', url: 'https://cdn.example/video.mp4' } }],
+    });
+    expect(
+      (await resolveStream([video('1')], new AbortController().signal)).streams[0].fallback
+    ).toEqual({ type: 'mp4', url: 'https://cdn.example/video.mp4' });
+  });
 
   it('loads the registered CVH transport under the same private protocol', async () => {
     const path = `media/${'a'.repeat(32)}/${'b'.repeat(32)}`;
@@ -575,16 +575,84 @@ describe('desktop IPC and application chrome', () => {
   });
 
   it('dispatches Windows controls to the current native window', async () => {
-    const { container } = render(<WindowChrome />);
+    render(
+      <>
+        <WindowChrome />
+        <aside class="media-nav">
+          <span>Свободное место</span>
+        </aside>
+      </>
+    );
 
     fireEvent.click(screen.getByRole('button', { name: 'Свернуть окно' }));
     fireEvent.click(screen.getByRole('button', { name: 'Развернуть окно' }));
     fireEvent.click(screen.getByRole('button', { name: 'Закрыть окно' }));
-    fireEvent.mouseDown(container.querySelector('.window-drag-region')!, { button: 0, detail: 1 });
+    fireEvent.mouseDown(screen.getByText('Свободное место'), { button: 0, detail: 1 });
     await waitFor(() => expect(native.minimize).toHaveBeenCalledOnce());
     expect(native.toggleMaximize).toHaveBeenCalledOnce();
     expect(native.close).toHaveBeenCalledOnce();
     expect(native.startDragging).toHaveBeenCalledOnce();
+  });
+  it('drags free titlebar and sidebar space while leaving controls and cards clickable', async () => {
+    const click = vi.fn();
+    const { container, unmount } = render(
+      <>
+        <WindowChrome />
+        <aside class="media-nav">
+          <span>Свободное место</span>
+          <button>В сайдбаре</button>
+        </aside>
+        <button onClick={click}>Под заголовком</button>
+        <a href="#/search">Поиск</a>
+        <input aria-label="Ввод" />
+        <article>
+          <span>Карточка аниме</span>
+        </article>
+        <div data-gallery-item>
+          <span>Карточка галереи</span>
+        </div>
+      </>
+    );
+    vi.spyOn(container.querySelector('.window-chrome')!, 'getBoundingClientRect').mockReturnValue({
+      top: 0,
+      left: 0,
+      right: 1000,
+      bottom: 44,
+    } as DOMRect);
+    const options = { bubbles: true, cancelable: true, button: 0, clientX: 200, clientY: 20 };
+    for (const target of [
+      screen.getByRole('button', { name: 'Под заголовком' }),
+      screen.getByRole('link'),
+      screen.getByRole('textbox'),
+      screen.getByRole('button', { name: 'В сайдбаре' }),
+      screen.getByText('Карточка аниме'),
+      screen.getByText('Карточка галереи'),
+    ]) {
+      const down = new MouseEvent('mousedown', options);
+      fireEvent(target, down);
+      expect(down.defaultPrevented).toBe(false);
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Под заголовком' }));
+    expect(click).toHaveBeenCalledOnce();
+    expect(native.startDragging).not.toHaveBeenCalled();
+    const blank = new MouseEvent('mousedown', options);
+    const free = screen.getByText('Свободное место');
+    fireEvent(free, blank);
+    expect(blank.defaultPrevented).toBe(true);
+    await waitFor(() => expect(native.startDragging).toHaveBeenCalledOnce());
+    fireEvent.mouseDown(free, { ...options, detail: 2 });
+    expect(native.toggleMaximize).toHaveBeenCalledOnce();
+    const titlebar = new MouseEvent('mousedown', options);
+    fireEvent(document.body, titlebar);
+    expect(titlebar.defaultPrevented).toBe(true);
+    expect(native.startDragging).toHaveBeenCalledTimes(2);
+    const content = new MouseEvent('mousedown', { ...options, clientY: 80 });
+    fireEvent(document.body, content);
+    expect(content.defaultPrevented).toBe(false);
+    expect(native.startDragging).toHaveBeenCalledTimes(2);
+    unmount();
+    fireEvent.mouseDown(document.body, options);
+    expect(native.startDragging).toHaveBeenCalledTimes(2);
   });
 
   it('leaves macOS controls to the OS and removes the inset in fullscreen', async () => {
@@ -597,6 +665,18 @@ describe('desktop IPC and application chrome', () => {
     expect(screen.queryByRole('group', { name: 'Управление окном' })).toBeNull();
     await waitFor(() => expect(document.documentElement.dataset.desktopFullscreen).toBe('true'));
     expect(container.querySelector('.window-chrome')).toBeNull();
+  });
+  it('keeps a player drag strip after the playback controls hide and removes it in fullscreen', async () => {
+    const { container } = render(<WindowChrome watching />);
+    const strip = container.querySelector('.player-window-drag-region')!;
+
+    expect(strip).toBeTruthy();
+    act(() => setPlayerChrome(false));
+    expect(container.querySelector('.window-chrome')?.hasAttribute('inert')).toBe(true);
+    fireEvent.mouseDown(strip, { button: 0, detail: 1, clientY: 20 });
+    await waitFor(() => expect(native.startDragging).toHaveBeenCalledOnce());
+    act(() => syncDesktopFullscreen(true));
+    expect(container.querySelector('.player-window-drag-region')).toBeNull();
   });
 
   it('leaves browser requests and chrome untouched', async () => {

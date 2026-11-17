@@ -143,7 +143,11 @@ export const GalleryToolbar: FC<TGalleryToolbarProps> = ({
           {count > 0 && <small>{count}</small>}
         </button>
       )}
-      <ButtonLink href="#/library" aria-label="Моя коллекция" class="gallery-collection-action">
+      <ButtonLink
+        href="#/profile?tab=collection"
+        aria-label="Коллекция профиля"
+        class="gallery-collection-action"
+      >
         <Icon name="bookmark" size={20} />
         <span>Коллекция</span>
       </ButtonLink>

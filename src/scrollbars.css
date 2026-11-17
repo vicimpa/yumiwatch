@@ -1,0 +1,120 @@
+/* Native scrollbars occupy no space. The controls live in a separate overlay. */
+.media-scroll,
+.media-nav,
+.sidebar-scroll,
+.modal-scroll,
+.video-settings {
+  scrollbar-width: none !important;
+  scrollbar-gutter: auto !important;
+}
+.media-scroll::-webkit-scrollbar,
+.media-nav::-webkit-scrollbar,
+.sidebar-scroll::-webkit-scrollbar,
+.modal-scroll::-webkit-scrollbar,
+.video-settings::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+.overlay-scrollbar {
+  position: fixed;
+  width: 10px;
+  z-index: 140;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 220ms ease;
+  contain: layout style;
+}
+.overlay-scrollbar.is-visible,
+.overlay-scrollbar.is-dragging,
+.overlay-scrollbar:focus-within {
+  opacity: 1;
+}
+.overlay-scrollbar-thumb {
+  display: block;
+  position: absolute;
+  inset: 0 0 auto;
+  width: 10px;
+  padding: 0;
+  border: 0;
+  border-radius: 20px;
+  background: transparent;
+  cursor: grab;
+  touch-action: none;
+}
+.overlay-scrollbar-thumb::after {
+  content: '';
+  position: absolute;
+  inset: 0 3px;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--muted) 62%, transparent);
+  box-shadow: 0 0 0 1px #00000012;
+  transition:
+    inset 150ms ease,
+    background 150ms ease;
+}
+.overlay-scrollbar.is-visible .overlay-scrollbar-thumb,
+.overlay-scrollbar.is-dragging .overlay-scrollbar-thumb,
+.overlay-scrollbar:focus-within .overlay-scrollbar-thumb {
+  pointer-events: auto;
+}
+.overlay-scrollbar-thumb:hover::after,
+.overlay-scrollbar-thumb:focus-visible::after,
+.overlay-scrollbar.is-dragging .overlay-scrollbar-thumb::after {
+  inset-inline: 2px;
+  background: color-mix(in srgb, var(--accent) 72%, var(--muted));
+}
+.overlay-scrollbar.is-dragging .overlay-scrollbar-thumb {
+  cursor: grabbing;
+}
+@media (pointer: coarse) {
+  .overlay-scrollbar {
+    width: 6px;
+  }
+  .overlay-scrollbar-thumb {
+    width: 6px;
+  }
+  .overlay-scrollbar-thumb::after {
+    inset-inline: 2px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .overlay-scrollbar,
+  .overlay-scrollbar-thumb::after {
+    transition: none;
+  }
+}
+.release-update-bar > a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.release-update-bar .release-update-close {
+  display: grid;
+  place-items: center;
+  margin-left: 8px;
+  padding: 6px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+.release-update-bar .release-update-close:hover {
+  background: #ffffff0a;
+}
+@media (max-width: 600px) {
+  .release-update-bar {
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 11px;
+  }
+  .release-update-bar > a {
+    font-size: 10px;
+    margin-left: 25px;
+  }
+  .release-update-bar .release-update-close {
+    margin-left: auto;
+  }
+}

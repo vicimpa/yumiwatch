@@ -21,9 +21,16 @@ export type IconName =
   | 'refresh'
   | 'spark'
   | 'sun'
+  | 'user'
+  | 'users'
+  | 'chart'
+  | 'edit'
+  | 'share'
+  | 'lock'
   | 'trash'
   | 'bookmark'
   | 'comment'
+  | 'bell'
   | 'list'
   | 'pause'
   | 'volume'
@@ -36,6 +43,48 @@ export type IconName =
 // One 24 px grid, rounded strokes and quiet filled surfaces across the app.
 const tint = { fill: 'currentColor', 'fill-opacity': 0.12 };
 const paths: Record<IconName, JSX.Element> = {
+  bell: (
+    <>
+      <path d="M5 17h14l-2-3V9a5 5 0 0 0-10 0v5Z" {...tint} />
+      <path d="M10 20a2 2 0 0 0 4 0M12 2v2" />
+    </>
+  ),
+  user: (
+    <>
+      <circle cx="12" cy="7.5" r="4" {...tint} />
+      <path d="M4.5 21v-2a7.5 7.5 0 0 1 15 0v2" />
+    </>
+  ),
+  users: (
+    <>
+      <circle cx="9" cy="7.5" r="3.5" {...tint} />
+      <path d="M2.5 21v-2a6.5 6.5 0 0 1 13 0v2M16 4a3.5 3.5 0 0 1 0 7M18 14a5.5 5.5 0 0 1 3.5 5v2" />
+    </>
+  ),
+  chart: (
+    <>
+      <path d="M4 3v17h17M8 15v-4M13 15V7M18 15V4" />
+    </>
+  ),
+  edit: (
+    <>
+      <path d="m14.5 4.5 5 5M4 15l11-11a2.1 2.1 0 0 1 5 5L9 20l-6 1Z" {...tint} />
+    </>
+  ),
+  share: (
+    <>
+      <circle cx="18" cy="5" r="3" {...tint} />
+      <circle cx="6" cy="12" r="3" {...tint} />
+      <circle cx="18" cy="19" r="3" {...tint} />
+      <path d="m8.6 10.5 6.8-4M8.6 13.5l6.8 4" />
+    </>
+  ),
+  lock: (
+    <>
+      <rect x="5" y="10" width="14" height="11" rx="2" {...tint} />
+      <path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3" />
+    </>
+  ),
   home: (
     <>
       <path d="M4.5 9.5v9a2 2 0 0 0 2 2h3v-6h5v6h3a2 2 0 0 0 2-2v-9L12 3Z" {...tint} />

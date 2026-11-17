@@ -6,6 +6,7 @@ import { ApiError } from '~/lib/api';
 import { useLibrary, useSession } from '~/lib/hooks';
 import { syncLibrary } from '~/lib/library';
 import { notify } from '~/lib/notifications';
+import { ProfilePage } from './Profile';
 
 import {
   Avatar,
@@ -229,7 +230,7 @@ export const AccountPage: FC<TAccountPageProps> = ({ query }) => {
 
         const next = new URLSearchParams(query).get('next');
 
-        location.hash = next?.startsWith('/') && !next.startsWith('//') ? next : '/library';
+        location.hash = next?.startsWith('/') && !next.startsWith('//') ? next : '/profile';
         notify('Ты в аккаунте. Загружаем твою коллекцию');
       } catch (error) {
         if (controller.current.signal.aborted) return;
@@ -261,27 +262,7 @@ export const AccountPage: FC<TAccountPageProps> = ({ query }) => {
     []
   );
 
-  if (session)
-    return (
-      <>
-        <div class="page-heading">
-          <p class="eyebrow">ТВОЙ АККАУНТ</p>
-          <h1>
-            {session.verified ? `Привет, ${session.user.nickname}` : 'Возвращаемся в твой мир'}
-          </h1>
-        </div>
-        <AccountCard />
-        <ButtonLink href="#/settings" variant="text" class="account-settings-link">
-          <Icon name="settings" size={16} />
-          Настройки приложения
-        </ButtonLink>
-        <br />
-        <ButtonLink href="#/library">
-          В мою коллекцию
-          <Icon name="arrow" size={17} />
-        </ButtonLink>
-      </>
-    );
+  if (session) return <ProfilePage query={query} />;
 
   return (
     <div class="login-page">
@@ -350,6 +331,10 @@ export const AccountPage: FC<TAccountPageProps> = ({ query }) => {
       <p class="collection-note">
         Гостевая коллекция хранится отдельно и не добавляется в аккаунт автоматически.
       </p>
+      <ButtonLink href="#/profile" variant="text">
+        Открыть гостевой профиль
+        <Icon name="arrow" size={16} />
+      </ButtonLink>
     </div>
   );
 };

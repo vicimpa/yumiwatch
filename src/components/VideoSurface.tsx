@@ -18,7 +18,7 @@ import { AutoActionCountdown } from './AutoActionCountdown';
 import { PlaybackLoader } from './PlaybackLoader';
 import { StreamMedia } from './StreamMedia';
 import { VideoControls } from './VideoControls';
-import { Button, FormError, Icon } from '~/ui';
+import { Button } from '~/ui';
 
 export const STREAM_STALL_TIMEOUT_MS = 20000;
 export const STREAM_ERROR_DELAY_MS = 1500;
@@ -658,7 +658,7 @@ export const VideoSurface: FC<TVideoSurfaceProps> = ({
       video.textTracks?.removeEventListener?.('addtrack', tracksChanged);
       for (const track of tracked) track.removeEventListener('cuechange', inspectTracks);
     };
-  }, [active, identity, reload]);
+  }, [active, identity, reload, layers[active]?.url]);
 
   const marker = activeSkip(rules.current.skips, position, media.current?.duration);
   const skipKey = marker ? `${marker.kind}:${marker.time}:${marker.length}` : '';
@@ -767,11 +767,25 @@ export const VideoSurface: FC<TVideoSurfaceProps> = ({
           Готовим {stream.quality}p…
         </span>
       )}
-      {loading && !error && (
+      {(loading || error) && (
         <PlaybackLoader
-          label="Загружаем видео…"
-          detail={saved.current.time > 0 ? 'Продолжим с сохранённого места' : undefined}
-        />
+          failed={!!error}
+          label={error ? 'Не удалось загрузить видео' : 'Загружаем видео…'}
+          detail={error || (saved.current.time > 0 ? 'Продолжим с сохранённого места' : undefined)}
+        >
+          {error && (
+            <>
+              <Button onClick={reloadStream} variant="primary">
+                Повторить загрузку
+              </Button>
+              {onBack && (
+                <Button onClick={onBack} variant="text">
+                  Вернуться к аниме
+                </Button>
+              )}
+            </>
+          )}
+        </PlaybackLoader>
       )}
       {nextAction ? (
         <AutoActionCountdown
@@ -802,21 +816,6 @@ export const VideoSurface: FC<TVideoSurfaceProps> = ({
         <span class="native-skip-notice" role="status">
           {notice}
         </span>
-      )}
-      {error && (
-        <FormError class="native-error" as="div">
-          <span class="playback-interrupted" aria-hidden="true">
-            <Icon name="wifi" size={30} />
-          </span>
-          <p>{error}</p>
-          <Button onClick={reloadStream}>Повторить загрузку</Button>
-          {onBack && (
-            <Button onClick={onBack}>
-              <Icon name="back" size={20} />
-              Вернуться к аниме
-            </Button>
-          )}
-        </FormError>
       )}
     </div>
   );

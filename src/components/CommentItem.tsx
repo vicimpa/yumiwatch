@@ -6,6 +6,7 @@ import { type YummyComment } from '~/lib/comments';
 import { useSession } from '~/lib/hooks';
 import { notify } from '~/lib/notifications';
 import { getSession } from '~/lib/session';
+import { profileHref } from '~/lib/profile';
 
 import { CommentText } from './CommentText';
 import { Avatar, Icon } from '~/ui';
@@ -85,7 +86,13 @@ export const CommentItem: FC<TCommentItemProps> = ({ comment, reply, rootId, ope
       </div>
       <div class="comment-content">
         <div class="comment-author">
-          <strong>{comment.name}</strong>
+          {comment.user_id > 0 ? (
+            <a href={profileHref(comment.user_id)} class="comment-profile-link">
+              <strong>{comment.name}</strong>
+            </a>
+          ) : (
+            <strong>{comment.name}</strong>
+          )}
           <time dateTime={new Date(comment.time * 1000).toISOString()}>
             {commentDate(comment.time)}
           </time>

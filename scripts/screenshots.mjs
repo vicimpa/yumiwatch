@@ -222,7 +222,9 @@ try {
       );
       assert.deepEqual(errors, [], 'Screenshot page has JavaScript errors');
       assert.equal(
-        await page.locator('.toast.visible,[role=alert]:visible,.native-error:visible').count(),
+        await page
+          .locator('.toast.visible,[role=alert]:visible,.playback-loader.is-error:visible')
+          .count(),
         0,
         'Screenshot contains an error'
       );
@@ -315,8 +317,8 @@ try {
           window.dispatchEvent(new Event('yumiwatch:library'));
         }, detail);
       } else throw new Error('Public title metadata missing for guest collection');
-      await go('/library');
-      await page.getByRole('heading', { name: 'Моя коллекция', exact: true }).waitFor();
+      await go('/profile?tab=collection');
+      await page.locator('.profile-collection').waitFor();
       await capture('collection');
     } catch (error) {
       console.error((await page.locator('body').innerText()).slice(0, 1600));

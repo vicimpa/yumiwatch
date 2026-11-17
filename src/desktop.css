@@ -30,13 +30,14 @@ html:has(:fullscreen) {
 .window-chrome.is-hidden * {
   pointer-events: none;
 }
-.window-drag-region {
+.window-chrome-spacer {
   flex: 1;
-  pointer-events: auto;
-  cursor: default;
 }
-html[data-desktop='macos'] .window-drag-region {
-  margin-left: 90px;
+.player-window-drag-region {
+  position: fixed;
+  inset: 0 0 auto;
+  height: var(--window-inset, 44px);
+  z-index: 999;
 }
 .window-controls {
   display: flex;
@@ -77,6 +78,37 @@ html[data-desktop] .media-nav {
 html[data-desktop] .media-nav > .media-brand {
   position: relative;
   top: -10px;
+}
+.media-sidebar-chrome {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  padding: 0 8px 0 84px;
+}
+.navigation-history.is-sidebar {
+  flex: 0 0 auto;
+  height: 32px;
+  padding: 0;
+  gap: 2px;
+}
+.navigation-history.is-sidebar > button {
+  min-width: 26px;
+  min-height: 28px;
+  width: 26px;
+  height: 28px;
+}
+html:has(:fullscreen) .media-sidebar-chrome {
+  display: none;
+}
+html[data-desktop-fullscreen='true'] .media-sidebar-chrome {
+  padding-left: 16px;
+}
+html[data-desktop-fullscreen='true'] .media-nav {
+  padding-top: 62px;
 }
 /* Keep the scroll viewport edge-to-edge. Insets belong to its content, otherwise
    scrolling produces an opaque strip that crops posters and headings. */
@@ -181,5 +213,14 @@ html[data-desktop='macos'][data-interface-style='contrast'] .gallery-feature {
   }
   html[data-desktop] .is-playback .media-scroll-content {
     padding-top: 0;
+  }
+  html[data-desktop-fullscreen='true'] {
+    --phone-top: calc(92px + env(safe-area-inset-top, 0px));
+  }
+  html[data-desktop-fullscreen='true'] .phone-header {
+    padding-top: calc(32px + env(safe-area-inset-top, 0px));
+  }
+  html[data-desktop-fullscreen='true'] .media-app:not(.is-playback) .media-scroll-content {
+    padding-top: 110px;
   }
 }

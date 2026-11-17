@@ -19,7 +19,7 @@ afterEach(() => {
   delete window.hcaptcha;
 });
 describe('account sign-in screen', () => {
-  it('submits the user’s credentials, then opens their collection', async () => {
+  it('submits the user’s credentials, then opens their profile', async () => {
     vi.stubGlobal(
       'fetch',
       vi
@@ -34,7 +34,7 @@ describe('account sign-in screen', () => {
     fireEvent.input(screen.getByLabelText('Пароль'), { target: { value: 'test-password' } });
     fireEvent.click(screen.getByRole('button', { name: 'Войти' }));
     await waitFor(() => expect(getSession()?.verified).toBe(true));
-    expect(location.hash).toBe('#/library');
+    expect(location.hash).toBe('#/profile');
     expect(sessionStorage.getItem(SESSION_KEY)).not.toContain('test-password');
   });
   it('shows the captcha only when Yummy requests one and waits for an explicit retry', async () => {

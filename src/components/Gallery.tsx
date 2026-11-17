@@ -13,7 +13,7 @@ import { FavoriteButton } from './FavoriteButton';
 import { FilterSheet } from './Filters';
 import { GalleryShelf, GalleryToolbar } from './GalleryShelf';
 import { Poster } from './Poster';
-import { ButtonLink, CachedImage, CachedNotice, CardSkeleton, ErrorState, Icon } from '~/ui';
+import { ArtworkImage, ButtonLink, CachedNotice, CardSkeleton, ErrorState, Icon } from '~/ui';
 
 export type TGalleryProps = { active?: boolean };
 
@@ -200,7 +200,7 @@ export const Gallery: FC<TGalleryProps> = ({ active = true }) => {
       {!!library.history.length && (
         <GalleryShelf
           title="Продолжить просмотр"
-          href="#/library?tab=history"
+          href="#/profile?tab=history"
           count={library.history.length}
         >
           {library.history.slice(0, 12).map(entry => (
@@ -211,17 +211,13 @@ export const Gallery: FC<TGalleryProps> = ({ active = true }) => {
               key={entry.anime.anime_id}
             >
               <div class="continue-image">
-                {imageUrl(
-                  entry.preview || entry.anime.poster?.big || entry.anime.poster?.medium
-                ) && (
-                  <CachedImage
-                    src={imageUrl(
-                      entry.preview || entry.anime.poster?.big || entry.anime.poster?.medium
-                    )}
-                    alt=""
-                    loading="lazy"
-                  />
-                )}
+                <ArtworkImage
+                  src={imageUrl(
+                    entry.preview || entry.anime.poster?.big || entry.anime.poster?.medium
+                  )}
+                  alt=""
+                  tone={entry.anime.anime_id}
+                />
                 <span class="continue-series">Серия {entry.episode}</span>
                 <span class="continue-time">
                   {formatTime(entry.position)}

@@ -63,6 +63,7 @@ afterEach(() => {
   cleanup();
   vi.useRealTimers();
   vi.restoreAllMocks();
+  delete document.documentElement.dataset.inputMode;
 });
 
 const idle = () =>
@@ -71,6 +72,55 @@ const idle = () =>
   });
 
 describe('custom playback controls', () => {
+  it('does not pin controls after a pointer click even when the browser reports focus-visible', () => {
+    const { controls, playing } = setup();
+    playing(false);
+    const mute = screen.getByRole('button', { name: /[Вв]ыключить звук/ });
+    vi.spyOn(mute, 'matches').mockReturnValue(true);
+    fireEvent.pointerDown(mute);
+    fireEvent.focusIn(mute);
+    fireEvent.click(mute);
+    idle();
+    expect(controls.classList.contains('is-hidden')).toBe(true);
+  });
+  it('hides after keyboard inactivity and wakes again when the user returns to the pointer', () => {
+    const { controls, playing } = setup();
+    playing(false);
+    fireEvent.keyDown(controls, { key: 'Tab' });
+    idle();
+    expect(controls.classList.contains('is-hidden')).toBe(true);
+    fireEvent.pointerMove(controls);
+    expect(controls.classList.contains('is-visible')).toBe(true);
+    idle();
+    expect(controls.classList.contains('is-hidden')).toBe(true);
+  });
+  it.each(['ArrowUp', 'ArrowDown'])(
+    'hides after %s focuses a toolbar button and leaves focus ready for shortcuts',
+    key => {
+      const { controls, playing, video } = setup();
+      playing(false);
+      document.documentElement.dataset.inputMode = 'keyboard';
+      const play = screen.getByRole('button', { name: 'Пауза' });
+      fireEvent.keyDown(controls, { key });
+      act(() => play.focus());
+      expect(document.activeElement).toBe(play);
+      act(() => {
+        vi.advanceTimersByTime(CONTROLS_IDLE_MS - 100);
+      });
+      expect(controls.classList.contains('is-visible')).toBe(true);
+      fireEvent.keyDown(play, { key });
+      act(() => {
+        vi.advanceTimersByTime(200);
+      });
+      expect(controls.classList.contains('is-visible')).toBe(true);
+      idle();
+      expect(controls.classList.contains('is-hidden')).toBe(true);
+      expect(document.activeElement).toBe(controls);
+      fireEvent.keyDown(controls, { key: 'ArrowRight' });
+      expect(video.currentTime).toBe(47);
+      expect(controls.classList.contains('is-visible')).toBe(true);
+    }
+  );
   it('keeps 2x selected during the decoder buffering and rate transitions', () => {
     const { video } = setup();
 
@@ -213,7 +263,7 @@ describe('custom playback controls', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Приостановить видео' }));
     expect(HTMLMediaElement.prototype.pause).toHaveBeenCalledOnce();
   });
-  it('keeps settings and keyboard-focused controls visible', () => {
+  it('keeps open settings visible and resumes auto-hide after closing them', () => {
     const { controls, playing } = setup();
 
     playing(false);
@@ -225,7 +275,7 @@ describe('custom playback controls', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
     fireEvent.keyDown(controls, { key: 'Tab' });
     idle();
-    expect(controls.classList.contains('is-visible')).toBe(true);
+    expect(controls.classList.contains('is-hidden')).toBe(true);
   });
   it('dismisses settings on outside clicks and consumes clicks on the player', () => {
     const { playing } = setup();

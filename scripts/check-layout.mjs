@@ -197,7 +197,7 @@ for (const engine of process.env.LAYOUT_BROWSER === 'chrome' ? [chromium] : [web
     await page.mouse.wheel(0, 650);
     await page.waitForFunction(() => document.querySelector('.media-nav').scrollTop > 0);
 
-    const account = await page.getByRole('link', { name: 'Войти в аккаунт' }).boundingBox();
+    const account = await page.getByRole('link', { name: 'Твой профиль' }).boundingBox();
 
     assert.ok(
       account && account.y >= 0 && account.y + account.height <= 480,
@@ -238,7 +238,7 @@ for (const engine of process.env.LAYOUT_BROWSER === 'chrome' ? [chromium] : [web
             );
             assert.equal(
               header.height,
-              60 + inset,
+              60 + (fullscreen ? 32 : inset),
               `${platform}: native inset does not follow fullscreen`
             );
             assert.ok(

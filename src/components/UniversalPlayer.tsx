@@ -14,7 +14,7 @@ import {
   type PlaybackSnapshot,
 } from '~/lib/playback-session';
 import { PLAYBACK_FLUSH, savePlaybackSettings, usePlaybackSettings } from '~/lib/playback-settings';
-import { formatTime, resumeVideo, videoPosition } from '~/lib/player';
+import { formatTime, groupKey, resumeVideo, videoPosition } from '~/lib/player';
 import { readJSON, writeJSON } from '~/lib/storage';
 import { resolveStream, selectStream, voiceKey, voiceVideos, type Stream } from '~/lib/streams';
 import type { Video, WatchEntry } from '~/lib/types';
@@ -25,18 +25,7 @@ import type { TPlayerProps } from './Player.types';
 import { EpisodeOptions, SourceOptions, VoiceOptions } from './PlayerOptions';
 import { STREAM_ERROR_DELAY_MS, VideoSurface } from './VideoSurface';
 import { WatchPicker } from './WatchPicker';
-import {
-  Button,
-  Empty,
-  ErrorState,
-  FormError,
-  Icon,
-  SearchField,
-  Select,
-  Sheet,
-  Sidebar,
-  Toggle,
-} from '~/ui';
+import { Button, Empty, ErrorState, Icon, SearchField, Select, Sheet, Sidebar, Toggle } from '~/ui';
 
 const snapshotFields = [
   'videoId',
@@ -211,6 +200,10 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
   );
   const signature = useMemo(() => candidates.map(video => video.video_id).join(','), [candidates]);
   const sourceScope = signature;
+  const [fallbackSources, setFallbackSources] = useState<{ scope: string; ids: number[] }>({
+    scope: '',
+    ids: [],
+  });
   const [failedSources, setFailedSources] = useState<{
     scope: string;
     ids: number[];
@@ -267,10 +260,17 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
     all.find(video => video.video_id === result?.videoId) ||
     candidates.find(video => video.video_id === currentSession.current?.snapshot().videoId) ||
     current;
-  const selected = useMemo(
-    () => (result ? selectStream(result.streams, settings.quality) : undefined),
-    [result, settings.quality]
-  );
+  const selected = useMemo(() => {
+    if (!result) return;
+
+    const stream = selectStream(result.streams, settings.quality);
+    const fallback =
+      fallbackSources.scope === sourceScope && fallbackSources.ids.includes(result.videoId);
+
+    return fallback && stream.fallback
+      ? { ...stream, ...stream.fallback, fallback: undefined }
+      : stream;
+  }, [result, settings.quality, fallbackSources, sourceScope]);
   const poster = useMemo(
     () =>
       imageUrl(
@@ -364,6 +364,7 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
       recoveryAutoplay.current = undefined;
       recoveryMedia.current = undefined;
       setFailedSources({ scope: '', ids: [] });
+      setFallbackSources({ scope: '', ids: [] });
       setEpisode(number);
       setVoice(nextVoice);
       setOverlay(null);
@@ -375,6 +376,7 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
   const retrySources = streams.retry;
   const retryStream = useCallback(() => {
     setFailedSources({ scope: sourceScope, ids: [] });
+    setFallbackSources({ scope: '', ids: [] });
     retrySources();
   }, [sourceScope, retrySources]);
 
@@ -388,12 +390,16 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
           rate: selectedPlaybackRate(media.current),
         };
       watch?.flush();
-      if (
-        navigator.onLine === false ||
-        !result ||
-        !available.some(video => video.video_id !== result.videoId)
-      )
-        return false;
+      if (navigator.onLine === false || !result) return false;
+      if (selected?.fallback) {
+        setFallbackSources(previous => ({
+          scope: sourceScope,
+          ids: [...(previous.scope === sourceScope ? previous.ids : []), result.videoId],
+        }));
+
+        return true;
+      }
+      if (!available.some(video => video.video_id !== result.videoId)) return false;
       setFailedSources(previous => {
         const ids = previous.scope === sourceScope ? previous.ids : [];
 
@@ -411,7 +417,7 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
 
       return true;
     },
-    [watch, result, available, sourceScope]
+    [watch, result, selected, available, sourceScope]
   );
 
   const selectPlayer = useCallback(
@@ -597,31 +603,42 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
             />
           ) : (
             <div class="player-frame native-placeholder">
-              {showStreamError ? (
-                <FormError class="native-error" as="div">
-                  <p>
-                    {excluded.length
-                      ? `Не удалось восстановить просмотр после сбоя ${failedSources.providers?.join(', ') || 'видеопотока'}. Резервные источники тоже недоступны.`
-                      : streams.error}
-                  </p>
-                  {excluded.length > 0 && <p class="stream-failure-detail">{streams.error}</p>}
-                  <Button onClick={retryStream}>Повторить</Button>
-                  {immersive ? (
-                    <Button onClick={onBack} variant="text">
-                      Другие источники на странице аниме
+              <PlaybackLoader
+                failed={showStreamError}
+                label={
+                  showStreamError
+                    ? 'Не удалось загрузить видео'
+                    : excluded.length
+                      ? 'Пробуем другой источник…'
+                      : 'Подбираем видеопоток…'
+                }
+                detail={
+                  showStreamError
+                    ? excluded.length
+                      ? `Резервные источники недоступны. ${streams.error}`
+                      : streams.error
+                    : excluded.length
+                      ? 'Серия, озвучка и позиция сохраняются'
+                      : undefined
+                }
+              >
+                {showStreamError && (
+                  <>
+                    <Button onClick={retryStream} variant="primary">
+                      Повторить
                     </Button>
-                  ) : (
-                    <Button onClick={switchToSource} variant="text">
-                      Плеер источника
-                    </Button>
-                  )}
-                </FormError>
-              ) : (
-                <PlaybackLoader
-                  label={excluded.length ? 'Пробуем другой источник…' : 'Подбираем видеопоток…'}
-                  detail={excluded.length ? 'Серия, озвучка и позиция сохраняются' : undefined}
-                />
-              )}
+                    {immersive ? (
+                      <Button onClick={onBack} variant="text">
+                        Другие источники на странице аниме
+                      </Button>
+                    ) : (
+                      <Button onClick={switchToSource} variant="text">
+                        Плеер источника
+                      </Button>
+                    )}
+                  </>
+                )}
+              </PlaybackLoader>
             </div>
           )}
           {!selected && onBack && (
@@ -686,6 +703,25 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
         <EpisodeOptions
           anime={anime}
           videos={videos}
+          history={
+            snapshot && active
+              ? {
+                  anime,
+                  episode: snapshot.episode,
+                  videoId: snapshot.videoId,
+                  group: groupKey(active),
+                  updatedAt: Date.now(),
+                  position: snapshot.position,
+                  duration: snapshot.duration,
+                }
+              : undefined
+          }
+          checkpoints={[...checkpoints.current.values()].filter(entry =>
+            all.some(
+              video =>
+                video.video_id === entry.videoId && voiceKey(video.data.dubbing) === voiceKey(voice)
+            )
+          )}
           episode={current.number}
           query={query}
           onSelect={choose}

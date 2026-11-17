@@ -249,7 +249,7 @@ try {
                 error: v.error?.code,
               })),
               qualityFailures: window.surfaceProbe?.qualityFailures.map(s => s.quality),
-              alert: document.querySelector('.native-error')?.textContent,
+              alert: document.querySelector('.playback-loader.is-error')?.textContent,
             }))
             .catch(() => ({}))
         );

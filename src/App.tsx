@@ -1,12 +1,15 @@
 import type { FunctionalComponent as FC } from 'preact';
-import { useCallback, useEffect, useLayoutEffect, useRef } from 'preact/hooks';
+import { useCallback, useLayoutEffect, useRef } from 'preact/hooks';
 
 import { useAccountSync } from '~/hooks/useAccountSync';
 import { useAppEnvironment } from '~/hooks/useAppEnvironment';
 import { useAppDiscordPresence } from '~/hooks/useAppDiscordPresence';
 import { useAppUpdate } from '~/hooks/useAppUpdate';
 import { useInstallation } from '~/hooks/useInstallation';
+import { useReleaseUpdate } from '~/hooks/useReleaseUpdate';
+import { useYummyRealtime } from '~/hooks/useYummyRealtime';
 import { useHash, useSession, useVisualViewport } from '~/lib/hooks';
+import { isDesktopWindow } from '~/lib/desktop';
 
 import { InterfaceEffects } from '~/components/InterfaceEffects';
 import { MediaNavigation } from '~/components/MediaNavigation';
@@ -15,17 +18,23 @@ import { RoutePage } from '~/components/RoutePage';
 import { Search } from '~/components/Search';
 import { WindowChrome } from '~/components/WindowChrome';
 import { WindowCursor } from '~/components/WindowCursor';
+import { Scrollbars } from '~/components/Scrollbars';
+import { ActivityNotice } from '~/components/Social';
+import { NavigationHistory } from '~/components/NavigationHistory';
+import { navigateBack } from '~/lib/navigation';
 import { CardTitleTooltip, Icon, Toast } from '~/ui';
 
 const titles: Partial<Record<string, string>> = {
   '/': 'Каталог',
   '/catalog': 'Каталог',
   '/schedule': 'Расписание',
-  '/library': 'Моя коллекция',
   '/settings': 'Настройки',
   '/settings/connection': 'Подключение',
   '/account': 'Аккаунт',
+  '/profile': 'Мой профиль',
   '/search': 'Поиск',
+  '/notifications': 'Уведомления',
+  '/messages': 'Сообщения',
 };
 
 export const App: FC = () => {
@@ -33,6 +42,7 @@ export const App: FC = () => {
   const [route, query = ''] = path.split('?');
 
   useAppDiscordPresence(path);
+  useYummyRealtime();
 
   useVisualViewport();
 
@@ -44,32 +54,41 @@ export const App: FC = () => {
   if (route === '/') retainedHome.current = true;
   if (route === '/catalog') retainedCatalog.current = query;
   if (route === '/search') retainedSearch.current = query;
-  if (['/', '/catalog', '/search', '/library'].includes(route)) browseReturn.current = path;
+  if (
+    ['/', '/catalog', '/search', '/profile', '/messages', '/notifications', '/schedule'].includes(
+      route
+    ) ||
+    route.startsWith('/users/')
+  )
+    browseReturn.current = path;
 
   const detailRoute = /^\/anime\/[^/]+$/.test(route);
   const params = new URLSearchParams(query);
   const detailView =
     params.get('view') === 'watch' || params.has('watch') ? 'watch' : 'anime-about';
   const watching = detailRoute && detailView === 'watch';
+  const sidebarHistory =
+    isDesktopWindow() &&
+    ['macos', 'windows'].includes(document.documentElement.dataset.desktop || '');
   const session = useSession();
   const online = useAppEnvironment();
   const installation = useInstallation();
   const update = useAppUpdate();
+  const releaseUpdate = useReleaseUpdate();
 
   useAccountSync(session);
 
   useLayoutEffect(() => {
     document.documentElement.dataset.screen = detailRoute ? detailView : route.slice(1) || 'home';
-    document.title = `${titles[route] ?? 'Аниме'} · YummyWatch`;
+    document.title = `${titles[route] ?? (route.startsWith('/users/') ? 'Профиль' : 'Аниме')} · YummyWatch`;
   }, [path]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (route !== '/search') document.getElementById('main')?.focus({ preventScroll: true });
   }, [route]);
 
   const goBack = useCallback(() => {
-    if (detailRoute) location.hash = detailView === 'watch' ? route : browseReturn.current;
-    else if (route !== '/') location.hash = '/';
+    navigateBack(detailRoute ? (detailView === 'watch' ? route : browseReturn.current) : '/');
   }, [detailRoute, detailView, route]);
 
   const applyUpdate = useCallback(
@@ -79,7 +98,7 @@ export const App: FC = () => {
 
   return (
     <div class={`media-app ${watching ? 'is-playback' : ''}`}>
-      <WindowChrome />
+      <WindowChrome watching={watching} />
       <WindowCursor />
       <InterfaceEffects onBack={goBack} watching={watching} />
 
@@ -87,8 +106,14 @@ export const App: FC = () => {
         path={path}
         watching={watching}
         selected={detailRoute ? browseReturn.current.split('?')[0] : route}
+        history={
+          sidebarHistory ? (
+            <NavigationHistory path={path} hidden={watching} placement="sidebar" />
+          ) : undefined
+        }
       />
       <div class={`workspace media-workspace ${detailRoute ? 'detail-workspace' : ''}`}>
+        {!sidebarHistory && <NavigationHistory path={path} hidden={watching} />}
         {!watching && !online && (
           <div class="offline-bar" role="status">
             <Icon name="wifi" size={17} />
@@ -102,6 +127,22 @@ export const App: FC = () => {
             <Icon name="spark" size={17} />
             Готова новая версия YummyWatch
             <button onClick={applyUpdate}>Обновить</button>
+          </div>
+        )}
+        {!watching && !update && releaseUpdate.release && (
+          <div class="update-bar release-update-bar" role="status">
+            <Icon name="spark" size={17} />
+            <span>Вышла YummyWatch {releaseUpdate.release.version}</span>
+            <a href={releaseUpdate.release.url} target="_blank" rel="noreferrer">
+              Что нового и скачать <Icon name="external" size={14} />
+            </a>
+            <button
+              class="release-update-close"
+              aria-label="Скрыть уведомление до следующего запуска"
+              onClick={releaseUpdate.dismiss}
+            >
+              <Icon name="close" size={16} />
+            </button>
           </div>
         )}
         <main id="main" class="media-scroll" tabIndex={-1}>
@@ -131,6 +172,8 @@ export const App: FC = () => {
         </main>
       </div>
       <Toast />
+      <ActivityNotice />
+      <Scrollbars />
       <CardTitleTooltip />
     </div>
   );

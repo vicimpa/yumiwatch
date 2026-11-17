@@ -3,10 +3,13 @@ mod backend;
 mod discord;
 mod images;
 mod interface_scale;
+#[cfg(target_os = "macos")]
+mod macos_fullscreen;
 mod media;
 mod providers;
 mod session;
 mod skips;
+mod updates;
 
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, time::Duration};
@@ -169,7 +172,10 @@ async fn yummy_request(
     {
         return Err("Некорректный адрес API.".into());
     }
-    if !matches!(request.method.as_str(), "GET" | "POST" | "PUT" | "DELETE") {
+    if !matches!(
+        request.method.as_str(),
+        "GET" | "POST" | "PUT" | "PATCH" | "DELETE"
+    ) {
         return Err("Неизвестный метод API.".into());
     }
     let mut builder = state
@@ -217,6 +223,7 @@ async fn yummy_request(
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init())
         .on_window_event(|window, event| {
             if window.label() == "main"
                 && matches!(
@@ -228,6 +235,10 @@ pub fn run() {
             }
         })
         .setup(|app| {
+            #[cfg(target_os = "macos")]
+            if let Some(window) = app.get_webview_window("main") {
+                macos_fullscreen::install(&window)?;
+            }
             app.manage(discord::DiscordPresence::new());
             app.manage(backend::Backend::new()?);
             app.manage(session::SessionVault::new(
@@ -265,6 +276,7 @@ pub fn run() {
             set_window_controls_visible,
             fetch_image,
             yummy_request,
+            updates::latest_app_release,
             resolve_candidates
         ])
         .run(tauri::generate_context!())

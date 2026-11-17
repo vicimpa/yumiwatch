@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/preact';
-import { AnimeListButton, LibraryPage } from '~/components/Library';
+import { AnimeListButton } from '~/components/Library';
+import { ProfilePage } from '~/components/Profile';
+import { ProfileSubscriptions } from '~/components/ProfileLibrary';
 import { clearSession, saveSession } from '~/lib/session';
 import { readLibrary, setAnimeList, toggleFavorite } from '~/lib/storage';
 import { resetAccountLibrary } from '~/lib/library';
@@ -19,25 +21,17 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe('all YummyAnime lists', () => {
-  it('shows every list as a separate destination without nested tabs or accordions', () => {
+  it('keeps all lists together in the profile collection', () => {
     setAnimeList(anime, 1);
     toggleFavorite(anime);
-
-    const { container } = render(<LibraryPage query="" />);
-
-    for (const name of [
-      'Смотрю',
-      'В планах',
-      'Просмотрено',
-      'Брошено',
-      'Отложено',
-      'Избранное',
-      'История',
-      'Подписки',
-    ])
-      expect(screen.getByRole('heading', { name })).toBeTruthy();
-    expect(container.querySelector('a[href="#/library?tab=will"]')).toBeTruthy();
-    expect(container.querySelector('details')).toBeNull();
+    const { container } = render(<ProfilePage query="tab=collection" />);
+    const filters = screen.getByRole('navigation', { name: 'Списки аниме' });
+    for (const name of ['Смотрю', 'В планах', 'Просмотрено', 'Брошено', 'Отложено', 'Избранное'])
+      expect(filters.textContent).toContain(name);
+    expect(container.querySelector('a[href="#/profile?tab=collection&list=will"]')).toBeTruthy();
+    expect(container.querySelector('a[href="#/profile?tab=history"]')).toBeTruthy();
+    expect(container.querySelector('a[href="#/profile?tab=subscriptions"]')).toBeTruthy();
+    expect(container.querySelector('a[href^="#/library"]')).toBeNull();
   });
   it('moves a guest anime between statuses and keeps favorites independent', async () => {
     toggleFavorite(anime);
@@ -71,7 +65,7 @@ describe('all YummyAnime lists', () => {
     );
 
     vi.stubGlobal('fetch', fetcher);
-    render(<LibraryPage query="tab=subscriptions" />);
+    render(<ProfileSubscriptions />);
     await screen.findByText('AniLibria · Kodik');
     expect(fetcher.mock.calls[0][0]).toContain('/users/42/lists/subs');
     expect(fetcher.mock.calls[0][1].headers.Authorization).toBe('Yummy subs-user');

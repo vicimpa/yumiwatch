@@ -1,4 +1,4 @@
-import type { Video, WatchEntry } from './types';
+import type { Anime, Video, WatchEntry } from './types';
 
 export function playerUrl(raw: string) {
   try {
@@ -50,6 +50,23 @@ export function resumeVideo(videos: Video[], entry?: WatchEntry) {
       .sort((a, b) => (b.watched?.date || 0) - (a.watched?.date || 0))[0] ||
     videos[0]
   );
+}
+
+export function latestWatchEntry(anime: Anime, videos: Video[]): WatchEntry | undefined {
+  const video = [...videos]
+    .filter(video => video.watched && (video.watched.date > 0 || video.watched.end_time > 0))
+    .sort((a, b) => (b.watched?.date || 0) - (a.watched?.date || 0))[0];
+
+  if (!video) return;
+
+  return {
+    anime,
+    episode: video.number,
+    videoId: video.video_id,
+    group: groupKey(video),
+    updatedAt: (video.watched?.date || 0) * 1000,
+    ...videoPosition(video),
+  };
 }
 
 export function playbackUrl(video: Video, position: number) {

@@ -2,11 +2,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
 import { Detail } from '~/components/Detail';
-import { clearSession } from '~/lib/session';
+import { clearSession, saveSession } from '~/lib/session';
 import { resolveStream } from '~/lib/streams';
 import { savePlaybackSettings } from '~/lib/playback-settings';
 import { savePlaybackRecovery } from '~/lib/playback-recovery';
 import { readLibrary } from '~/lib/storage';
+import { initializeNavigation, recordNavigation } from '~/lib/navigation';
 import { anime, video } from './fixtures';
 
 vi.mock('~/lib/streams', async original => ({
@@ -91,6 +92,32 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe('anime media center screens', () => {
+  it.each([
+    ['/', 'Каталог аниме'],
+    ['/catalog?sort=top', 'Каталог аниме'],
+    ['/profile?tab=collection', 'Назад к профилю'],
+    ['/notifications', 'Уведомления'],
+  ])(
+    'keeps the labeled return link directed to %s after leaving the player',
+    async (returnTo, label) => {
+      history.replaceState(null, '', `#${returnTo}`);
+      initializeNavigation();
+      history.pushState(null, '', '#/anime/10531?view=watch');
+      recordNavigation();
+      history.pushState(null, '', '#/anime/10531');
+      recordNavigation();
+      const back = vi.spyOn(history, 'back').mockImplementation(() => {});
+
+      render(<Detail id="10531" returnTo={returnTo} />);
+      const link = await screen.findByRole('link', { name: label });
+      const click = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 });
+
+      expect(link.getAttribute('href')).toBe(`#${returnTo}`);
+      fireEvent(link, click);
+      expect(click.defaultPrevented).toBe(false);
+      expect(back).not.toHaveBeenCalled();
+    }
+  );
   it('marks only the current title in viewing order by ID even when titles match', async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       new Response(
@@ -169,6 +196,64 @@ describe('anime media center screens', () => {
     fireEvent.keyDown(window, { key: 'c', code: 'KeyC' });
     expect(screen.getByRole('dialog', { name: 'Комментарии' })).toBeTruthy();
     expect(screen.queryByRole('dialog', { name: 'Серии' })).toBeNull();
+  });
+  it('restores remote per-episode history on the overview and in our player without a recent-history entry', async () => {
+    saveSession({
+      token: 'history-viewer',
+      user: { id: 42, nickname: 'Viewer' },
+      verified: true,
+      remember: false,
+      refreshedAt: Date.now(),
+    });
+    const first = { ...current, duration: 1441, watched: { date: 100, end_time: 1441 } };
+    const second = { ...video('2'), duration: 1441, watched: { date: 200, end_time: 30 } };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        const path = new URL(url).pathname;
+
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              response:
+                path === '/anime/10531'
+                  ? sample
+                  : path.endsWith('/videos')
+                    ? [first, second, video('1', 'AniLiberty', 2), video('2', 'AniLiberty', 2)]
+                    : [],
+            })
+          )
+        );
+      })
+    );
+    const { container, rerender } = render(<Detail id="10531" />);
+
+    await screen.findByText('Продолжить просмотр');
+    expect(container.querySelector('.anime-resume-row')?.textContent).toContain(
+      'Серия 2 · 00:30 / 24:01'
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Серии' }));
+    const overview = screen.getByRole('dialog', { name: 'Серии' });
+    const completed = await within(overview).findByRole('link', { name: 'Серия 1' });
+
+    expect(completed.querySelector<HTMLElement>('.episode-progress')?.style.width).toBe('100%');
+    expect(within(overview).getByRole('link', { name: 'Серия 2' }).textContent).toContain('00:30');
+
+    rerender(<Detail id="10531" query="view=watch" />);
+    await waitFor(() =>
+      expect(container.querySelector('video')?.getAttribute('src')).toContain('/2.mp4')
+    );
+    expect(container.querySelector('video')?.currentTime).toBe(30);
+    const episodes = screen.getByRole('dialog', { name: 'Серии' });
+
+    expect(
+      within(episodes)
+        .getByRole('button', { name: 'Серия 1' })
+        .querySelector<HTMLElement>('.episode-progress')?.style.width
+    ).toBe('100%');
+    expect(within(episodes).getByRole('button', { name: 'Серия 2' }).textContent).toContain(
+      'Просмотрено 00:30'
+    );
   });
   it('starts the requested episode instead of returning to a different saved episode', async () => {
     savePlaybackRecovery(
