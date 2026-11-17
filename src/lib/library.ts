@@ -4,6 +4,9 @@ import {
   mergeContinueHistory,
   readContinueHistory,
   syncContinueHistory,
+  hideContinue,
+  isContinueHidden,
+  restoreContinue,
 } from './continue-cache';
 import { isWatchList, WATCH_LISTS, type WatchListId } from './lists';
 import { getSession } from './session';
@@ -12,6 +15,7 @@ import {
   LIBRARY_EVENT,
   readLibrary,
   recordWatch as recordGuestWatch,
+  removeHistoryEntry,
   setAnimeList as setGuestList,
   toggleFavorite as toggleGuestFavorite,
 } from './storage';
@@ -80,7 +84,12 @@ export function getLibraryState(): LibraryState {
   const state = session ? stateFor(session.token) : undefined;
 
   return state
-    ? { ...state, history: mergeContinueHistory(readContinueHistory(), state.history) }
+    ? {
+        ...state,
+        history: mergeContinueHistory(readContinueHistory(), state.history).filter(
+          entry => !isContinueHidden(entry.anime.anime_id)
+        ),
+      }
     : {
         ...readLibrary(),
         account: false,
@@ -292,6 +301,7 @@ export async function recordWatch(
     return;
   }
   if (!session.verified) throw new Error('Войди снова, чтобы сохранить просмотр в Yummy.');
+  restoreContinue(anime.anime_id);
 
   const state = stateFor(session.token);
   const previous = state.history.find(entry => entry.anime.anime_id === anime.anime_id);
@@ -351,6 +361,15 @@ export async function recordWatch(
 export function clearHistory() {
   if (getSession()) throw new Error('Историю аккаунта можно управлять на YummyAnime.');
   clearGuestHistory();
+}
+
+/** Dismiss locally; remote account history is retained on YummyAnime. */
+export function removeContinue(animeId: number) {
+  if (!Number.isSafeInteger(animeId) || animeId <= 0) throw new Error('Неизвестное аниме.');
+  if (getSession()) {
+    hideContinue(animeId);
+    emit();
+  } else removeHistoryEntry(animeId);
 }
 
 const listPending = new Set<string>();

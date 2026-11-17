@@ -1,7 +1,7 @@
 {
   "name": "yummywatch",
   "private": true,
-  "version": "0.0.5",
+  "version": "0.0.6",
   "type": "module",
   "scripts": {
     "dev": "tauri dev",
@@ -22,6 +22,7 @@
     "check:virtual": "node scripts/check-virtual.mjs",
     "check:state": "npm run build:web && node scripts/check-state.mjs",
     "check:social": "npm run build:web && node scripts/check-social.mjs",
+    "check:comments": "node scripts/check-comments.mjs",
     "check:controls": "node scripts/check-player-controls.mjs",
     "check:app": "npm run build:web && cargo build --manifest-path src-tauri/Cargo.toml --example media_probe && node scripts/check-app.mjs",
     "check:cache": "npm run build:web && cargo build --manifest-path src-tauri/Cargo.toml --example media_probe && node scripts/check-app.mjs --cache",

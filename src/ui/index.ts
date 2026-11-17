@@ -18,6 +18,7 @@ export { Icon, type IconName, type TIconProps } from './Icon';
 export { Input, type TInputProps } from './Input';
 export { SEARCH_INPUT_PROPS, SearchField, type TSearchFieldProps } from './SearchField';
 export { Select, type TSelectProps } from './Select';
+export { Dropdown } from './Dropdown';
 export { SettingsCard, type TSettingsCardProps } from './SettingsCard';
 export { Textarea, type TTextareaProps } from './Textarea';
 export { Toggle, type TToggleProps } from './Toggle';

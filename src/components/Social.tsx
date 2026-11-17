@@ -25,24 +25,36 @@ export const UnreadBadge: FC<{ count: number }> = ({ count }) =>
     </span>
   ) : null;
 
-export const RealtimeIndicator: FC = () => {
+export const RealtimeIndicator: FC<{ compact?: boolean }> = ({ compact = false }) => {
   const status = realtimeStatus.value;
   const connected = status === 'connected';
   return (
-    <div class={`social-connection ${connected ? 'is-connected' : ''}`} role="status">
-      <span class="social-status-dot" />
-      <span>
+    <div
+      class={`social-connection ${connected ? 'is-connected' : ''} ${compact ? 'is-compact' : ''}`}
+      role="status"
+    >
+      <span class="social-status-dot" aria-hidden="true" />
+      <span class="social-connection-label">
         {connected
-          ? 'Обновления в реальном времени'
+          ? compact
+            ? 'В реальном времени'
+            : 'Обновления в реальном времени'
           : status === 'offline'
             ? 'Нет сети'
-            : status === 'denied'
-              ? 'Не удалось подключить обновления'
+            : status === 'denied' || status === 'reconnecting'
+              ? compact
+                ? 'Обновления с задержкой'
+                : 'Обновления с небольшой задержкой'
               : 'Подключаем обновления…'}
       </span>
       {['denied', 'offline', 'reconnecting'].includes(status) && (
-        <Button variant="text" onClick={() => realtime.reconnect()}>
-          Повторить
+        <Button
+          variant={compact ? 'icon' : 'text'}
+          aria-label="Повторить подключение"
+          title="Повторить подключение"
+          onClick={() => realtime.reconnect()}
+        >
+          {compact ? <Icon name="refresh" size={14} /> : 'Повторить'}
         </Button>
       )}
     </div>

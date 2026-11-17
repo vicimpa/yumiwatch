@@ -22,6 +22,7 @@ export type DiscordActivity = {
 };
 
 const statusText = {
+  sourcechange: 'Загрузка',
   buffering: 'Загрузка',
   offline: 'Нет сети',
   pause: 'На паузе',
@@ -110,7 +111,7 @@ export class DiscordPresence {
   }
 
   update(next: PresencePlayback) {
-    if (next.playing) {
+    if (next.playing || next.reason === 'sourcechange' || next.reason === 'buffering') {
       this.started = true;
       this.pausedAt = undefined;
     } else if (this.started && this.pausedAt === undefined) {

@@ -8,6 +8,7 @@ import { AccountCard } from './Account';
 import { DiscordSettingsCard } from './DiscordSettings';
 import { InterfaceSettingsCard } from './InterfaceSettings';
 import { PlaybackSettingsCard } from './PlaybackSettings';
+import { ServerStatusCard } from './ServerStatusCard';
 import { NotificationSettingsCard } from './Social';
 import { Button, ButtonLink, Icon, SettingsCard } from '~/ui';
 
@@ -27,6 +28,7 @@ export const Settings: FC<TSettingsProps> = ({ installPrompt, install, installed
       <p>YummyWatch, как удобно тебе.</p>
     </div>
     <InterfaceSettingsCard />
+    <ServerStatusCard />
     <AccountCard />
     <NotificationSettingsCard />
     <PlaybackSettingsCard />
@@ -68,7 +70,7 @@ export const Settings: FC<TSettingsProps> = ({ installPrompt, install, installed
       </div>
       <div>
         <h2>Подключение к Yummy</h2>
-        <p>Дополнительные настройки приложения</p>
+        <p>Токен приложения и состояние серверов</p>
       </div>
       <Icon name="chevron" size={20} />
     </a>

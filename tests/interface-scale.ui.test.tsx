@@ -23,16 +23,18 @@ describe('Linux interface scale', () => {
   it('uses system DPI by default and persists a manual override and reset', async () => {
     render(<InterfaceSettingsCard />);
 
-    const scale = screen.getByRole('combobox', { name: 'Масштаб интерфейса' }) as HTMLSelectElement;
+    const scale = screen.getByRole('combobox', { name: 'Масштаб интерфейса' });
 
-    expect(scale.value).toBe('system');
+    expect(scale.textContent).toContain('По системе');
     await applyInterfaceScale();
     expect(native.invoke).toHaveBeenLastCalledWith('set_interface_scale', { scale: null });
-    fireEvent.change(scale, { target: { value: '1.5' } });
+    fireEvent.click(scale);
+    fireEvent.click(screen.getByRole('option', { name: '150%' }));
     expect(interfaceSettings().scale).toBe(1.5);
     await applyInterfaceScale();
     expect(native.invoke).toHaveBeenLastCalledWith('set_interface_scale', { scale: 1.5 });
-    fireEvent.change(scale, { target: { value: 'system' } });
+    fireEvent.click(scale);
+    fireEvent.click(screen.getByRole('option', { name: 'По системе' }));
     await applyInterfaceScale();
     expect(native.invoke).toHaveBeenLastCalledWith('set_interface_scale', { scale: null });
   });

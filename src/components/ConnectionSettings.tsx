@@ -4,6 +4,7 @@ import { useCallback, useState } from 'preact/hooks';
 import { getToken } from '~/lib/api';
 import { notify } from '~/lib/notifications';
 import { TOKEN_KEY } from '~/lib/storage';
+import { ServerStatusCard } from './ServerStatusCard';
 
 import { Button, ButtonLink, Field, Form, Icon, Input, SettingsCard } from '~/ui';
 
@@ -42,6 +43,7 @@ export const ConnectionSettings: FC = () => {
         <h1>Подключение</h1>
         <p>YummyWatch уже настроен для работы с Yummy.</p>
       </div>
+      <ServerStatusCard />
       <SettingsCard
         title="Подключение к Yummy API"
         description="Здесь можно заменить публичный токен приложения для собственного подключения к API."
@@ -75,7 +77,7 @@ export const ConnectionSettings: FC = () => {
         </Form>
         <p class="fine-print">
           Нужен public application token, а не пароль или токен аккаунта. Сохраняется только в этом
-          браузере и отправляется на api.yani.tv.
+          браузере и отправляется только API Yummy: api.yani.tv, old.yummyani.me и ru.yummyani.me.
         </p>
       </SettingsCard>
     </>

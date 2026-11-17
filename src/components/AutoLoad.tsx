@@ -36,7 +36,9 @@ export const AutoLoad: FC<TAutoLoadProps> = ({ enabled, loading, error, load, ch
         }
       },
       {
-        root: marker.current.closest('.media-scroll,.sidebar-scroll,.modal-scroll'),
+        root: marker.current.closest(
+          '.discussion-content,.media-scroll,.sidebar-scroll,.modal-scroll'
+        ),
         rootMargin: '600px 0px',
       }
     );

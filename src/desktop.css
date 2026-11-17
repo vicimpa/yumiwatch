@@ -87,7 +87,10 @@ html[data-desktop] .media-nav > .media-brand {
   height: 32px;
   display: flex;
   align-items: center;
-  padding: 0 8px 0 84px;
+  padding: 0 8px 0 16px;
+}
+html[data-desktop='macos'] .media-sidebar-chrome {
+  padding-left: 84px;
 }
 .navigation-history.is-sidebar {
   flex: 0 0 auto;
@@ -146,11 +149,6 @@ html[data-desktop] .sidebar-header {
 }
 html[data-desktop] .mobile-sheet {
   max-height: calc(100dvh - var(--window-inset, 0px));
-}
-html[data-desktop] .thread-screen.mobile-sheet,
-html[data-desktop] .composer-screen.mobile-sheet {
-  top: var(--window-inset, 0px);
-  height: calc(100dvh - var(--window-inset, 0px));
 }
 html[data-desktop] .fatal-error {
   padding-top: calc(40px + var(--window-inset, 0px));

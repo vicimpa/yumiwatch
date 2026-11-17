@@ -1,0 +1,50 @@
+.comments-section {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.comments-section .discussion-content {
+  min-width: 0;
+}
+.comments-section .discussion-compose-bar {
+  margin: 0;
+}
+.comments-sidebar.sidebar-presence.is-overlay {
+  top: var(--visual-top, 0px);
+  bottom: auto;
+  height: var(--visual-height, 100dvh);
+}
+.comment-tree-node {
+  min-width: 0;
+}
+.comment-tree-replies {
+  margin-left: 14px;
+  padding-left: 12px;
+  border-left: 2px solid var(--line);
+}
+.comment-tree-replies .comment-tree-replies {
+  margin-left: 0;
+  padding-left: 8px;
+}
+.comments-section .comment-tree-replies .comment-avatar {
+  width: 26px;
+  height: 26px;
+}
+.comment-thread-link[aria-expanded='true'] > svg:last-child {
+  transform: rotate(90deg);
+}
+.comment-tree-replies > .account-error {
+  margin: 12px 0;
+  font-size: 12px;
+}
+@media (max-width: 760px) {
+  .comment-tree-replies {
+    margin-left: 6px;
+    padding-left: 8px;
+  }
+  .comments-section .comment-tree-replies .comment-avatar {
+    width: 22px;
+    height: 22px;
+  }
+}

@@ -7,6 +7,9 @@ import { navigateGallery } from '~/lib/gallery-navigation';
 import { useLibrary, useResource } from '~/lib/hooks';
 import { formatTime } from '~/lib/player';
 import type { Anime } from '~/lib/types';
+import { cardMenuEvents } from '~/lib/card-context';
+import { removeContinue } from '~/lib/library';
+import { notify } from '~/lib/notifications';
 
 import { AnimeCard } from './AnimeCard';
 import { FavoriteButton } from './FavoriteButton';
@@ -164,7 +167,7 @@ export const Gallery: FC<TGalleryProps> = ({ active = true }) => {
         </a>
       </nav>
       {feature && (
-        <section class="gallery-feature" aria-label="Выбранное аниме">
+        <section class="gallery-feature" aria-label="Выбранное аниме" {...cardMenuEvents(feature)}>
           <div class="gallery-feature-poster">
             <Poster key={feature.anime_id} anime={feature} large />
           </div>
@@ -204,39 +207,63 @@ export const Gallery: FC<TGalleryProps> = ({ active = true }) => {
           count={library.history.length}
         >
           {library.history.slice(0, 12).map(entry => (
-            <a
-              class="gallery-continue"
-              data-gallery-link
-              href={`#/anime/${entry.anime.anime_id}?view=watch&play=1`}
+            <article
+              class="gallery-continue-card"
+              data-gallery-item
               key={entry.anime.anime_id}
+              {...cardMenuEvents(entry.anime)}
             >
-              <div class="continue-image">
-                <ArtworkImage
-                  src={imageUrl(
-                    entry.preview || entry.anime.poster?.big || entry.anime.poster?.medium
-                  )}
-                  alt=""
-                  tone={entry.anime.anime_id}
-                />
-                <span class="continue-series">Серия {entry.episode}</span>
-                <span class="continue-time">
-                  {formatTime(entry.position)}
-                  {entry.duration ? ` / ${formatTime(entry.duration)}` : ''}
-                </span>
-                <span class="continue-play">
-                  <Icon name="play" size={22} />
-                </span>
-                {entry.duration ? (
-                  <span
-                    class="continue-progress"
-                    style={{
-                      width: `${Math.min(100, ((entry.position || 0) / entry.duration) * 100)}%`,
-                    }}
+              <a
+                class="gallery-continue"
+                data-gallery-link
+                href={`#/anime/${entry.anime.anime_id}?view=watch&play=1`}
+              >
+                <div class="continue-image">
+                  <ArtworkImage
+                    src={imageUrl(
+                      entry.preview || entry.anime.poster?.big || entry.anime.poster?.medium
+                    )}
+                    alt=""
+                    tone={entry.anime.anime_id}
                   />
-                ) : null}
-              </div>
-              <h3>{entry.anime.title}</h3>
-            </a>
+                  <span class="continue-series">Серия {entry.episode}</span>
+                  <span class="continue-time">
+                    {formatTime(entry.position)}
+                    {entry.duration ? ` / ${formatTime(entry.duration)}` : ''}
+                  </span>
+                  <span class="continue-play">
+                    <Icon name="play" size={22} />
+                  </span>
+                  {entry.duration ? (
+                    <span
+                      class="continue-progress"
+                      style={{
+                        width: `${Math.min(100, ((entry.position || 0) / entry.duration) * 100)}%`,
+                      }}
+                    />
+                  ) : null}
+                </div>
+                <h3>{entry.anime.title}</h3>
+              </a>
+              <button
+                type="button"
+                class="continue-remove"
+                aria-label={`Убрать «${entry.anime.title}» из «Продолжить просмотр»`}
+                title="Убрать из «Продолжить просмотр»"
+                onClick={event => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  try {
+                    removeContinue(entry.anime.anime_id);
+                    notify('Убрано из «Продолжить просмотр»');
+                  } catch (error) {
+                    notify((error as Error).message);
+                  }
+                }}
+              >
+                <Icon name="close" size={18} />
+              </button>
+            </article>
           ))}
         </GalleryShelf>
       )}

@@ -28,8 +28,9 @@ import {
   type Message,
 } from '~/lib/social-api';
 import { getSession } from '~/lib/session';
-import { Avatar, Button, ButtonLink, Empty, FormError, Icon, Input, Textarea } from '~/ui';
+import { Avatar, Button, ButtonLink, Empty, FormError, Icon, Input } from '~/ui';
 import { RealtimeIndicator, SocialSignIn, UnreadBadge } from './Social';
+import { ChatComposer } from '~/ui/ChatComposer';
 
 const ChatLoading: FC<{ text?: string }> = ({ text = 'Загружаем сообщения…' }) => (
   <div class="chat-loading" role="status">
@@ -140,6 +141,7 @@ const Conversation: FC<{ id: number }> = ({ id }) => {
   useEffect(() => {
     const controller = new AbortController();
     const changes = new Map<number, Message>();
+    let fetching = true;
     const current = () => !controller.signal.aborted && getSession()?.token === token;
     const read = (values = latest.current.messages) => {
       const list = scroll.current;
@@ -179,6 +181,7 @@ const Conversation: FC<{ id: number }> = ({ id }) => {
         loaded.current = true;
         setMessages(previous => mergeMessages(previous, values, [...changes.values()]));
         setLoading(false);
+        setError('');
         setMore(values.length === 50);
         read(values);
       })
@@ -194,7 +197,22 @@ const Conversation: FC<{ id: number }> = ({ id }) => {
           setError(error.message);
           setLoading(false);
         }
+      })
+      .finally(() => {
+        fetching = false;
       });
+    const poll = setInterval(() => {
+      if (
+        current() &&
+        !fetching &&
+        realtime.status !== 'connected' &&
+        document.visibilityState === 'visible' &&
+        navigator.onLine !== false
+      ) {
+        fetching = true;
+        setRevision(value => value + 1);
+      }
+    }, 15000);
     if (!dialog)
       void fetchProfile(id, controller.signal)
         .then(profile => {
@@ -233,6 +251,7 @@ const Conversation: FC<{ id: number }> = ({ id }) => {
     window.addEventListener('focus', readCurrent);
     return () => {
       controller.abort();
+      clearInterval(poll);
       unsubscribe();
       document.removeEventListener('visibilitychange', readCurrent);
       window.removeEventListener('focus', readCurrent);
@@ -369,11 +388,14 @@ const Conversation: FC<{ id: number }> = ({ id }) => {
           Новые сообщения
         </Button>
       )}
-      <form
-        class="message-composer"
-        onSubmit={async event => {
-          event.preventDefault();
-          if (sending || !text.trim()) return;
+      <ChatComposer
+        className="message-composer"
+        value={text}
+        onValueChange={setText}
+        sending={sending}
+        label="Текст сообщения"
+        placeholder="Написать сообщение…"
+        onSubmit={async () => {
           setSending(true);
           setError('');
           try {
@@ -389,37 +411,7 @@ const Conversation: FC<{ id: number }> = ({ id }) => {
             if (alive.current) setSending(false);
           }
         }}
-      >
-        <Textarea
-          aria-label="Текст сообщения"
-          placeholder="Написать сообщение…"
-          rows={1}
-          maxLength={10000}
-          value={text}
-          disabled={sending}
-          onInput={event => {
-            setText(event.currentTarget.value);
-            event.currentTarget.style.height = 'auto';
-            event.currentTarget.style.height = `${Math.min(160, event.currentTarget.scrollHeight)}px`;
-          }}
-          onKeyDown={event => {
-            if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
-              event.preventDefault();
-              event.currentTarget.form?.requestSubmit();
-            }
-          }}
-        />
-        <Button
-          type="submit"
-          variant="primary"
-          disabled={sending || !text.trim()}
-          aria-busy={sending}
-        >
-          {sending ? 'Отправляем…' : 'Отправить'}
-          <Icon name="arrow" size={16} />
-        </Button>
-        <small class="message-compose-hint">Enter — отправить · Shift+Enter — новая строка</small>
-      </form>
+      />
     </section>
   );
 };
@@ -470,10 +462,7 @@ const Messages: FC<{ query: string }> = ({ query }) => {
       <div class={`messages-layout ${selected ? 'has-conversation' : ''}`}>
         <aside class="dialog-list" aria-label="Диалоги">
           <header class="dialogs-heading">
-            <div>
-              <h1>Сообщения</h1>
-              <RealtimeIndicator />
-            </div>
+            <h1>Сообщения</h1>
             <ButtonLink
               href="#/profile?tab=friends"
               variant="icon"
@@ -482,6 +471,7 @@ const Messages: FC<{ query: string }> = ({ query }) => {
             >
               <Icon name="edit" size={20} />
             </ButtonLink>
+            <RealtimeIndicator compact />
           </header>
           <div class="dialog-search">
             <Icon name="search" size={17} />

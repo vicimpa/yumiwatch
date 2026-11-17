@@ -3,6 +3,7 @@ import { render } from 'preact';
 import { useLayoutEffect, useState } from 'preact/hooks';
 import { useHash } from '~/lib/hooks';
 import { MediaNavigation } from '~/components/MediaNavigation';
+import { NavigationHistory } from '~/components/NavigationHistory';
 import { Sidebar } from '~/ui';
 
 function Probe() {
@@ -16,7 +17,12 @@ function Probe() {
 
   return (
     <div class={`media-app ${watching ? 'is-playback' : ''}`}>
-      <MediaNavigation path={path} selected={path} watching={watching} />
+      <MediaNavigation
+        path={path}
+        selected={path}
+        watching={watching}
+        history={<NavigationHistory path={path} hidden={watching} placement="sidebar" />}
+      />
       <div class="workspace media-workspace">
         <main id="main" class="media-scroll" tabIndex={-1}>
           <div class="media-scroll-content">

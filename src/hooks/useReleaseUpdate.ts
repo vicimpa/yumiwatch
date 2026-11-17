@@ -4,6 +4,7 @@ import {
   latestRelease,
   newerVersion,
   RELEASE_CHECK_INTERVAL,
+  RELEASE_STARTUP_DELAY,
   type AppRelease,
 } from '~/lib/releases';
 
@@ -22,7 +23,8 @@ export function useReleaseUpdate() {
   useEffect(() => {
     let stopped = false,
       pending = false,
-      lastCheck = 0;
+      lastCheck = -Infinity,
+      failed = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const controller = new AbortController();
     const check = async () => {
@@ -42,8 +44,10 @@ export function useReleaseUpdate() {
       controller.signal.addEventListener('abort', abort, { once: true });
       try {
         const value = await latestRelease(request.signal);
+        failed = false;
         if (!stopped) setRelease(value && newerVersion(value.version) ? value : null);
       } catch {
+        failed = true;
         /* A background update check should not interrupt watching or offline use. */
       } finally {
         clearTimeout(timeout);
@@ -56,10 +60,10 @@ export function useReleaseUpdate() {
       }
     };
     const online = () => {
-      lastCheck = 0;
+      if (failed) lastCheck = -Infinity;
       void check();
     };
-    const initial = setTimeout(() => void check(), 3000);
+    const initial = setTimeout(() => void check(), RELEASE_STARTUP_DELAY);
     document.addEventListener('visibilitychange', check);
     window.addEventListener('online', online);
     window.addEventListener('focus', check);

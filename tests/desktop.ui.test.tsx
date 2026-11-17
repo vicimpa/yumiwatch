@@ -270,7 +270,9 @@ describe('desktop IPC and application chrome', () => {
     });
     expect(native.setFullscreen).toHaveBeenCalledExactlyOnceWith(true);
 
-    const exit = await screen.findByRole('button', { name: 'Выйти из полного экрана' });
+    const exit = await screen.findByRole('button', {
+      name: 'Выйти из полного экрана',
+    });
 
     await act(async () => {
       fireEvent.click(exit);
@@ -356,7 +358,10 @@ describe('desktop IPC and application chrome', () => {
       value: document.body,
       configurable: true,
     });
-    Object.defineProperty(document, 'exitFullscreen', { value: exit, configurable: true });
+    Object.defineProperty(document, 'exitFullscreen', {
+      value: exit,
+      configurable: true,
+    });
     try {
       document.documentElement.dataset.desktopFullscreen = 'true';
       await exitPlayerFullscreen();
@@ -366,7 +371,10 @@ describe('desktop IPC and application chrome', () => {
       await exitPlayerFullscreen();
       expect(exit).toHaveBeenCalledOnce();
     } finally {
-      Object.defineProperty(document, 'fullscreenElement', { value: null, configurable: true });
+      Object.defineProperty(document, 'fullscreenElement', {
+        value: null,
+        configurable: true,
+      });
     }
   });
   it('hides Windows controls with the player without removing the chrome layout', () => {
@@ -404,7 +412,10 @@ describe('desktop IPC and application chrome', () => {
     });
   });
   it('uses native API requests with authentication and preserves HTTP errors', async () => {
-    native.invoke.mockResolvedValue({ status: 401, body: '{"error":"expired"}' });
+    native.invoke.mockResolvedValue({
+      status: 401,
+      body: '{"error":"expired"}',
+    });
 
     const fetcher = vi.fn();
 
@@ -419,6 +430,7 @@ describe('desktop IPC and application chrome', () => {
     expect(await response.json()).toEqual({ error: 'expired' });
     expect(native.invoke).toHaveBeenCalledWith('yummy_request', {
       request: {
+        origin: 'https://api.yani.tv',
         path: '/profile?limit=1',
         method: 'GET',
         headers: { authorization: 'Yummy token', lang: 'ru' },
@@ -516,7 +528,12 @@ describe('desktop IPC and application chrome', () => {
           dubbing: 'AniLibria',
           episode: '1',
         },
-        { url: cvh.iframe_url, videoId: cvh.video_id, dubbing: 'AniLibria', episode: '1' },
+        {
+          url: cvh.iframe_url,
+          videoId: cvh.video_id,
+          dubbing: 'AniLibria',
+          episode: '1',
+        },
       ],
     });
     expect(result.skips).toEqual({ opening: { time: 12, length: 90 } });
@@ -527,14 +544,24 @@ describe('desktop IPC and application chrome', () => {
     native.invoke.mockResolvedValue({
       relay: true,
       videoId: 1,
-      streams: [{ quality: 360, type: 'hls', url: 'yumiwatch-media://localhost/private' }],
+      streams: [
+        {
+          quality: 360,
+          type: 'hls',
+          url: 'yumiwatch-media://localhost/private',
+        },
+      ],
     });
     await expect(resolveStream([video('1')], new AbortController().signal)).rejects.toThrow(
       'не предоставил видео'
     );
   });
   it('validates the optional native MP4 fallback without losing a safe HLS stream', async () => {
-    const stream = { quality: 720, type: 'hls', url: 'https://cdn.example/video.m3u8' };
+    const stream = {
+      quality: 720,
+      type: 'hls',
+      url: 'https://cdn.example/video.m3u8',
+    };
     for (const raw of [
       'javascript:alert(1)',
       'https://user:password@cdn.example/video.mp4',
@@ -552,7 +579,12 @@ describe('desktop IPC and application chrome', () => {
     native.invoke.mockResolvedValue({
       provider: 'Kodik',
       videoId: 1,
-      streams: [{ ...stream, fallback: { type: 'mp4', url: 'https://cdn.example/video.mp4' } }],
+      streams: [
+        {
+          ...stream,
+          fallback: { type: 'mp4', url: 'https://cdn.example/video.mp4' },
+        },
+      ],
     });
     expect(
       (await resolveStream([video('1')], new AbortController().signal)).streams[0].fallback
@@ -587,7 +619,10 @@ describe('desktop IPC and application chrome', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Свернуть окно' }));
     fireEvent.click(screen.getByRole('button', { name: 'Развернуть окно' }));
     fireEvent.click(screen.getByRole('button', { name: 'Закрыть окно' }));
-    fireEvent.mouseDown(screen.getByText('Свободное место'), { button: 0, detail: 1 });
+    fireEvent.mouseDown(screen.getByText('Свободное место'), {
+      button: 0,
+      detail: 1,
+    });
     await waitFor(() => expect(native.minimize).toHaveBeenCalledOnce());
     expect(native.toggleMaximize).toHaveBeenCalledOnce();
     expect(native.close).toHaveBeenCalledOnce();
@@ -619,7 +654,13 @@ describe('desktop IPC and application chrome', () => {
       right: 1000,
       bottom: 44,
     } as DOMRect);
-    const options = { bubbles: true, cancelable: true, button: 0, clientX: 200, clientY: 20 };
+    const options = {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+      clientX: 200,
+      clientY: 20,
+    };
     for (const target of [
       screen.getByRole('button', { name: 'Под заголовком' }),
       screen.getByRole('link'),
@@ -690,5 +731,47 @@ describe('desktop IPC and application chrome', () => {
     expect(fetcher).toHaveBeenCalledOnce();
     expect(native.invoke).not.toHaveBeenCalled();
     expect(screen.queryByRole('group', { name: 'Управление окном' })).toBeNull();
+  });
+});
+
+describe('native Yummy API mirror allowlist', () => {
+  it.each([
+    ['https://api.yani.tv', '/profile'],
+    ['https://old.yummyani.me', '/api/profile'],
+    ['https://ru.yummyani.me', '/api/profile'],
+  ])('forwards the selected API origin %s and its prefix to Rust', async (origin, path) => {
+    native.invoke.mockResolvedValue({
+      status: 200,
+      body: '{"response":true}',
+    });
+    const response = await apiFetch(`${origin}${path}?limit=1`, {
+      headers: { Authorization: 'Yummy token' },
+    });
+    expect(await response.json()).toEqual({ response: true });
+    expect(native.invoke).toHaveBeenCalledWith('yummy_request', {
+      request: {
+        origin,
+        path: `${path}?limit=1`,
+        method: 'GET',
+        headers: { authorization: 'Yummy token' },
+        body: null,
+      },
+    });
+  });
+
+  it.each([
+    'https://old.yummyani.me.evil.test/api/profile',
+    'https://user:password@ru.yummyani.me/api/profile',
+    'http://ru.yummyani.me/api/profile',
+    'https://ru.yummyani.me:444/api/profile',
+    'https://old.yummyani.me/profile',
+    'https://ru.yummyani.me/api/../profile',
+    'https://old.yummyani.me/api/%2e%2e/profile',
+    'https://ru.yummyani.me/api/profile#token',
+  ])('rejects %s before sending credentials to the native transport', async url => {
+    await expect(apiFetch(url, { headers: { Authorization: 'Yummy token' } })).rejects.toThrow(
+      'адрес API'
+    );
+    expect(native.invoke).not.toHaveBeenCalled();
   });
 });

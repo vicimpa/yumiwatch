@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 
 import { initializeAccount } from '~/lib/account';
 import { imageUrl, plainText } from '~/lib/api';
+import { cardMenuEvents } from '~/lib/card-context';
 import { useLibrary, useResource, useSession } from '~/lib/hooks';
 import { syncLibrary } from '~/lib/library';
 import { WATCH_LISTS } from '~/lib/lists';
@@ -312,6 +313,7 @@ const ContinueWatching: FC<{ history: WatchEntry[] }> = ({ history }) => (
             key={entry.anime.anime_id}
             href={`#/anime/${entry.anime.anime_id}?view=watch&play=1`}
             class="profile-continue-card"
+            {...cardMenuEvents(entry.anime)}
           >
             <div class="profile-continue-poster">
               <Poster anime={entry.anime} />

@@ -99,6 +99,10 @@ async function fetchImage(url: string) {
   return response.blob();
 }
 
+export async function posterBlob(url: string): Promise<Blob> {
+  return getCache<Blob>('image', url)?.data || fetchImage(url);
+}
+
 async function execute(request: ImageRequest) {
   try {
     const blob = await fetchImage(request.url);

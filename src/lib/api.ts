@@ -7,12 +7,41 @@ import {
   resetRequests,
 } from './cache-store';
 import { apiFetch } from './desktop';
+import {
+  API_TIMEOUT_MS,
+  API_URL,
+  apiEndpointGeneration,
+  configurePrimaryApiProbe,
+  apiEndpoints,
+  failApiEndpoint,
+  rememberApiEndpoint,
+} from './api-endpoints';
 import { normalizeImage } from './image-cache';
 import { clearSession, getSession } from './session';
 import { TOKEN_KEY } from './storage';
 import type { Anime, Params, Result, Video } from './types';
+import type { RatingCount } from './ratings';
 
-export const API_URL = 'https://api.yani.tv';
+export { API_URL, API_URLS } from './api-endpoints';
+
+configurePrimaryApiProbe(async signal => {
+  const applicationToken = getToken();
+  const response = await apiFetch(`${API_URL}/anime?limit=1`, {
+    method: 'GET',
+    signal,
+    credentials: 'omit',
+    cache: 'no-store',
+    redirect: 'error',
+    headers: {
+      Accept: 'application/json',
+      Lang: 'ru',
+      ...(applicationToken ? { 'X-Application': applicationToken } : {}),
+    },
+  });
+  if (!response.ok) return false;
+  const payload = await response.json();
+  return !payload?.error && Array.isArray(payload?.response);
+});
 const pending = dataRequests;
 
 interface CacheOptions {
@@ -99,53 +128,79 @@ function apiErrorMessage(status: number, path: string, authenticated: boolean, c
 
 export async function yummyFetch<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { params = {}, method = 'GET', body, token: accountToken, signal, keepalive } = options;
-  const controller = new AbortController();
+  const applicationToken = getToken();
+  const query = makeQuery(params);
+  const serializedBody = body === undefined ? undefined : JSON.stringify(body);
+  // POST/PATCH may already have reached Yummy when the connection drops. A user retry
+  // uses the next endpoint, but must not silently send a message or edit twice.
+  const canRetry = ['GET', 'PUT', 'DELETE'].includes(method.toUpperCase());
+  let lastError: unknown;
 
-  const abort = () => controller.abort();
-
-  if (signal?.aborted) controller.abort();
-  signal?.addEventListener('abort', abort, { once: true });
-
-  const timeout = setTimeout(abort, 15000);
-
-  try {
-    const applicationToken = getToken();
-    const response = await apiFetch(`${API_URL}${path}?${makeQuery(params)}`, {
-      method,
-      credentials: 'omit',
-      cache: 'no-store',
-      keepalive,
-      headers: {
-        Accept: 'application/json,image/avif,image/webp',
-        Lang: 'ru',
-        ...(applicationToken ? { 'X-Application': applicationToken } : {}),
-        ...(accountToken ? { Authorization: `Yummy ${accountToken}` } : {}),
-        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
-      },
-      body: body === undefined ? undefined : JSON.stringify(body),
-      signal: controller.signal,
-    });
-    const payload = await response.json().catch(() => null);
-
-    if (!response.ok || payload?.error) {
-      if (response.status === 401 && accountToken) clearSession(accountToken);
-
-      const message = apiErrorMessage(response.status, path, !!accountToken, payload?.error_code);
-
-      throw new ApiError(message, response.status, payload?.error_code);
-    }
-    if (!payload || !Object.prototype.hasOwnProperty.call(payload, 'response'))
-      throw new ApiError('API вернул неожиданный ответ.', 502);
-
-    return payload.response as T;
-  } catch (error) {
+  const generation = apiEndpointGeneration();
+  for (const endpoint of apiEndpoints()) {
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-    if (error instanceof ApiError) throw error;
-    throw new Error('Нет связи с Yummy. Проверь интернет и попробуй снова.');
-  } finally {
-    clearTimeout(timeout);
-    signal?.removeEventListener('abort', abort);
+
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+
+    signal?.addEventListener('abort', abort, { once: true });
+
+    const timeout = setTimeout(abort, API_TIMEOUT_MS);
+
+    try {
+      const response = await apiFetch(`${endpoint}${path}?${query}`, {
+        method,
+        credentials: 'omit',
+        cache: 'no-store',
+        redirect: 'error',
+        keepalive,
+        headers: {
+          Accept: 'application/json,image/avif,image/webp',
+          Lang: 'ru',
+          ...(applicationToken ? { 'X-Application': applicationToken } : {}),
+          ...(accountToken ? { Authorization: `Yummy ${accountToken}` } : {}),
+          ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        },
+        body: serializedBody,
+        signal: controller.signal,
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (controller.signal.aborted) throw new DOMException('Aborted', 'AbortError');
+
+      if (!response.ok || payload?.error) {
+        if (response.status === 401 && accountToken) clearSession(accountToken);
+
+        const message = apiErrorMessage(response.status, path, !!accountToken, payload?.error_code);
+
+        throw new ApiError(message, response.status, payload?.error_code);
+      }
+      if (!payload || !Object.prototype.hasOwnProperty.call(payload, 'response'))
+        throw new ApiError('API вернул неожиданный ответ.', 502);
+
+      rememberApiEndpoint(endpoint, generation);
+      return payload.response as T;
+    } catch (error) {
+      if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+      if (
+        error instanceof ApiError &&
+        (error.code === 5 || (error.status < 500 && error.status !== 408))
+      )
+        throw error;
+
+      failApiEndpoint(endpoint, generation);
+      lastError =
+        error instanceof ApiError
+          ? error
+          : new Error('Нет связи с Yummy. Проверь интернет и попробуй снова.');
+      if (!canRetry) break;
+    } finally {
+      clearTimeout(timeout);
+      signal?.removeEventListener('abort', abort);
+    }
   }
+
+  throw lastError;
 }
 
 function subscribe<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
@@ -199,7 +254,10 @@ export function request<T>(
     task = (async () => {
       try {
         // A screen leaving does not abort a shared refresh needed by another view.
-        const data = await yummyFetch<T>(path, { params, token: options.token });
+        const data = await yummyFetch<T>(path, {
+          params,
+          token: options.token,
+        });
         const savedAt = Date.now();
 
         if (generation === cacheGeneration) {
@@ -295,6 +353,11 @@ export const animeDetail = (id: string | number, signal?: AbortSignal) =>
 
 export const peekAnimeDetail = (id: string | number) =>
   peekRequest<Anime>(`/anime/${encodeURIComponent(id)}`);
+
+export const animeRatings = (id: number, signal?: AbortSignal) =>
+  cachedRequest<RatingCount[]>(`/anime/${id}/rates`, {}, signal);
+
+export const peekAnimeRatings = (id: number) => peekRequest<RatingCount[]>(`/anime/${id}/rates`);
 
 const videoOptions = () => {
   const session = getSession();

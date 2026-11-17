@@ -1,0 +1,84 @@
+.chat-composer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px 10px;
+  align-items: end;
+  flex-shrink: 0;
+  min-width: 0;
+  padding: 12px 16px;
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+.chat-composer .chat-composer-input {
+  width: 100%;
+  min-width: 0;
+  min-height: 46px;
+  max-height: 160px;
+  resize: none;
+  padding: 10px 14px;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text);
+  background: #ffffff05;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.chat-composer > button {
+  min-height: 46px;
+}
+.chat-composer-context,
+.chat-composer-error,
+.chat-composer-tools,
+.chat-composer .message-compose-hint {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+.chat-composer-context {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-left: 10px;
+  border-left: 2px solid var(--accent);
+  font-size: 12px;
+  color: var(--muted);
+}
+.chat-composer-context > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-composer-error {
+  color: var(--accent);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.chat-composer-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 10px;
+  color: var(--muted);
+}
+.chat-composer-tools button {
+  min-height: 32px;
+  font-size: 11px;
+}
+.message-compose-hint {
+  color: var(--muted);
+  font-size: 10px;
+  padding-left: 2px;
+}
+@media (max-width: 760px), (max-width: 1000px) and (pointer: coarse) {
+  .chat-composer {
+    padding: 10px 12px max(10px, env(safe-area-inset-bottom));
+  }
+  .chat-composer .chat-composer-input {
+    font-size: 16px;
+  }
+  .message-compose-hint {
+    display: none;
+  }
+}

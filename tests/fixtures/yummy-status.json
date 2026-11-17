@@ -1,0 +1,294 @@
+{
+  "updatedAt": "2026-11-17T16:44:37.682Z",
+  "health": "critical",
+  "domains": [
+    {
+      "domain": "api.yani.tv",
+      "label": "API",
+      "health": "critical",
+      "buckets": [
+        {
+          "time": "2026-11-17T16:41:50.357Z",
+          "status": "DOWN",
+          "totalTimeAvg": 254.39285714285714,
+          "problems": [
+            {
+              "country": "DE",
+              "city": "Berlin",
+              "statusCode": 502,
+              "totalTime": 128
+            },
+            {
+              "country": "DE",
+              "city": "Dusseldorf",
+              "statusCode": 502,
+              "totalTime": 100
+            },
+            {
+              "country": "KG",
+              "city": "Bishkek",
+              "statusCode": 502,
+              "totalTime": 462
+            },
+            {
+              "country": "PL",
+              "city": "Warsaw",
+              "statusCode": 502,
+              "totalTime": 108
+            },
+            {
+              "country": "PL",
+              "city": "Krakow",
+              "statusCode": 502,
+              "totalTime": 176
+            },
+            {
+              "country": "LV",
+              "city": "Riga",
+              "statusCode": 502,
+              "totalTime": 159
+            },
+            {
+              "country": "LT",
+              "city": "Vilnius",
+              "statusCode": 502,
+              "totalTime": 199
+            },
+            {
+              "country": "LT",
+              "city": "Siauliai",
+              "statusCode": 502,
+              "totalTime": 136
+            },
+            {
+              "country": "EE",
+              "city": "Tallinn",
+              "statusCode": 502,
+              "totalTime": 227
+            },
+            {
+              "country": "US",
+              "city": "New York",
+              "statusCode": 502,
+              "totalTime": 267
+            },
+            {
+              "country": "US",
+              "city": "Los Angeles",
+              "statusCode": 502,
+              "totalTime": 537
+            },
+            {
+              "country": "NL",
+              "city": "Amsterdam",
+              "statusCode": 502,
+              "totalTime": 139
+            },
+            {
+              "country": "NL",
+              "city": "Utrecht",
+              "statusCode": 502,
+              "totalTime": 298
+            },
+            {
+              "country": "GB",
+              "city": "London",
+              "statusCode": 502,
+              "totalTime": 117
+            },
+            {
+              "country": "MD",
+              "city": "Chisinau",
+              "statusCode": 502,
+              "totalTime": 248
+            },
+            {
+              "country": "CZ",
+              "city": "Prague",
+              "statusCode": 502,
+              "totalTime": 127
+            },
+            {
+              "country": "CZ",
+              "city": "Brno",
+              "statusCode": 502,
+              "totalTime": 176
+            },
+            {
+              "country": "GE",
+              "city": "Tbilisi",
+              "statusCode": 502,
+              "totalTime": 313
+            },
+            {
+              "country": "AM",
+              "city": "Yerevan",
+              "statusCode": 502,
+              "totalTime": 299
+            },
+            {
+              "country": "RU",
+              "city": "Moscow",
+              "statusCode": 502,
+              "totalTime": 210
+            },
+            {
+              "country": "RU",
+              "city": "Saint Petersburg",
+              "statusCode": 502,
+              "totalTime": 154
+            },
+            {
+              "country": "RU",
+              "city": "Novosibirsk",
+              "statusCode": 502,
+              "totalTime": 310
+            },
+            {
+              "country": "UA",
+              "city": "Kyiv",
+              "statusCode": 502,
+              "totalTime": 211
+            },
+            {
+              "country": "UA",
+              "city": "Dnipro",
+              "statusCode": 502,
+              "totalTime": 366
+            },
+            {
+              "country": "UA",
+              "city": "Odesa",
+              "statusCode": 502,
+              "totalTime": 219
+            },
+            {
+              "country": "KZ",
+              "city": "Almaty",
+              "statusCode": 502,
+              "totalTime": 845
+            },
+            {
+              "country": "KZ",
+              "city": "Aktau",
+              "statusCode": 502,
+              "totalTime": 344
+            },
+            {
+              "country": "BY",
+              "city": "Minsk",
+              "statusCode": 502,
+              "totalTime": 248
+            }
+          ]
+        },
+        {
+          "time": "2026-11-17T16:43:53.844Z",
+          "status": "DOWN",
+          "totalTimeAvg": 418.22222222222223,
+          "problems": [
+            {
+              "country": "RU",
+              "city": "Moscow",
+              "statusCode": 502,
+              "totalTime": 194
+            },
+            {
+              "country": "RU",
+              "city": "Saint Petersburg",
+              "statusCode": 502,
+              "totalTime": 143
+            },
+            {
+              "country": "RU",
+              "city": "Novosibirsk",
+              "statusCode": 502,
+              "totalTime": 388
+            },
+            {
+              "country": "UA",
+              "city": "Kyiv",
+              "statusCode": 502,
+              "totalTime": 169
+            },
+            {
+              "country": "UA",
+              "city": "Dnipro",
+              "statusCode": 502,
+              "totalTime": 396
+            },
+            {
+              "country": "UA",
+              "city": "Odesa",
+              "statusCode": 502,
+              "totalTime": 1308
+            },
+            {
+              "country": "KZ",
+              "city": "Almaty",
+              "statusCode": 502,
+              "totalTime": 543
+            },
+            {
+              "country": "KZ",
+              "city": "Aktau",
+              "statusCode": 502,
+              "totalTime": 370
+            },
+            {
+              "country": "BY",
+              "city": "Minsk",
+              "statusCode": 502,
+              "totalTime": 253
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "domain": "ru.yummyani.me",
+      "label": "new.yummyani.me",
+      "health": "warning",
+      "buckets": [
+        {
+          "time": "2026-11-17T16:41:50.360Z",
+          "status": "DEGRADED_LOW",
+          "totalTimeAvg": 514.8214285714286,
+          "problems": [
+            {
+              "country": "KG",
+              "city": "Bishkek",
+              "statusCode": 901,
+              "totalTime": null
+            }
+          ]
+        },
+        {
+          "time": "2026-11-17T16:43:53.843Z",
+          "status": "UP",
+          "totalTimeAvg": 469.8888888888889,
+          "problems": []
+        }
+      ]
+    },
+    {
+      "domain": "old.yummyani.me",
+      "label": "old.yummyani.me",
+      "health": "warning",
+      "buckets": [
+        {
+          "time": "2026-11-17T16:41:50.359Z",
+          "status": "UP",
+          "totalTimeAvg": 237.42857142857142,
+          "problems": []
+        },
+        {
+          "time": "2026-11-17T16:43:53.886Z",
+          "status": "UP",
+          "totalTimeAvg": 314.55555555555554,
+          "problems": []
+        }
+      ]
+    }
+  ]
+}

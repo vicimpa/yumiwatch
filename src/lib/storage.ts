@@ -102,6 +102,14 @@ export function clearHistory() {
   saveLibrary({ ...readLibrary(), history: [] });
 }
 
+export function removeHistoryEntry(animeId: number) {
+  const library = readLibrary();
+  saveLibrary({
+    ...library,
+    history: library.history.filter(entry => entry.anime.anime_id !== animeId),
+  });
+}
+
 export function setAnimeList(anime: Anime, selected: WatchListId | null) {
   const library = readLibrary();
   const lists = Object.fromEntries(

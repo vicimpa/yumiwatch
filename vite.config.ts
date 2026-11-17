@@ -9,7 +9,16 @@ export default defineConfig({
   resolve: { alias: sourceAlias },
   base: process.env.BASE_PATH || '/',
   clearScreen: false,
-  server: { watch: { ignored: ['**/src-tauri/**'] } },
+  server: {
+    watch: { ignored: ['**/src-tauri/**'] },
+    proxy: {
+      '^/yummystatus-api(?:\\?|$)': {
+        target: 'https://yummystatus.me',
+        changeOrigin: true,
+        rewrite: () => '/api/health?timeRange=3hour',
+      },
+    },
+  },
   plugins: [
     preact(),
     {

@@ -72,7 +72,7 @@ export const Sidebar: FC<TSidebarProps> = ({
     });
 
     const keyboard = (event: KeyboardEvent) => {
-      if (document.querySelector('dialog[open],.video-settings')) return;
+      if (document.querySelector('dialog[open],.video-settings,[data-card-context-menu]')) return;
       if (
         event.key === 'Escape' &&
         event.target instanceof HTMLElement &&

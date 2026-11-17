@@ -59,12 +59,38 @@ it('disables the setting if the application ID is missing', () => {
   expect((screen.getByRole('checkbox') as HTMLInputElement).disabled).toBe(true);
 });
 
-function Watching({ episode = '1', playback }: { episode?: string; playback: PresencePlayback }) {
+function Watching({ episode = '1', playback }: { episode?: string; playback?: PresencePlayback }) {
   useAppDiscordPresence('/anime/10531?view=watch');
   useDiscordPresence(anime, video(episode), playback);
 
   return null;
 }
+
+it('publishes loading through native IPC before the player has a playback snapshot', async () => {
+  const { rerender } = render(<Watching />);
+  await waitFor(() =>
+    expect(native.desktopInvoke.mock.lastCall?.[1].activity).toMatchObject({
+      details: anime.title,
+      state: 'Серия 1 · Загрузка',
+    })
+  );
+  expect(native.desktopInvoke.mock.lastCall?.[1].activity).not.toHaveProperty('timestamps');
+  rerender(<Watching episode="2" />);
+  await waitFor(() =>
+    expect(native.desktopInvoke.mock.lastCall?.[1].activity?.state).toBe('Серия 2 · Загрузка')
+  );
+  rerender(
+    <Watching
+      episode="2"
+      playback={{ position: 0, duration: 1400, playing: true, reason: 'playing' }}
+    />
+  );
+  await waitFor(() =>
+    expect(native.desktopInvoke.mock.lastCall?.[1].activity?.state).toBe(
+      'Серия 2 · Воспроизводится'
+    )
+  );
+});
 
 it('updates native IPC on playback, settings changes, episode changes and unmount', async () => {
   const playback = { position: 60, duration: 1400, playing: true };

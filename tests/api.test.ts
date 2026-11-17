@@ -53,7 +53,10 @@ describe('Yummy API', () => {
 
     vi.stubGlobal('fetch', fetcher);
     await request('/anime', { q: 'a' });
-    expect(await request('/anime', { q: 'a' })).toMatchObject({ data: ['saved'], cached: true });
+    expect(await request('/anime', { q: 'a' })).toMatchObject({
+      data: ['saved'],
+      cached: true,
+    });
     await expect(request('/anime', { q: 'b' })).rejects.toThrow('Нет связи');
   });
   it('does not hide authorization failures behind stale data', async () => {
@@ -114,7 +117,10 @@ describe('Yummy API', () => {
     expect(result).toMatchObject({ data: ['saved'], cached: true });
     expect(result.revalidate).toBeDefined();
     finish(new Response(JSON.stringify({ response: ['fresh'] })));
-    expect(await result.revalidate).toMatchObject({ data: ['fresh'], cached: false });
+    expect(await result.revalidate).toMatchObject({
+      data: ['fresh'],
+      cached: false,
+    });
     expect(Object.values(JSON.parse(localStorage.getItem('yumiwatch:api:v1')!))[0]).toMatchObject({
       data: ['fresh'],
     });
@@ -124,6 +130,8 @@ describe('Yummy API', () => {
       .fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({ response: ['saved'] })))
       .mockRejectedValueOnce(new TypeError('offline'))
+      .mockRejectedValueOnce(new TypeError('offline'))
+      .mockRejectedValueOnce(new TypeError('offline'))
       .mockResolvedValueOnce(new Response('', { status: 403 }));
 
     vi.stubGlobal('fetch', fetcher);
@@ -131,7 +139,10 @@ describe('Yummy API', () => {
 
     const offline = await cachedRequest('/anime');
 
-    expect(await offline.revalidate).toMatchObject({ data: ['saved'], cached: true });
+    expect(await offline.revalidate).toMatchObject({
+      data: ['saved'],
+      cached: true,
+    });
 
     const denied = await cachedRequest('/anime');
 

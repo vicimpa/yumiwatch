@@ -8,16 +8,15 @@ import {
   useInterfaceSettings,
 } from '~/lib/interface-settings';
 
-import { Field, Icon, Input, Select, SettingsCard, Toggle } from '~/ui';
+import { Dropdown, Field, Icon, Input, SettingsCard, Toggle } from '~/ui';
 
 export const InterfaceSettingsCard: FC = () => {
   const settings = useInterfaceSettings();
 
   const changeScale = useCallback(
-    (event: JSX.TargetedEvent<HTMLSelectElement>) =>
+    (value: string) =>
       saveInterfaceSettings({
-        scale:
-          event.currentTarget.value === 'system' ? 'system' : Number(event.currentTarget.value),
+        scale: value === 'system' ? 'system' : Number(value),
       }),
     []
   );
@@ -47,8 +46,7 @@ export const InterfaceSettingsCard: FC = () => {
   );
 
   const changeStyle = useCallback(
-    (event: JSX.TargetedEvent<HTMLSelectElement>) =>
-      saveInterfaceSettings({ style: event.currentTarget.value as typeof settings.style }),
+    (value: string) => saveInterfaceSettings({ style: value as typeof settings.style }),
     []
   );
 
@@ -61,15 +59,19 @@ export const InterfaceSettingsCard: FC = () => {
     >
       {supportsInterfaceScale() && (
         <>
-          <Field class="interface-style" label="Масштаб интерфейса">
-            <Select aria-label="Масштаб интерфейса" value={settings.scale} onChange={changeScale}>
-              <option value="system">По системе</option>
-              {INTERFACE_SCALES.map(scale => (
-                <option value={scale} key={scale}>
-                  {Math.round(scale * 100)}%
-                </option>
-              ))}
-            </Select>
+          <Field class="settings-choice" label="Масштаб интерфейса">
+            <Dropdown
+              aria-label="Масштаб интерфейса"
+              value={String(settings.scale)}
+              onChange={changeScale}
+              options={[
+                { value: 'system', label: 'По системе' },
+                ...INTERFACE_SCALES.map(scale => ({
+                  value: String(scale),
+                  label: `${Math.round(scale * 100)}%`,
+                })),
+              ]}
+            />
           </Field>
           <p class="fine-print">
             По умолчанию учитываем системный масштаб и размер текста Linux. Ручной масштаб
@@ -122,12 +124,17 @@ export const InterfaceSettingsCard: FC = () => {
         Анимации переходов и боковых панелей
       </Toggle>
       <p class="fine-print">Системная настройка уменьшения движения имеет приоритет.</p>
-      <Field class="interface-style" label="Оформление">
-        <Select aria-label="Стиль интерфейса" value={settings.style} onChange={changeStyle}>
-          <option value="classic">Классический</option>
-          <option value="cinema">Кинозал</option>
-          <option value="contrast">Контрастный</option>
-        </Select>
+      <Field class="settings-choice" label="Оформление">
+        <Dropdown
+          aria-label="Стиль интерфейса"
+          value={settings.style}
+          onChange={changeStyle}
+          options={[
+            { value: 'classic', label: 'Классический' },
+            { value: 'cinema', label: 'Кинозал' },
+            { value: 'contrast', label: 'Контрастный' },
+          ]}
+        />
       </Field>
       <div class="keyboard-reference">
         <h3>Управление с клавиатуры</h3>

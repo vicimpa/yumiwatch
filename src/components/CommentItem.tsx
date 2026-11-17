@@ -30,9 +30,20 @@ type TCommentItemProps = {
   reply: (comment: YummyComment, root: number) => void;
   rootId?: number;
   openThread?: (comment: YummyComment) => void;
+  expanded?: boolean;
+  repliesId?: string;
+  replyDisabled?: boolean;
 };
 
-export const CommentItem: FC<TCommentItemProps> = ({ comment, reply, rootId, openThread }) => {
+export const CommentItem: FC<TCommentItemProps> = ({
+  comment,
+  reply,
+  rootId,
+  openThread,
+  expanded,
+  repliesId,
+  replyDisabled,
+}) => {
   const session = useSession();
   const [vote, setVote] = useState(comment.vote || 0);
   const [likes, setLikes] = useState(comment.likes || 0);
@@ -80,7 +91,7 @@ export const CommentItem: FC<TCommentItemProps> = ({ comment, reply, rootId, ope
   const openReplies = useCallback(() => openThread?.(comment), [openThread, comment]);
 
   return (
-    <article class="comment-item">
+    <article class="comment-item" data-comment-id={comment.id}>
       <div class="comment-avatar">
         <Avatar url={comment.avatars?.small} name={comment.name} />
       </div>
@@ -125,13 +136,21 @@ export const CommentItem: FC<TCommentItemProps> = ({ comment, reply, rootId, ope
                   ↓ <span>{dislikes}</span>
                 </button>
               </div>
-              <button onClick={respond}>Ответить</button>
+              <button onClick={respond} disabled={replyDisabled}>
+                Ответить
+              </button>
             </>
           )}
           {openThread && comment.children_count > 0 && (
-            <button class="comment-thread-link" onClick={openReplies}>
+            <button
+              class="comment-thread-link"
+              onClick={openReplies}
+              aria-expanded={expanded}
+              aria-controls={repliesId}
+            >
               <Icon name="comment" size={16} />
-              Ответы ({comment.children_count})<Icon name="chevron" size={14} />
+              {expanded ? 'Скрыть ответы' : `Ответы (${comment.children_count})`}
+              <Icon name="chevron" size={14} />
             </button>
           )}
         </div>

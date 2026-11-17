@@ -71,9 +71,81 @@ pub async fn fetch(client: &reqwest::Client, raw: &str) -> Result<ImageResponse,
     }
     Err("Слишком много перенаправлений изображения.".into())
 }
+
+#[cfg(desktop)]
+pub fn save_poster(
+    directory: &std::path::Path,
+    anime_id: u64,
+    image: ImageResponse,
+) -> Result<String, String> {
+    use std::io::Write;
+    let extension = match image.mime.as_str() {
+        "image/jpeg" => "jpg",
+        "image/png" => "png",
+        "image/webp" => "webp",
+        "image/avif" => "avif",
+        "image/gif" => "gif",
+        _ => return Err("Неизвестный формат постера.".into()),
+    };
+    let bytes = STANDARD
+        .decode(image.data)
+        .map_err(|_| "Не удалось прочитать постер.".to_string())?;
+    std::fs::create_dir_all(directory)
+        .map_err(|_| "Не удалось открыть папку «Загрузки».".to_string())?;
+    for index in 0..1000 {
+        let suffix = if index == 0 {
+            String::new()
+        } else {
+            format!(" ({index})")
+        };
+        let path = directory.join(format!("yummy-{anime_id}-poster{suffix}.{extension}"));
+        match std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)
+        {
+            Ok(mut file) => {
+                if file.write_all(&bytes).is_err() {
+                    drop(file);
+                    let _ = std::fs::remove_file(&path);
+                    return Err("Не удалось записать постер.".into());
+                }
+                return Ok(path.to_string_lossy().into_owned());
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(_) => return Err("Не удалось сохранить постер в «Загрузки».".into()),
+        }
+    }
+    Err("Слишком много копий постера в «Загрузки».".into())
+}
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(desktop)]
+    #[test]
+    fn saves_poster_without_overwriting_an_existing_file() {
+        let directory =
+            std::env::temp_dir().join(format!("yummy-poster-test-{}", rand::random::<u64>()));
+        let image = || ImageResponse {
+            data: STANDARD.encode(b"poster"),
+            mime: "image/webp".into(),
+        };
+        let first = save_poster(&directory, 42, image()).unwrap();
+        let second = save_poster(&directory, 42, image()).unwrap();
+        assert_ne!(first, second);
+        assert_eq!(std::fs::read(&first).unwrap(), b"poster");
+        assert_eq!(std::fs::read(&second).unwrap(), b"poster");
+        assert!(save_poster(
+            &directory,
+            42,
+            ImageResponse {
+                data: STANDARD.encode(b"not an image"),
+                mime: "text/html".into()
+            }
+        )
+        .is_err());
+        std::fs::remove_dir_all(directory).unwrap();
+    }
     #[test]
     fn accepts_only_public_image_cdns() {
         for url in [

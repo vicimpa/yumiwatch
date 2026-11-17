@@ -954,3 +954,16 @@ it('passes playback speed, pauses and completion from the universal player to Di
     )
   );
 });
+
+it('provides the selected episode to Discord while stream resolution is still pending', async () => {
+  vi.mocked(resolveStream).mockReturnValue(new Promise(() => {}));
+  const { container } = render(<Player anime={anime} preferredEpisode="2" startPlaying />);
+  await waitFor(() =>
+    expect(useDiscordPresence).toHaveBeenLastCalledWith(
+      anime,
+      expect.objectContaining({ number: '2' }),
+      expect.objectContaining({ playing: false, reason: 'sourcechange' })
+    )
+  );
+  expect(container.querySelector('video')).toBeNull();
+});

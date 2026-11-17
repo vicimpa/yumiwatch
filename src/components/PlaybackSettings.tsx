@@ -7,7 +7,7 @@ import {
   usePlaybackSettings,
 } from '~/lib/playback-settings';
 
-import { Field, Icon, Select, SettingsCard, Toggle } from '~/ui';
+import { Dropdown, Field, Icon, SettingsCard, Toggle } from '~/ui';
 
 export const AutoSkipSettings: FC = () => {
   const settings = usePlaybackSettings();
@@ -41,8 +41,7 @@ export const PlaybackSettingsCard: FC = () => {
   const settings = usePlaybackSettings();
 
   const changeQuality = useCallback(
-    (event: JSX.TargetedEvent<HTMLSelectElement>) =>
-      savePlaybackSettings({ quality: event.currentTarget.value }),
+    (value: string) => savePlaybackSettings({ quality: value }),
     []
   );
 
@@ -52,20 +51,19 @@ export const PlaybackSettingsCard: FC = () => {
       description="Экран просмотра занимает только плеер. Озвучки, серии и комментарии доступны в его боковых панелях. Оригинальные плееры источников можно открыть со страницы аниме."
       icon={<Icon name="play" size={25} />}
     >
-      <Field class="playback-quality-setting" label="Предпочитаемое качество">
-        <Select
+      <Field class="settings-choice" label="Предпочитаемое качество">
+        <Dropdown
           aria-label="Предпочитаемое качество"
           value={settings.quality}
           onChange={changeQuality}
-        >
-          {PLAYBACK_QUALITIES.map(value => (
-            <option key={value} value={value}>
-              {value === 'auto'
+          options={PLAYBACK_QUALITIES.map(value => ({
+            value,
+            label:
+              value === 'auto'
                 ? 'Авто · до 480p'
-                : `${value}p${value === '360' ? ' · экономия трафика' : ''}`}
-            </option>
-          ))}
-        </Select>
+                : `${value}p${value === '360' ? ' · экономия трафика' : ''}`,
+          }))}
+        />
       </Field>
     </SettingsCard>
   );

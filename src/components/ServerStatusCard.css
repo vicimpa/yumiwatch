@@ -1,0 +1,79 @@
+.server-status-list {
+  list-style: none;
+  padding: 0;
+  margin: 18px 0 0;
+}
+.server-status-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+}
+.server-status-domain {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.server-status-domain small {
+  color: var(--accent);
+  font-size: 10px;
+}
+.server-status-value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  text-align: right;
+  color: #9b9da9;
+}
+.server-status-value small {
+  color: #9b9da9;
+  font-size: 10px;
+}
+.server-status-dot {
+  width: 6px;
+  height: 6px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: currentColor;
+}
+.server-status-value.is-up {
+  color: #9bcbb1;
+}
+.server-status-value.is-degraded,
+.server-status-value.is-captcha {
+  color: #e2c490;
+}
+.server-status-value.is-down {
+  color: #ed9da5;
+}
+.server-status-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  align-items: center;
+  margin-top: 14px;
+}
+.server-status-card .server-status-actions .button {
+  margin: 0;
+}
+.server-status-current strong {
+  color: var(--text, #d4c7d0);
+  overflow-wrap: anywhere;
+}
+@media (max-width: 480px) {
+  .server-status-list li {
+    align-items: flex-start;
+    font-size: 11px;
+  }
+  .server-status-value {
+    max-width: 46%;
+  }
+}

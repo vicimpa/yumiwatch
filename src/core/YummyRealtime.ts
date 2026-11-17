@@ -4,7 +4,10 @@ export type YummyEvent = { event: string; [key: string]: unknown };
 type Listener = (event: YummyEvent) => void;
 type Subscription = { type: string; id: number; key: string; listeners: Set<Listener> };
 
-const SERVERS = [1, 2, 3].map(id => `wss://socket${id}.yani.tv/socket`);
+// REST mirrors use their own socket cluster; old/ru themselves do not serve /socket.
+const SERVERS = ['yani.tv', 'yummyani.me'].flatMap(domain =>
+  [1, 2, 3].map(id => `wss://socket${id}.${domain}/socket`)
+);
 
 /** The site's JSON protocol, shared by all screens. Never log socket URLs: they contain a token. */
 export class YummyRealtime {

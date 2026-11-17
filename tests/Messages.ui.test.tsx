@@ -4,7 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MessagesPage } from '~/components/Messages';
 import { saveConversation, saveDialogCache, readConversation } from '~/lib/chat-cache';
 import { clearSession, saveSession } from '~/lib/session';
-import { social } from '~/lib/social';
+import { realtime, realtimeStatus, social } from '~/lib/social';
+import { RealtimeIndicator } from '~/components/Social';
 const message = {
   id: 1,
   from_id: 8,
@@ -26,6 +27,7 @@ beforeEach(() => {
     verified: true,
     refreshedAt: Date.now(),
   });
+  realtime.stop();
   social.value = {
     userId: 42,
     dialogs: [{ user_id: 8, nickname: 'Друг', unread_count: 0 }],
@@ -39,6 +41,9 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   clearSession();
+  realtime.stop();
+  vi.useRealTimers();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 describe('cached conversations', () => {
@@ -180,5 +185,75 @@ describe('cached conversations', () => {
     social.value = { ...social.value, userId: undefined, dialogs: [], loading: true };
     render(<MessagesPage query="" />);
     expect(screen.getByText('Сохранённый друг')).toBeTruthy();
+  });
+});
+
+describe('messages while WebSocket is unavailable', () => {
+  it('refreshes an open conversation through REST and stops polling after leaving', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    const fetcher = vi
+      .fn()
+      .mockImplementation(() => Promise.resolve(reply([message])))
+      .mockImplementationOnce(() => Promise.resolve(reply([message])));
+    vi.stubGlobal('fetch', fetcher);
+    let unmount!: () => void;
+    await act(async () => {
+      ({ unmount } = render(<MessagesPage query="user=8" />));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(screen.getByText('Сохранённая переписка')).toBeTruthy();
+    fetcher.mockImplementation(() =>
+      Promise.resolve(reply([message, { ...message, id: 2, text: 'Новое без сокета' }]))
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(15000);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(screen.getByText('Новое без сокета')).toBeTruthy();
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    unmount();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(45000);
+    });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it('avoids polling while connected or hidden and resumes when fallback is needed', async () => {
+    vi.useFakeTimers();
+    const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    realtime.status = 'connected';
+    const fetcher = vi.fn().mockImplementation(() => Promise.resolve(reply([message])));
+    vi.stubGlobal('fetch', fetcher);
+    await act(async () => {
+      render(<MessagesPage query="user=8" />);
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30000);
+    });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    realtime.status = 'reconnecting';
+    visibility.mockReturnValue('hidden');
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(15000);
+    });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    visibility.mockReturnValue('visible');
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(15000);
+    });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it('explains delayed updates while reconnecting instead of implying a permanent initial load', () => {
+    realtimeStatus.value = 'reconnecting';
+    render(<RealtimeIndicator />);
+    expect(screen.getByText('Обновления с небольшой задержкой')).toBeTruthy();
   });
 });

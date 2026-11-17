@@ -185,7 +185,9 @@ export const SourcePlayer: FC<TPlayerProps> = ({
           ? 'Выбирает серию'
           : panel === 'comments'
             ? 'Читает комментарии'
-            : undefined,
+            : resource.loading
+              ? 'Смотрит · Загрузка'
+              : undefined,
     episodesOpen ? episodeQuery : sourceQuery,
     200
   );

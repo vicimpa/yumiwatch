@@ -51,6 +51,53 @@ export function peekComments(animeId: number, sort: string, skip: number) {
   );
 }
 
+export async function getCommentReplies(id: number, signal?: AbortSignal) {
+  const result = await cachedRequest<CommentPage>(
+    `/comments/${id}/children`,
+    {},
+    signal,
+    commentOptions()
+  );
+  if (!Array.isArray(result.data?.comments)) throw new Error('Не удалось прочитать ответы.');
+  return result;
+}
+
+const commentOptions = () => {
+  const session = getSession();
+  return { token: session?.verified ? session.token : undefined };
+};
+
+export const peekCommentReplies = (id: number) =>
+  peekRequest<CommentPage>(`/comments/${id}/children`, {}, commentOptions());
+
+export const commentDraftKey = (userId: number, animeId: number) =>
+  `yumiwatch:draft:${userId}:${animeId}`;
+
+export function readCommentDraft(
+  userId: number | undefined,
+  animeId: number
+): { text: string; reply?: TReplyTarget } {
+  try {
+    const value = userId
+      ? JSON.parse(sessionStorage.getItem(commentDraftKey(userId, animeId)) || '{}')
+      : {};
+    const reply = value?.reply;
+    return {
+      text: typeof value?.text === 'string' ? value.text.slice(0, 10000) : '',
+      ...(reply &&
+      Number.isSafeInteger(reply.parent) &&
+      reply.parent > 0 &&
+      Number.isSafeInteger(reply.id) &&
+      reply.id > 0 &&
+      typeof reply.name === 'string'
+        ? { reply: { parent: reply.parent, id: reply.id, name: reply.name } }
+        : {}),
+    };
+  } catch {
+    return { text: '' };
+  }
+}
+
 export async function postComment(
   animeId: number,
   text: string,

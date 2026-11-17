@@ -4,7 +4,9 @@ import { useCallback, useMemo, useState } from 'preact/hooks';
 import { Icon } from '~/ui';
 
 function textOnly(value: string) {
-  return value.replace(/\[\/?(?:ж|b|i|u|s|к|цитата|quote|url)(?:=[^\]]*)?\]/gi, '');
+  return value
+    .replace(/\[ник\]([\s\S]*?)\[\/ник\]/gi, '@$1')
+    .replace(/\[\/?(?:ж|b|i|u|s|к|цитата|quote|url)(?:=[^\]]*)?\]/gi, '');
 }
 
 type TSpoilerProps = { text: string };

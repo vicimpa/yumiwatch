@@ -768,57 +768,6 @@
   color: #ffc4ca;
   font-size: 13px;
 }
-.thread-parent {
-  padding-bottom: 15px;
-  border-bottom: 3px solid #414248;
-}
-.thread-parent .comment-item {
-  border: 0;
-  padding-top: 0;
-}
-.thread-replies .comment-item:last-child {
-  border: 0;
-}
-.comment-composer-form > label {
-  font-size: 12px;
-  color: #aaa;
-}
-.comment-composer-form textarea {
-  width: 100%;
-  min-height: 200px;
-  max-height: none;
-  overflow: hidden;
-  resize: none;
-  border: 0;
-  background: transparent;
-  color: #eee;
-  font: inherit;
-  font-size: 16px;
-  line-height: 1.9;
-  padding: 12px 0;
-  outline: 0;
-}
-.draft-note {
-  margin-top: 20px;
-  font-size: 11px;
-  color: #8e909b;
-  line-height: 1.8;
-}
-.composer-footer-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 10px;
-}
-.composer-footer-meta .text-link {
-  color: #c3a5b4;
-  min-height: 36px;
-}
-.composer-footer-meta > span {
-  color: #999;
-  font-size: 11px;
-}
 @media (min-width: 761px) {
   .anime-sections-nav svg {
     display: none;
@@ -1486,9 +1435,6 @@
     max-width: 118px;
     min-height: 46px;
   }
-  .comments-section {
-    padding-bottom: 80px;
-  }
   .comment-item {
     padding: 22px 0;
     gap: 11px;
@@ -1521,40 +1467,8 @@
     min-height: 44px;
     font-size: 13px;
   }
-  .discussion-compose-bar {
-    position: fixed;
-    bottom: calc(85px + env(safe-area-inset-bottom, 0px));
-    left: 16px;
-    right: 16px;
-    z-index: 24;
-    margin: 0;
-    box-shadow: 0 5px 24px #0007;
-    border-radius: 14px;
-  }
-  .discussion-compose-bar > button,
-  .discussion-compose-bar > a {
-    min-height: 55px;
-    background: #3e3e46;
-    border-color: #64646f;
-    border-radius: 13px;
-    font-size: 13px;
-  }
-  .thread-screen .comment-text {
-    font-size: 14px;
-  }
-  .thread-screen .modal-scroll {
-    padding-top: 22px;
-  }
   .inline-spoiler {
     min-height: 36px;
-    font-size: 12px;
-  }
-  .comment-composer-form textarea {
-    font-size: 17px;
-    line-height: 1.9;
-    min-height: 230px;
-  }
-  .comment-composer-form > label {
     font-size: 12px;
   }
   .toast {

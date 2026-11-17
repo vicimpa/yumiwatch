@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { YummyRealtime } from '~/core/YummyRealtime';
 import { FakeSocket } from './realtime-fixture';
+import { readFileSync } from 'node:fs';
 
 let client: YummyRealtime;
 beforeEach(() => {
@@ -114,5 +115,66 @@ describe('Yummy realtime lifecycle', () => {
     client.subscribe('bad-type', 1, listener);
     expect(socket().sent).toHaveLength(0);
     expect(listener).not.toHaveBeenCalled();
+  });
+});
+
+describe('Yummy realtime backup cluster', () => {
+  it('uses the mirror socket cluster when all yani.tv nodes fail and restores subscriptions', () => {
+    const event = vi.fn();
+    client.onEvent(event);
+    client.subscribe('profile', 42, vi.fn());
+    client.start('user-token');
+    for (const delay of [1000, 2000, 4000]) {
+      socket().fail();
+      vi.advanceTimersByTime(delay);
+    }
+    expect(FakeSocket.instances.map(peer => new URL(peer.url).hostname)).toEqual([
+      'socket1.yani.tv',
+      'socket2.yani.tv',
+      'socket3.yani.tv',
+      'socket1.yummyani.me',
+    ]);
+    expect(new URL(socket().url).searchParams.get('token')).toBe('user-token');
+    socket().open();
+    expect(socket().sent.map(message => message.event)).toEqual([
+      'subscribe-events',
+      'subscribe-global',
+    ]);
+    expect(client.status).toBe('connected');
+    expect(event).toHaveBeenCalledWith({ event: 'connect' });
+  });
+
+  it('tries every backup node and returns to the primary cluster if none respond', () => {
+    client.start();
+    for (const delay of [1000, 2000, 4000, 8000, 16000, 30000]) {
+      socket().fail();
+      vi.advanceTimersByTime(delay);
+    }
+    const hosts = FakeSocket.instances.map(peer => new URL(peer.url).hostname);
+    expect(hosts).toEqual([
+      'socket1.yani.tv',
+      'socket2.yani.tv',
+      'socket3.yani.tv',
+      'socket1.yummyani.me',
+      'socket2.yummyani.me',
+      'socket3.yummyani.me',
+      'socket1.yani.tv',
+    ]);
+    expect(client.status).toBe('reconnecting');
+    client.stop();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('permits both socket clusters in the packaged Tauri CSP', () => {
+    const { app } = JSON.parse(readFileSync('src-tauri/tauri.conf.json', 'utf8'));
+    const connect = app.security.csp
+      .split(';')
+      .find((part: string) => part.trim().startsWith('connect-src '))
+      .trim()
+      .split(/\s+/);
+    for (const domain of ['yani.tv', 'yummyani.me']) {
+      for (const id of [1, 2, 3]) expect(connect).toContain(`wss://socket${id}.${domain}`);
+    }
+    expect(connect).not.toContain('wss:');
   });
 });

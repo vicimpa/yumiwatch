@@ -255,13 +255,6 @@
   .mobile-sheet-footer {
     padding-bottom: max(16px, env(safe-area-inset-bottom, 0px));
   }
-  .thread-screen.mobile-sheet,
-  .composer-screen.mobile-sheet {
-    width: 100%;
-    height: var(--visual-height, 100dvh);
-    top: var(--visual-top, 0px);
-    border-radius: 0;
-  }
   .is-overlay > .media-sidebar,
   .sidebar-presence.is-docked > .media-sidebar {
     width: 100%;

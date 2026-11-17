@@ -7,6 +7,7 @@ mod interface_scale;
 mod macos_fullscreen;
 mod media;
 mod providers;
+mod server_status;
 mod session;
 mod skips;
 mod updates;
@@ -135,6 +136,33 @@ async fn fetch_image(
 }
 
 #[tauri::command]
+async fn save_poster(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, backend::Backend>,
+    url: String,
+    anime_id: u64,
+) -> Result<String, String> {
+    #[cfg(desktop)]
+    {
+        let image = images::fetch(&state.client, &url).await?;
+        let directory = app
+            .path()
+            .download_dir()
+            .map_err(|_| "Не найдена папка «Загрузки».".to_string())?;
+        tauri::async_runtime::spawn_blocking(move || {
+            images::save_poster(&directory, anime_id, image)
+        })
+        .await
+        .map_err(|_| "Не удалось сохранить постер.".to_string())?
+    }
+    #[cfg(mobile)]
+    {
+        let _ = (app, state, url, anime_id);
+        Err("Скачивание постера доступно в настольной версии.".into())
+    }
+}
+
+#[tauri::command]
 async fn resolve_candidates(
     state: tauri::State<'_, backend::Backend>,
     candidates: Vec<providers::Candidate>,
@@ -144,6 +172,8 @@ async fn resolve_candidates(
 
 #[derive(Deserialize)]
 struct ApiRequest {
+    #[serde(default = "default_api_origin")]
+    origin: String,
     path: String,
     method: String,
     headers: HashMap<String, String>,
@@ -156,22 +186,38 @@ struct ApiResponse {
     body: String,
 }
 
+// Preserve requests from the previous frontend during development/HMR.
+fn default_api_origin() -> String {
+    "https://ru.yummyani.me".into()
+}
+
+fn api_url(origin: &str, path: &str) -> Result<url::Url, String> {
+    let prefix = match origin {
+        "https://api.yani.tv" => "/",
+        "https://old.yummyani.me" | "https://ru.yummyani.me" => "/api/",
+        _ => return Err("Некорректный адрес API.".into()),
+    };
+    let url = url::Url::parse(&format!("{origin}{path}")).map_err(|_| "Некорректный адрес API.")?;
+    if !path.starts_with(prefix)
+        || !url.path().starts_with(prefix)
+        || url.origin().ascii_serialization() != origin
+        || url.scheme() != "https"
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.port().is_some()
+        || url.fragment().is_some()
+    {
+        return Err("Некорректный адрес API.".into());
+    }
+    Ok(url)
+}
+
 #[tauri::command]
 async fn yummy_request(
     state: tauri::State<'_, backend::Backend>,
     request: ApiRequest,
 ) -> Result<ApiResponse, String> {
-    let url = url::Url::parse(&format!("https://api.yani.tv{}", request.path))
-        .map_err(|_| "Некорректный адрес API.")?;
-    if !request.path.starts_with('/')
-        || url.scheme() != "https"
-        || url.host_str() != Some("api.yani.tv")
-        || !url.username().is_empty()
-        || url.password().is_some()
-        || url.port().is_some()
-    {
-        return Err("Некорректный адрес API.".into());
-    }
+    let url = api_url(&request.origin, &request.path)?;
     if !matches!(
         request.method.as_str(),
         "GET" | "POST" | "PUT" | "PATCH" | "DELETE"
@@ -187,7 +233,7 @@ async fn yummy_request(
                 .map_err(|_| "Неизвестный метод API.")?,
             url,
         )
-        .timeout(Duration::from_secs(15));
+        .timeout(Duration::from_secs(5));
     for (name, value) in request.headers {
         if !matches!(
             name.to_ascii_lowercase().as_str(),
@@ -222,6 +268,7 @@ async fn yummy_request(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .enable_macos_default_menu(false)
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .on_window_event(|window, event| {
@@ -235,6 +282,7 @@ pub fn run() {
             }
         })
         .setup(|app| {
+            app.manage(updates::ReleaseCache::default());
             #[cfg(target_os = "macos")]
             if let Some(window) = app.get_webview_window("main") {
                 macos_fullscreen::install(&window)?;
@@ -275,10 +323,56 @@ pub fn run() {
             save_account_session,
             set_window_controls_visible,
             fetch_image,
+            save_poster,
             yummy_request,
+            server_status::yummy_server_status,
             updates::latest_app_release,
             resolve_candidates
         ])
         .run(tauri::generate_context!())
         .expect("Не удалось запустить YummyWatch");
+}
+
+#[cfg(test)]
+mod api_tests {
+    use super::*;
+
+    #[test]
+    fn accepts_only_the_three_api_origins_and_their_routes() {
+        for (origin, path) in [
+            ("https://api.yani.tv", "/anime?limit=1"),
+            ("https://old.yummyani.me", "/api/profile/login"),
+            ("https://ru.yummyani.me", "/api/anime?limit=1"),
+        ] {
+            assert_eq!(
+                api_url(origin, path).unwrap().as_str(),
+                format!("{origin}{path}")
+            );
+        }
+        for (origin, path) in [
+            ("https://old.yummyani.me.evil.test", "/api/profile"),
+            ("https://user@ru.yummyani.me", "/api/profile"),
+            ("https://ru.yummyani.me:444", "/api/profile"),
+            ("http://ru.yummyani.me", "/api/profile"),
+            ("https://ru.yummyani.me", "/profile"),
+            ("https://old.yummyani.me", "/api/../profile"),
+            ("https://old.yummyani.me", "/api/%2e%2e/profile"),
+            ("https://old.yummyani.me", "/api/profile#token"),
+            ("https://api.yani.tv", "@evil.test/profile"),
+        ] {
+            assert!(api_url(origin, path).is_err(), "accepted {origin}{path}");
+        }
+    }
+
+    #[test]
+    fn preserves_the_previous_frontends_default_origin() {
+        let request: ApiRequest = serde_json::from_value(serde_json::json!({
+            "path": "/api/anime", "method": "GET", "headers": {}, "body": null
+        }))
+        .unwrap();
+        assert_eq!(
+            api_url(&request.origin, &request.path).unwrap().host_str(),
+            Some("ru.yummyani.me")
+        );
+    }
 }

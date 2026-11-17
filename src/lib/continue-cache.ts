@@ -13,6 +13,38 @@ const key = () => {
   return session ? `yumiwatch:continue:v1:account:${session.user.id}` : undefined;
 };
 
+const hiddenKey = () => {
+  const session = getSession();
+  return session ? `yumiwatch:continue-hidden:v1:account:${session.user.id}` : undefined;
+};
+function hiddenIds(): number[] {
+  const address = hiddenKey();
+  const value = address ? readJSON<unknown>(address, []) : [];
+  return Array.isArray(value) ? value.filter(id => Number.isSafeInteger(id) && id > 0) : [];
+}
+export const isContinueHidden = (animeId: number) => hiddenIds().includes(animeId);
+
+export function hideContinue(animeId: number) {
+  const address = hiddenKey();
+  if (!address) return;
+  if (!writeJSON(address, [...new Set([...hiddenIds(), animeId])]))
+    throw new Error('Не удалось сохранить изменение на устройстве.');
+  write(read().filter(value => value.entry.anime.anime_id !== animeId));
+}
+
+export function restoreContinue(animeId: number) {
+  const address = hiddenKey();
+  if (
+    address &&
+    isContinueHidden(animeId) &&
+    !writeJSON(
+      address,
+      hiddenIds().filter(id => id !== animeId)
+    )
+  )
+    throw new Error('Не удалось сохранить изменение на устройстве.');
+}
+
 function compact(entry: WatchEntry): WatchEntry | undefined {
   if (
     !entry?.anime ||
@@ -79,7 +111,10 @@ export function mergeContinueHistory(...groups: WatchEntry[][]) {
   return [...entries.values()].sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
-export const readContinueHistory = () => read().map(value => value.entry);
+export const readContinueHistory = () =>
+  read()
+    .map(value => value.entry)
+    .filter(entry => !isContinueHidden(entry.anime.anime_id));
 
 export function rememberContinue(entry: WatchEntry, token: string | null) {
   if (!getSession() || getSession()?.token !== token) return;
@@ -87,6 +122,7 @@ export function rememberContinue(entry: WatchEntry, token: string | null) {
   const value = compact(entry);
 
   if (!value) return;
+  restoreContinue(value.anime.anime_id);
   write([
     { entry: value, pending: true },
     ...read().filter(previous => previous.entry.anime.anime_id !== value.anime.anime_id),
@@ -96,6 +132,7 @@ export function rememberContinue(entry: WatchEntry, token: string | null) {
 
 export function confirmContinue(entry: WatchEntry, token: string) {
   if (getSession()?.token !== token) return;
+  if (isContinueHidden(entry.anime.anime_id)) return;
 
   const value = compact(entry);
 
@@ -127,7 +164,7 @@ export function syncContinueHistory(entries: WatchEntry[], token: string) {
   const pending = read().filter(value => value.pending),
     history = mergeContinueHistory(
       pending.map(value => value.entry),
-      entries
+      entries.filter(entry => !isContinueHidden(entry.anime.anime_id))
     );
 
   write(

@@ -116,7 +116,9 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
           ? 'Выбирает серию'
           : panel === 'comments'
             ? 'Читает комментарии'
-            : undefined,
+            : resource.loading && !all.length
+              ? 'Смотрит · Загрузка'
+              : undefined,
     query,
     200
   );

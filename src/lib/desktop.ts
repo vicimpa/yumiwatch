@@ -2,6 +2,8 @@ import { convertFileSrc, invoke, isTauri } from '@tauri-apps/api/core';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 
+import { isApiUrl } from './api-endpoints';
+
 // Kept for existing IPC consumers: the Rust backend also runs on phones.
 export const isDesktop = () => isTauri();
 
@@ -84,18 +86,19 @@ export async function initializeDesktop() {
   document.addEventListener('click', handleDesktopLinkClick);
 }
 
-/** Keep API requests independent of WebView CORS policies. Rust accepts only api.yani.tv. */
+/** Keep API requests independent of WebView CORS policies. */
 export async function apiFetch(url: string, options: RequestInit): Promise<Response> {
   if (!isDesktop()) return fetch(url, options);
 
   const parsed = new URL(url);
 
-  if (parsed.origin !== 'https://api.yani.tv') throw new Error('Некорректный адрес API.');
+  if (!isApiUrl(parsed)) throw new Error('Некорректный адрес API.');
 
   const result = await desktopInvoke<{ status: number; body: string }>(
     'yummy_request',
     {
       request: {
+        origin: parsed.origin,
         path: `${parsed.pathname}${parsed.search}`,
         method: options.method || 'GET',
         headers: Object.fromEntries(new Headers(options.headers).entries()),

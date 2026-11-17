@@ -38,7 +38,7 @@ export function useDiscordPresence(
   }, [presence]);
 
   useEffect(() => {
-    if (playback) presence?.update(playback);
+    presence?.update(playback || { position: 0, duration: 0, playing: false, reason: 'buffering' });
   }, [
     presence,
     playback?.position,

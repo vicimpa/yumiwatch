@@ -31,6 +31,25 @@ function setup(enabled = true) {
 }
 
 describe('Discord playback presence', () => {
+  it.each(['sourcechange', 'buffering'] as const)(
+    'shows the selected anime and episode during initial %s before playback starts',
+    reason => {
+      const { presence, send, playing } = setup();
+      presence.update({ ...playing, playing: false, reason });
+      expect(send).toHaveBeenLastCalledWith({
+        details: anime.title,
+        state: 'Серия 2 · Загрузка',
+        animeUrl: `https://ru.yummyani.me/catalog/item/${anime.anime_url}`,
+        largeImage: 'https://static.yani.tv/poster.webp',
+      });
+      vi.advanceTimersByTime(PAUSE_TIMEOUT);
+      presence.refresh();
+      expect(send.mock.lastCall?.[0]?.state).toBe('Серия 2 · Загрузка');
+      presence.update(playing);
+      expect(send.mock.lastCall?.[0]?.state).toBe('Серия 2 · Воспроизводится');
+      expect(send.mock.lastCall?.[0]).toHaveProperty('timestamps');
+    }
+  );
   it('waits for playback and respects the sharing preference', () => {
     const { presence, send, allowed, playing } = setup(false);
 

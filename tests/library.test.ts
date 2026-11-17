@@ -9,6 +9,7 @@ import {
   setAnimeList,
   syncLibrary,
   toggleFavorite,
+  removeContinue,
 } from '~/lib/library';
 import { readLibrary, toggleFavorite as guestFavorite } from '~/lib/storage';
 import { savePlaybackRecovery } from '~/lib/playback-recovery';
@@ -38,6 +39,54 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe('account collection', () => {
+  it('keeps a dismissed title hidden across sync and restart, and restores it after playback', async () => {
+    user();
+    const fetcher = vi.fn(async (url: string) =>
+      reply(
+        url.includes('/video/watch-history')
+          ? [
+              {
+                ...anime,
+                video_id: video('1').video_id,
+                number: '1',
+                date: 1700000000,
+                end_time: 120,
+              },
+            ]
+          : url.includes('/lists')
+            ? []
+            : true
+      )
+    );
+    vi.stubGlobal('fetch', fetcher);
+    await syncLibrary();
+    expect(getLibraryState().history).toHaveLength(1);
+    removeContinue(anime.anime_id);
+    expect(getLibraryState().history).toHaveLength(0);
+    resetAccountLibrary();
+    await syncLibrary();
+    expect(getLibraryState().history).toHaveLength(0);
+    await recordWatch(anime, video('1'), 'group', 130);
+    expect(getLibraryState().history).toHaveLength(1);
+    expect(getLibraryState().history[0].position).toBe(130);
+  });
+
+  it('isolates dismissed titles by account', async () => {
+    user(42);
+    removeContinue(anime.anime_id);
+    user(43);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) =>
+        reply(url.includes('watch-history') ? [{ ...anime, number: '1', date: 1700000000 }] : [])
+      )
+    );
+    await syncLibrary();
+    expect(getLibraryState().history).toHaveLength(1);
+    user(42);
+    await syncLibrary();
+    expect(getLibraryState().history).toHaveLength(0);
+  });
   it('loads the user’s favorites and history and normalizes numeric ratings', async () => {
     user();
     vi.stubGlobal(

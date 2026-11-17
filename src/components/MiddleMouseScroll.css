@@ -1,0 +1,66 @@
+.middle-scroll-anchor {
+  position: fixed;
+  z-index: 12000;
+  width: 28px;
+  height: 28px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  border: 1px solid var(--muted);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 2px 8px #0006;
+}
+.middle-scroll-anchor > span {
+  position: absolute;
+  left: 11px;
+  top: 11px;
+  width: 4px;
+  height: 4px;
+  background: currentColor;
+  border-radius: 50%;
+}
+.middle-scroll-anchor.has-vertical::before,
+.middle-scroll-anchor.has-vertical::after {
+  content: '';
+  position: absolute;
+  left: 9px;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+}
+.middle-scroll-anchor.has-vertical::before {
+  top: 3px;
+  border-bottom: 4px solid currentColor;
+}
+.middle-scroll-anchor.has-vertical::after {
+  bottom: 3px;
+  border-top: 4px solid currentColor;
+}
+.middle-scroll-anchor.has-horizontal > span::before,
+.middle-scroll-anchor.has-horizontal > span::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+}
+.middle-scroll-anchor.has-horizontal > span::before {
+  left: -8px;
+  border-right: 4px solid currentColor;
+}
+.middle-scroll-anchor.has-horizontal > span::after {
+  right: -8px;
+  border-left: 4px solid currentColor;
+}
+html[data-middle-scroll='y'] *,
+html[data-middle-scroll='y'] {
+  cursor: ns-resize !important;
+}
+html[data-middle-scroll='x'] *,
+html[data-middle-scroll='x'] {
+  cursor: ew-resize !important;
+}
+html[data-middle-scroll='xy'] *,
+html[data-middle-scroll='xy'] {
+  cursor: all-scroll !important;
+}

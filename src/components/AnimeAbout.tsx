@@ -2,11 +2,13 @@ import type { FunctionalComponent as FC } from 'preact';
 import { useCallback, useLayoutEffect, useMemo, useState } from 'preact/hooks';
 
 import { imageUrl, plainText } from '~/lib/api';
+import { cardMenuEvents } from '~/lib/card-context';
 import { playbackUrl, videoPosition } from '~/lib/player';
 import { groupVoices } from '~/lib/streams';
 import type { Anime, Result, Video, WatchEntry } from '~/lib/types';
 
 import { AboutEpisodes } from './AboutEpisodes';
+import { AnimeRatingStats } from './AnimeRatingStats';
 import { EpisodeSubscriptionButton, useEpisodeSubscriptions } from './EpisodeSubscription';
 import { ArtworkImage, Button, ButtonLink, FormError, Icon, Sheet } from '~/ui';
 
@@ -169,6 +171,7 @@ export const AnimeAbout: FC<TAnimeAboutProps> = ({
           )}
         </dl>
       </section>
+      <AnimeRatingStats animeId={anime.anime_id} />
       <section class="about-screenshots" aria-label="Скриншоты аниме">
         <div class="section-heading">
           <h2>Скриншоты</h2>
@@ -264,6 +267,7 @@ export const AnimeAbout: FC<TAnimeAboutProps> = ({
                   key={item.anime_id}
                   href={`#/anime/${item.anime_id}`}
                   aria-current={current ? 'page' : undefined}
+                  {...cardMenuEvents(item)}
                 >
                   <span>{index + 1}</span>
                   <strong>

@@ -5,6 +5,8 @@ import { Gallery } from '~/components/Gallery';
 import { navigateGallery } from '~/lib/gallery-navigation';
 import { clearSession } from '~/lib/session';
 import { anime } from './fixtures';
+import { readLibrary, recordWatch } from '~/lib/storage';
+import { video } from './fixtures';
 
 beforeEach(() => {
   clearSession();
@@ -28,6 +30,22 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe('catalog gallery', () => {
+  it('removes a continue card with its close button without navigating to playback', () => {
+    recordWatch(anime, video('1'), 'group', 123);
+    recordWatch({ ...anime, anime_id: 10532, title: 'Второе аниме' }, video('1'), 'group');
+    render(<Gallery />);
+    const shelf = screen.getByRole('region', { name: 'Продолжить просмотр' });
+    const before = location.hash;
+    const remove = within(shelf).getByRole('button', {
+      name: `Убрать «${anime.title}» из «Продолжить просмотр»`,
+    });
+    expect(remove.closest('a')).toBeNull();
+    fireEvent.click(remove);
+    expect(readLibrary().history.map(entry => entry.anime.anime_id)).toEqual([10532]);
+    expect(location.hash).toBe(before);
+    expect(within(shelf).queryByRole('link', { name: anime.title })).toBeNull();
+    expect(within(shelf).getByRole('link', { name: /Второе аниме/ })).toBeTruthy();
+  });
   it('does not mistake a wrapped neighboring title for the row above', () => {
     render(
       <section onKeyDown={navigateGallery}>

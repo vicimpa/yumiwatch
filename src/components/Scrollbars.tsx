@@ -2,7 +2,8 @@ import type { FunctionalComponent as FC } from 'preact';
 import { createPortal } from 'preact/compat';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'preact/hooks';
 
-const SELECTOR = '.media-scroll,.media-nav,.sidebar-scroll,.modal-scroll,.video-settings';
+const SELECTOR =
+  '.media-scroll,.media-nav,.sidebar-scroll,.modal-scroll,.video-settings,.discussion-content';
 const IDLE_DELAY = 850;
 
 type Geometry = {

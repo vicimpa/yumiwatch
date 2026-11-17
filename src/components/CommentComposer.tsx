@@ -1,185 +1,146 @@
-import type { FunctionalComponent as FC, JSX } from 'preact';
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'preact/hooks';
-
-import type { TReplyTarget } from '~/lib/comments';
-import { postComment } from '~/lib/comments';
+import type { FunctionalComponent as FC } from 'preact';
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { commentDraftKey, postComment, type TReplyTarget, type YummyComment } from '~/lib/comments';
 import { useSession } from '~/lib/hooks';
 import { notify } from '~/lib/notifications';
 import { getSession } from '~/lib/session';
-
-import { Button, Field, Form, FormActions, FormError, Icon, Sheet, Textarea } from '~/ui';
+import { Button, Icon } from '~/ui';
+import { ChatComposer } from '~/ui/ChatComposer';
 
 type TCommentComposerProps = {
   animeId: number;
-  requestedReply?: TReplyTarget;
-  close: () => void;
-  completed: () => void;
+  reply?: TReplyTarget;
+  initialText: string;
+  cancelReply: () => void;
+  completed: (comment: YummyComment, reply?: TReplyTarget) => void;
+  onSendingChange: (sending: boolean) => void;
 };
 
 export const CommentComposer: FC<TCommentComposerProps> = ({
   animeId,
-  requestedReply,
-  close,
+  reply,
+  initialText,
+  cancelReply,
   completed,
+  onSendingChange,
 }) => {
   const session = useSession()!;
-  const key = `yumiwatch:draft:${session.user.id}:${animeId}`;
-  const stored = useRef<{ text?: string; reply?: TReplyTarget }>({});
-  const loaded = useRef(false);
-
-  if (!loaded.current) {
-    loaded.current = true;
-    try {
-      stored.current = JSON.parse(sessionStorage.getItem(key) || '{}');
-    } catch {
-      stored.current = {};
-    }
-  }
-
-  const [reply, setReply] = useState(requestedReply || stored.current.reply);
-  const [text, setText] = useState(
-    !requestedReply || requestedReply.id === stored.current.reply?.id
-      ? stored.current.text || ''
-      : ''
-  );
+  const key = commentDraftKey(session.user.id, animeId);
+  const [text, setText] = useState(initialText);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const textarea = useRef<HTMLTextAreaElement>(null);
-  const sent = useRef(false);
-  const form = useRef<HTMLFormElement>(null);
-  const formId = useId();
-
-  useLayoutEffect(() => {
-    textarea.current?.focus();
-  }, []);
-
-  useLayoutEffect(() => {
-    if (textarea.current) {
-      textarea.current.style.height = 'auto';
-      textarea.current.style.height = `${textarea.current.scrollHeight}px`;
+  const alive = useRef(true);
+  const latest = useRef({ text, reply });
+  latest.current = { text, reply };
+  const saveDraft = () => {
+    if (getSession()?.token !== session.token) return;
+    try {
+      const draft = latest.current;
+      draft.text || draft.reply
+        ? sessionStorage.setItem(key, JSON.stringify(draft))
+        : sessionStorage.removeItem(key);
+    } catch {
+      /* Draft saving is optional. */
     }
-  }, [text]);
-
+  };
   useEffect(() => {
-    const save = () => {
-      if (sent.current || getSession()?.token !== session.token) return;
-      try {
-        text
-          ? sessionStorage.setItem(key, JSON.stringify({ text, reply }))
-          : sessionStorage.removeItem(key);
-      } catch {
-        /* Draft saving is optional. */
-      }
-    };
-
-    const timer = setTimeout(save, 300);
-
-    return () => {
-      clearTimeout(timer);
-      save();
-    };
+    const timer = setTimeout(saveDraft, 300);
+    return () => clearTimeout(timer);
   }, [text, reply, key]);
-
-  const submit = useCallback(
-    async (event: JSX.TargetedSubmitEvent<HTMLFormElement>) => {
-      event.preventDefault();
-      if (sending) return;
-      setSending(true);
-      setError('');
-      try {
-        await postComment(animeId, text, reply);
-        if (getSession()?.token !== session.token) return;
-        sent.current = true;
-        try {
-          sessionStorage.removeItem(key);
-        } catch {
-          /* Publishing succeeded even if storage is unavailable. */
-        }
-        completed();
-        notify('Комментарий опубликован');
-      } catch (error) {
-        setError((error as Error).message);
-      } finally {
-        setSending(false);
-      }
-    },
-    [sending, animeId, text, reply, session.token, key, completed]
-  );
-
-  const changeText = useCallback(
-    (event: JSX.TargetedInputEvent<HTMLTextAreaElement>) => setText(event.currentTarget.value),
-    []
-  );
-
-  const submitOnShortcut = useCallback((event: JSX.TargetedKeyboardEvent<HTMLTextAreaElement>) => {
-    if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') form.current?.requestSubmit();
+  useLayoutEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+      saveDraft();
+    };
   }, []);
+  useLayoutEffect(() => {
+    if (reply) textarea.current?.focus({ preventScroll: true });
+    setError('');
+  }, [reply]);
 
-  const addSpoiler = useCallback(() => {
+  const submit = async () => {
+    setSending(true);
+    onSendingChange(true);
+    setError('');
+    try {
+      const comment = await postComment(animeId, text, reply);
+      if (!alive.current || getSession()?.token !== session.token) return;
+      latest.current = { text: '', reply: undefined };
+      setText('');
+      try {
+        sessionStorage.removeItem(key);
+      } catch {
+        /* Publishing succeeded. */
+      }
+      completed(comment, reply);
+      notify('Комментарий опубликован');
+    } catch (error) {
+      if (alive.current && getSession()?.token === session.token)
+        setError((error as Error).message);
+    } finally {
+      if (alive.current) {
+        setSending(false);
+        onSendingChange(false);
+      }
+    }
+  };
+  const addSpoiler = () => {
     const start = textarea.current?.selectionStart ?? text.length;
     const end = textarea.current?.selectionEnd ?? text.length;
-
+    if (text.length + 19 > 10000) return;
     setText(
       value =>
         `${value.slice(0, start)}[спойлер]${value.slice(start, end)}[/спойлер]${value.slice(end)}`
     );
     requestAnimationFrame(() => {
-      textarea.current?.focus();
+      textarea.current?.focus({ preventScroll: true });
       textarea.current?.setSelectionRange(start + 9, start + 9 + end - start);
     });
-  }, [text.length]);
-
-  const cancelReply = useCallback(() => setReply(undefined), []);
-
+  };
   return (
-    <Sheet
-      title={reply ? `Ответ для ${reply.name}` : 'Новый комментарий'}
-      subtitle={`От имени ${session.user.nickname}`}
-      close={close}
-      className="composer-screen"
-      footer={
-        <>
-          <FormActions class="composer-footer-meta">
-            <Button type="button" onClick={addSpoiler} variant="text">
-              + Спойлер
+    <ChatComposer
+      className="comment-composer"
+      value={text}
+      onValueChange={setText}
+      onSubmit={submit}
+      sending={sending}
+      label="Твой комментарий"
+      placeholder={reply ? `Ответ для ${reply.name}…` : 'Написать комментарий…'}
+      textareaRef={textarea}
+      error={error}
+      context={
+        reply && (
+          <>
+            <span>
+              Ответ для <strong>{reply.name}</strong>
+            </span>
+            <Button
+              type="button"
+              variant="icon"
+              aria-label="Отменить ответ"
+              disabled={sending}
+              onClick={cancelReply}
+            >
+              <Icon name="close" size={16} />
             </Button>
-            <span>{text.length}/10000</span>
-          </FormActions>
-          {error && <FormError class="sheet-validation">{error}</FormError>}
-          <Button form={formId} type="submit" disabled={sending || !text.trim()} variant="primary">
-            {sending ? 'Отправляем…' : 'Опубликовать'}
+          </>
+        )
+      }
+      tools={
+        <>
+          <Button
+            type="button"
+            variant="text"
+            disabled={sending || text.length + 19 > 10000}
+            onClick={addSpoiler}
+          >
+            + Спойлер
           </Button>
+          <span>{text.length}/10000</span>
         </>
       }
-    >
-      <Form ref={form} id={formId} class="comment-composer-form" onSubmit={submit}>
-        {reply && (
-          <div class="comment-reply-to">
-            Ответ для {reply.name}
-            <button type="button" aria-label="Отменить ответ" onClick={cancelReply}>
-              <Icon name="close" size={16} />
-            </button>
-          </div>
-        )}
-        <Field htmlFor="comment-draft" label="Твой комментарий">
-          <Textarea
-            ref={textarea}
-            id="comment-draft"
-            placeholder="Поделись впечатлениями. Сюжетные детали спрячь под спойлер."
-            maxLength={10000}
-            required
-            value={text}
-            disabled={sending}
-            onInput={changeText}
-            onKeyDown={submitOnShortcut}
-          />
-        </Field>
-        <p class="draft-note">
-          {stored.current.text
-            ? 'Черновик восстановлен'
-            : 'Черновик сохранится, если закрыть этот экран'}
-        </p>
-      </Form>
-    </Sheet>
+    />
   );
 };

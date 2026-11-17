@@ -407,23 +407,37 @@
   gap: 12px;
   flex-wrap: wrap;
 }
-.media-sidebar .comments-section {
-  padding-bottom: 0;
+.comments-sidebar .sidebar-scroll {
+  display: flex;
+  overflow: hidden;
+  padding: 0;
 }
-.media-sidebar .discussion-compose-bar {
-  position: sticky;
-  bottom: -18px;
-  left: auto;
-  right: auto;
-  z-index: 2;
-  padding: 12px 0 0;
-  margin-top: 18px;
-  background: #2a2a2d;
+.comments-sidebar .comments-section {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+}
+.comments-sidebar .discussion-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  padding: 16px 18px;
+}
+.comments-sidebar .discussion-compose-bar {
+  position: static;
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0;
+  background: var(--surface);
   box-shadow: none;
   border-radius: 0;
 }
-.media-sidebar .discussion-compose-bar > button,
-.media-sidebar .discussion-compose-bar > a {
+.comments-sidebar .discussion-compose-bar > a {
+  margin: 12px 16px max(12px, env(safe-area-inset-bottom));
+  width: calc(100% - 32px);
   min-height: 48px;
   padding: 10px;
   font-size: 12px;
@@ -575,6 +589,8 @@
 }
 .interface-style {
   display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 18px;
@@ -583,6 +599,8 @@
 }
 .interface-style .select-control {
   width: 205px;
+  max-width: 100%;
+  flex-shrink: 0;
 }
 .interface-style select {
   min-height: 44px;
@@ -592,6 +610,20 @@
   padding-top: 22px;
   margin-top: 25px;
   border-top: 1px solid var(--line);
+}
+.settings-card .settings-choice {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 250px);
+  align-items: center;
+  gap: 12px 24px;
+  margin-top: 24px;
+  font-size: 13px;
+}
+@media (max-width: 600px) {
+  .settings-card .settings-choice {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
 }
 .keyboard-reference h3 {
   font-size: 14px;
@@ -834,9 +866,6 @@ html[data-interface-style='contrast'] :focus-visible {
     padding: 16px;
     padding-bottom: max(16px, env(safe-area-inset-bottom));
   }
-  .media-sidebar .discussion-compose-bar {
-    bottom: -16px;
-  }
   .media-sidebar .comments-section {
     padding-bottom: 0;
   }
@@ -902,18 +931,6 @@ html[data-interface-style='contrast'] :focus-visible {
   }
 }
 
-.thread-screen.mobile-sheet,
-.composer-screen.mobile-sheet {
-  inset: 0 0 0 auto;
-  margin: 0;
-  width: min(460px, 96vw);
-  height: 100dvh;
-  border-radius: 12px 0 0 12px;
-}
-.thread-screen.mobile-sheet[open],
-.composer-screen.mobile-sheet[open] {
-  animation: panel-enter 0.22s ease both;
-}
 /* Kodi-style application chrome: a media menu, never a website header/footer. */
 .media-nav {
   position: fixed;

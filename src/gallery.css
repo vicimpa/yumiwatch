@@ -213,6 +213,44 @@
 .gallery-rail .anime-card {
   scroll-snap-align: start;
 }
+.gallery-continue-card {
+  position: relative;
+  min-width: 0;
+  scroll-snap-align: start;
+}
+.continue-remove {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid #ffffff30;
+  border-radius: 50%;
+  background: #202024e6;
+  color: #fff;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms;
+}
+.gallery-continue-card:is(:hover, :focus-within) .continue-remove {
+  opacity: 1;
+  pointer-events: auto;
+}
+.continue-remove:hover {
+  background: #502e34;
+  color: var(--accent);
+}
+@media (hover: none), (pointer: coarse) {
+  .continue-remove {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
 .gallery-continue {
   display: block;
   min-width: 0;

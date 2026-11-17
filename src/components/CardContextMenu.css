@@ -1,0 +1,55 @@
+.card-context-menu {
+  position: fixed;
+  z-index: 11000;
+  width: 296px;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100dvh - 16px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 16px 48px #0008;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.card-context-title {
+  padding: 8px 10px;
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.card-context-menu > button,
+.card-context-menu > a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 36px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  text-align: left;
+  font: inherit;
+}
+.card-context-menu > button > span {
+  flex: 1;
+}
+.card-context-menu > :is(button, a):is(:hover, :focus-visible) {
+  background: var(--surface-hover);
+  outline: none;
+}
+.card-context-menu > :disabled {
+  opacity: 0.4;
+}
+.card-context-menu > .is-danger {
+  color: var(--accent);
+}
+.card-context-menu > [role='separator'] {
+  height: 1px;
+  margin: 5px 8px;
+  background: var(--line);
+}

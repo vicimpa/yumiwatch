@@ -1,9 +1,13 @@
-import { beforeEach } from 'vitest';
+import { beforeEach, afterEach } from 'vitest';
 import { resetMemoryCache } from '~/lib/cache-store';
+import { resetApiEndpoint } from '~/lib/api-endpoints';
 
 beforeEach(() => {
   resetMemoryCache();
+  resetApiEndpoint();
 });
+
+afterEach(resetApiEndpoint);
 
 import { JSDOM } from 'jsdom';
 

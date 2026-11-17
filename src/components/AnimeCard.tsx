@@ -1,6 +1,7 @@
 import type { FunctionalComponent as FC } from 'preact';
 
 import type { Anime } from '~/lib/types';
+import { cardMenuEvents } from '~/lib/card-context';
 
 import { FavoriteButton } from './FavoriteButton';
 import { Poster } from './Poster';
@@ -18,7 +19,13 @@ export const AnimeCard: FC<TAnimeCardProps> = ({ anime, rank, onOpen, onFocus, o
   const score = anime.rating?.average;
 
   return (
-    <article class="anime-card" data-gallery-item onFocusIn={onFocus} onPointerEnter={onPreview}>
+    <article
+      class="anime-card"
+      data-gallery-item
+      onFocusIn={onFocus}
+      onPointerEnter={onPreview}
+      {...cardMenuEvents(anime)}
+    >
       <div class="card-image">
         <a
           href={`#/anime/${anime.anime_id}?view=anime-about`}
@@ -66,7 +73,7 @@ export const AnimeCard: FC<TAnimeCardProps> = ({ anime, rank, onOpen, onFocus, o
 export type TAnimeRowProps = { anime: Anime; onOpen?: () => void };
 
 export const AnimeRow: FC<TAnimeRowProps> = ({ anime, onOpen }) => (
-  <article class="anime-result-row">
+  <article class="anime-result-row" {...cardMenuEvents(anime)}>
     <a class="result-main" href={`#/anime/${anime.anime_id}?view=anime-about`} onClick={onOpen}>
       <div class="result-poster">
         <Poster anime={anime} />

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'preact/hooks';
 
 import { animeSchedule, peekAnimeSchedule } from '~/lib/api';
 import { useResource } from '~/lib/hooks';
+import { cardMenuEvents } from '~/lib/card-context';
 
 import { Poster } from './Poster';
 import { Empty, ErrorState, Icon, Skeleton } from '~/ui';
@@ -83,7 +84,12 @@ export const Schedule: FC = () => {
         <>
           <div class="schedule-list">
             {data.map(anime => (
-              <a class="schedule-card" href={`#/anime/${anime.anime_id}`} key={anime.anime_id}>
+              <a
+                class="schedule-card"
+                href={`#/anime/${anime.anime_id}`}
+                key={anime.anime_id}
+                {...cardMenuEvents(anime)}
+              >
                 <time dateTime={new Date(anime.episodes!.next_date! * 1000).toISOString()}>
                   {new Date(anime.episodes!.next_date! * 1000).toLocaleTimeString('ru', {
                     hour: '2-digit',

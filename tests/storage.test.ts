@@ -1,6 +1,13 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearHistory, LIBRARY_KEY, readLibrary, recordWatch, toggleFavorite } from '~/lib/storage';
+import {
+  clearHistory,
+  LIBRARY_KEY,
+  readLibrary,
+  recordWatch,
+  removeHistoryEntry,
+  toggleFavorite,
+} from '~/lib/storage';
 import { groupKey } from '~/lib/player';
 import { anime, video } from './fixtures';
 
@@ -9,6 +16,14 @@ beforeEach(() => {
   vi.restoreAllMocks();
 });
 describe('local collection', () => {
+  it('removes a single continue entry while retaining other titles and favorites', () => {
+    toggleFavorite(anime);
+    recordWatch(anime, video('1'), 'group', 12);
+    recordWatch({ ...anime, anime_id: 77 }, video('1'), 'group', 34);
+    removeHistoryEntry(anime.anime_id);
+    expect(readLibrary().history.map(entry => entry.anime.anime_id)).toEqual([77]);
+    expect(readLibrary().favorites[0].anime_id).toBe(anime.anime_id);
+  });
   it('toggles a favorite without duplicates', () => {
     expect(toggleFavorite(anime)).toBe(true);
     expect(readLibrary().favorites.map(a => a.anime_id)).toEqual([10531]);

@@ -23,6 +23,8 @@ import { ActivityNotice } from '~/components/Social';
 import { NavigationHistory } from '~/components/NavigationHistory';
 import { navigateBack } from '~/lib/navigation';
 import { CardTitleTooltip, Icon, Toast } from '~/ui';
+import { CardContextMenu } from '~/components/CardContextMenu';
+import { MiddleMouseScroll } from '~/components/MiddleMouseScroll';
 
 const titles: Partial<Record<string, string>> = {
   '/': 'Каталог',
@@ -175,6 +177,8 @@ export const App: FC = () => {
       <ActivityNotice />
       <Scrollbars />
       <CardTitleTooltip />
+      <CardContextMenu />
+      <MiddleMouseScroll />
     </div>
   );
 };

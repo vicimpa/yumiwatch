@@ -76,9 +76,14 @@ beforeEach(() => {
             response:
               path === '/anime/10531'
                 ? sample
-                : path.endsWith('/videos')
-                  ? [current, video('2'), video('1', 'AniDub')]
-                  : { comments: [] },
+                : path.endsWith('/rates')
+                  ? [
+                      { rating: 9, count: 3 },
+                      { rating: 7, count: 1 },
+                    ]
+                  : path.endsWith('/videos')
+                    ? [current, video('2'), video('1', 'AniDub')]
+                    : { comments: [] },
           })
         )
       );
@@ -150,6 +155,8 @@ describe('anime media center screens', () => {
       'anime-resume-row'
     );
     expect(screen.getByText('Тестовая студия')).toBeTruthy();
+    await screen.findByRole('region', { name: 'Оценки зрителей' });
+    await screen.findByRole('img', { name: /Распределение 4 оценок/ });
     expect(screen.getByRole('button', { name: 'Открыть скриншот 1' })).toBeTruthy();
 
     const voice = await screen.findByRole('link', { name: /AniDub/ });

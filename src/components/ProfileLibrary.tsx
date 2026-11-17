@@ -9,6 +9,7 @@ import { notify } from '~/lib/notifications';
 import { formatTime } from '~/lib/player';
 import { SUBSCRIPTIONS_EVENT } from '~/lib/social';
 import type { Anime } from '~/lib/types';
+import { cardMenuEvents } from '~/lib/card-context';
 import { Poster } from './Poster';
 import {
   Button,
@@ -80,6 +81,7 @@ export const ProfileSubscriptions: FC = () => {
           class="subscription-card"
           href={`#/anime/${anime.anime_id}`}
           key={`${anime.anime_id}:${index}`}
+          {...cardMenuEvents(anime)}
         >
           <div class="history-poster">
             <Poster anime={anime} />
@@ -172,6 +174,7 @@ export const ProfileHistory: FC = () => {
                     class="history-card"
                     href={`#/anime/${entry.anime.anime_id}?view=watch&play=1`}
                     key={entry.anime.anime_id}
+                    {...cardMenuEvents(entry.anime)}
                   >
                     <div class="history-poster">
                       <Poster anime={entry.anime} />

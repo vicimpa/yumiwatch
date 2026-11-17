@@ -31,9 +31,8 @@ describe('media center preferences and sound', () => {
       target: { value: '.5' },
     });
     fireEvent.click(screen.getByRole('checkbox', { name: 'Анимации переходов и боковых панелей' }));
-    fireEvent.change(screen.getByRole('combobox', { name: 'Стиль интерфейса' }), {
-      target: { value: 'contrast' },
-    });
+    fireEvent.click(screen.getByRole('combobox', { name: 'Стиль интерфейса' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Контрастный' }));
     expect(interfaceSettings()).toMatchObject({
       volume: 0.25,
       effectsVolume: 0.5,

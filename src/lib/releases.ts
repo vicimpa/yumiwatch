@@ -3,7 +3,8 @@ import { desktopInvoke, isDesktop } from './desktop';
 
 export const APP_VERSION = version;
 export const RELEASE_API = 'https://api.github.com/repos/vicimpa/yummywatch/releases/latest';
-export const RELEASE_CHECK_INTERVAL = 6 * 60 * 60 * 1000;
+export const RELEASE_CHECK_INTERVAL = 5 * 60 * 1000;
+export const RELEASE_STARTUP_DELAY = 1000;
 
 export interface AppRelease {
   version: string;
@@ -57,15 +58,52 @@ export function parseRelease(value: unknown): AppRelease | null {
   }
 }
 
+export function createReleaseFetcher(fetcher: typeof fetch = (...args) => fetch(...args)) {
+  let etag: string | undefined;
+  let release: AppRelease | null = null;
+  let retryAt = 0;
+  return async (signal?: AbortSignal): Promise<AppRelease | null> => {
+    signal?.throwIfAborted();
+    if (Date.now() < retryAt) return release;
+    const response = await fetcher(RELEASE_API, {
+      signal,
+      cache: 'no-store',
+      credentials: 'omit',
+      headers: {
+        Accept: 'application/vnd.github+json',
+        ...(etag ? { 'If-None-Match': etag } : {}),
+      },
+    });
+    const seconds = (name: string) => {
+      const value = response.headers.get(name);
+      return value && /^\d+$/.test(value) ? Number(value) : 0;
+    };
+    const delay = Math.max(
+      seconds('retry-after') * 1000,
+      seconds('x-poll-interval') * 1000,
+      response.headers.get('x-ratelimit-remaining') === '0'
+        ? seconds('x-ratelimit-reset') * 1000 - Date.now()
+        : 0,
+      [403, 429].includes(response.status) ? 60_000 : 0
+    );
+    retryAt = Date.now() + delay;
+    if (response.status === 304) return release;
+    if (response.status === 404) {
+      etag = undefined;
+      release = null;
+      retryAt = Math.max(retryAt, Date.now() + 60 * 60 * 1000);
+      return null;
+    }
+    if (!response.ok) throw new Error('Не удалось проверить обновления.');
+    const next = parseRelease(await response.json());
+    etag = response.headers.get('etag') || undefined;
+    release = next;
+    return release;
+  };
+}
+
+const fetchRelease = createReleaseFetcher();
 export async function latestRelease(signal?: AbortSignal): Promise<AppRelease | null> {
-  if (isDesktop()) return parseRelease(await desktopInvoke('latest_app_release', {}));
-  const response = await fetch(RELEASE_API, {
-    signal,
-    cache: 'no-store',
-    credentials: 'omit',
-    headers: { Accept: 'application/vnd.github+json' },
-  });
-  if (response.status === 404) return null;
-  if (!response.ok) throw new Error('Не удалось проверить обновления.');
-  return parseRelease(await response.json());
+  if (isDesktop()) return parseRelease(await desktopInvoke('latest_app_release', {}, signal));
+  return fetchRelease(signal);
 }

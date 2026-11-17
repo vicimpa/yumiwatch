@@ -15,6 +15,7 @@ import {
   type UserProfile,
 } from '~/lib/profile';
 import { Button, Empty, FormError, Icon, SectionHeading } from '~/ui';
+import { RatingDistribution } from '~/ui/RatingDistribution';
 
 export const ProfileTaste: FC<{ id?: number; animes: ProfileAnime[] }> = ({ id, animes }) => {
   const session = useSession();
@@ -94,11 +95,6 @@ const RatingStats: FC<{ id: number }> = ({ id }) => {
     () => peekProfileData<{ rating: number; count: number }[]>(`ratings:${id}`)
   );
   const values = resource.value?.data || [];
-  const count = values.reduce((sum, value) => sum + value.count, 0);
-  const average = count
-    ? values.reduce((sum, value) => sum + value.rating * value.count, 0) / count
-    : 0;
-  const max = Math.max(1, ...values.map(value => value.count));
 
   return (
     <section class="profile-panel">
@@ -114,40 +110,11 @@ const RatingStats: FC<{ id: number }> = ({ id }) => {
             Повторить
           </Button>
         </FormError>
-      ) : count ? (
-        <>
-          <p class="profile-rating-average">
-            <strong>{average.toFixed(1)}</strong>
-            <span>
-              средняя оценка
-              <br />
-              {count.toLocaleString('ru')} оценок
-            </span>
-          </p>
-          <div
-            class="profile-rating-chart"
-            role="img"
-            aria-label={`Распределение ${count} оценок. Средняя оценка ${average.toFixed(1)}`}
-          >
-            {Array.from({ length: 10 }, (_, i) => {
-              const rating = i + 1;
-              const n = values.find(value => value.rating === rating)?.count || 0;
-              return (
-                <div key={rating} title={`${rating} из 10 — ${n} оценок`}>
-                  <small>{n || ''}</small>
-                  <span>
-                    <i style={{ height: `${(n / max) * 100}%` }} />
-                  </span>
-                  <b>{rating}</b>
-                </div>
-              );
-            })}
-          </div>
-        </>
       ) : (
-        <p class="profile-muted">
-          Пока нет личных оценок. Оценки, поставленные на YummyAnime, появятся здесь.
-        </p>
+        <RatingDistribution
+          values={values}
+          empty="Пока нет личных оценок. Оценки, поставленные на YummyAnime, появятся здесь."
+        />
       )}
     </section>
   );

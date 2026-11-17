@@ -224,6 +224,16 @@ for (const engine of process.env.LAYOUT_BROWSER === 'chrome' ? [chromium] : [web
           );
 
           const inset = fullscreen ? 0 : 44;
+          const history = page
+            .locator('.media-sidebar-chrome .navigation-history > button')
+            .first();
+          await history.waitFor({ state: 'visible' });
+          const historyBounds = await history.boundingBox();
+          assert.equal(
+            historyBounds?.x,
+            platform === 'macos' && !fullscreen ? 84 : 16,
+            `${platform}: history reserves space only for visible macOS traffic lights`
+          );
 
           if (width <= 760) {
             const header = await page.locator('.phone-header').boundingBox();
