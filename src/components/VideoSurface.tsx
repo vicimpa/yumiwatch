@@ -22,6 +22,8 @@ import { Button } from '~/ui';
 
 export const STREAM_STALL_TIMEOUT_MS = 20000;
 export const STREAM_ERROR_DELAY_MS = 1500;
+// Alloha's relay expires after three idle minutes. Refresh before that boundary.
+export const STREAM_RESUME_REFRESH_MS = 120000;
 
 export type TVideoSurfaceProps = {
   stream: Stream;
@@ -54,6 +56,7 @@ export type TVideoSurfaceProps = {
   fullscreenFrame?: RefObject<HTMLDivElement>;
   onQualityError?: (stream: Stream) => void;
   onStreamError?: (playing: boolean) => boolean | void;
+  onResume?: () => boolean;
 };
 
 export const VideoSurface: FC<TVideoSurfaceProps> = ({
@@ -67,6 +70,7 @@ export const VideoSurface: FC<TVideoSurfaceProps> = ({
   onEnded,
   autoNext = false,
   onStreamError,
+  onResume,
   retry,
   title,
   poster,
@@ -137,9 +141,9 @@ export const VideoSurface: FC<TVideoSurfaceProps> = ({
   const [, refreshAction] = useState(0);
   const saved = useRef({ time: start, playing: autoplay });
   const skipped = useRef(new Set<string>());
-  const callbacks = useRef({ onUpdate, onEnded, onStreamError });
+  const callbacks = useRef({ onUpdate, onEnded, onStreamError, onResume });
 
-  callbacks.current = { onUpdate, onEnded, onStreamError };
+  callbacks.current = { onUpdate, onEnded, onStreamError, onResume };
 
   const rules = useRef({ skips, autoOpening, autoEnding });
 
@@ -287,6 +291,7 @@ export const VideoSurface: FC<TVideoSurfaceProps> = ({
       ready = readySlots.current.has(active),
       broken = false;
     let lastMediaTime = video.currentTime;
+    let pausedAt = video.paused ? Date.now() : undefined;
     let stallTimer: ReturnType<typeof setTimeout> | undefined;
     let errorTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -484,7 +489,20 @@ export const VideoSurface: FC<TVideoSurfaceProps> = ({
 
     const update = (event: Event) => {
       if (disposed || activeSlot.current !== active) return;
-      if (event.type === 'play') saved.current.playing = true;
+      if (event.type === 'pause') pausedAt ??= Date.now();
+      if (event.type === 'play') {
+        saved.current.playing = true;
+        const longPause =
+          pausedAt !== undefined && Date.now() - pausedAt >= STREAM_RESUME_REFRESH_MS;
+        pausedAt = undefined;
+        if (longPause && callbacks.current.onResume) {
+          emit('play');
+          if (callbacks.current.onResume()) {
+            setLoading(true);
+            return;
+          }
+        }
+      }
       // A progressing decoder is authoritative even if a prior network error
       // was terminal at the time. Never leave a stale alert over live frames.
       if (

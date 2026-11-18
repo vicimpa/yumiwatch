@@ -1,8 +1,10 @@
+import { AppLink } from '~/ui/AppLink';
 import type { FunctionalComponent as FC } from 'preact';
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 
 import { CURRENT_SEASONS } from '~/data/catalog';
 import { animeList, imageUrl, peekAnimeList, plainText } from '~/lib/api';
+import { animeSiteUrl } from '~/lib/content-links';
 import { navigateGallery } from '~/lib/gallery-navigation';
 import { useLibrary, useResource } from '~/lib/hooks';
 import { formatTime } from '~/lib/player';
@@ -13,10 +15,17 @@ import { notify } from '~/lib/notifications';
 
 import { AnimeCard } from './AnimeCard';
 import { FavoriteButton } from './FavoriteButton';
-import { FilterSheet } from './Filters';
-import { GalleryShelf, GalleryToolbar } from './GalleryShelf';
+import { GalleryShelf } from './GalleryShelf';
 import { Poster } from './Poster';
-import { ArtworkImage, ButtonLink, CachedNotice, CardSkeleton, ErrorState, Icon } from '~/ui';
+import {
+  ArtworkImage,
+  Button,
+  ButtonLink,
+  CachedNotice,
+  CardSkeleton,
+  ErrorState,
+  Icon,
+} from '~/ui';
 
 export type TGalleryProps = { active?: boolean };
 
@@ -64,13 +73,9 @@ export const Gallery: FC<TGalleryProps> = ({ active = true }) => {
   );
   const screen = useRef<HTMLElement>(null),
     wasActive = useRef(active);
+  const focusedAnime = useRef<number>();
   const library = useLibrary();
-  const [selected, setSelected] = useState<Anime>();
-  const [filters, setFilters] = useState(false);
-
-  useEffect(() => {
-    if (!active) setFilters(false);
-  }, [active]);
+  const [feature, setFeature] = useState<Anime>();
 
   useEffect(() => {
     const returning = active && !wasActive.current;
@@ -80,21 +85,33 @@ export const Gallery: FC<TGalleryProps> = ({ active = true }) => {
       ongoing.retry();
       popular.retry();
       announces.retry();
-    }
-    if (returning && selected) {
       const frame = requestAnimationFrame(() =>
         screen.current
           ?.querySelector<HTMLAnchorElement>(
-            `[data-gallery-link][href="#/anime/${selected.anime_id}?view=anime-about"]`
+            `[data-gallery-link][data-app-href="#/anime/${focusedAnime.current}?view=anime-about"]`
           )
           ?.focus({ preventScroll: true })
       );
-
       return () => cancelAnimationFrame(frame);
     }
   }, [active]);
 
-  const feature = selected || ongoing.value?.data[0] || popular.value?.data[0];
+  const choices = [
+    ...new Map(
+      [ongoing.value, popular.value, announces.value]
+        .flatMap(result => result?.data || [])
+        .map(anime => [anime.anime_id, anime] as const)
+    ).values(),
+  ];
+  const chooseRandom = () => {
+    const others = choices.filter(anime => anime.anime_id !== feature?.anime_id);
+    if (others.length) setFeature(others[Math.floor(Math.random() * others.length)]);
+  };
+  const choicesKey = choices.map(anime => anime.anime_id).join(',');
+  useEffect(() => {
+    if (!feature && choices.length) chooseRandom();
+  }, [choicesKey]);
+
   const resume =
     feature && library.history.find(entry => entry.anime.anime_id === feature.anime_id);
 
@@ -119,8 +136,9 @@ export const Gallery: FC<TGalleryProps> = ({ active = true }) => {
                   <AnimeCard
                     key={anime.anime_id}
                     anime={anime}
-                    onFocus={() => setSelected(anime)}
-                    onPreview={() => setSelected(anime)}
+                    onFocus={() => {
+                      focusedAnime.current = anime.anime_id;
+                    }}
                   />
                 ))}
           </GalleryShelf>
@@ -133,10 +151,6 @@ export const Gallery: FC<TGalleryProps> = ({ active = true }) => {
     []
   );
 
-  const openFilters = useCallback(() => setFilters(true), []);
-
-  const closeFilters = useCallback(() => setFilters(false), []);
-
   return (
     <section
       ref={screen}
@@ -144,36 +158,20 @@ export const Gallery: FC<TGalleryProps> = ({ active = true }) => {
       aria-label="Галерея аниме"
       onKeyDown={navigateGallery}
     >
-      <GalleryToolbar
-        title="Каталог"
-        subtitle="Твои истории и новые открытия"
-        onFilters={openFilters}
-      />
-      <nav class="gallery-categories" aria-label="Подборки каталога">
-        <a class="active" href="#/" aria-current="page">
-          Обзор
-        </a>
-        <a href="#/catalog">
-          Все аниме
-          <Icon name="grid" size={16} />
-        </a>
-        <a href="#/catalog?status=ongoing">Онгоинги</a>
-        <a href="#/catalog?sort=top">Лучшие</a>
-        <a href="#/catalog?types=movie">Фильмы</a>
-        <a href="#/catalog?status=announcement">Скоро</a>
-        <a href="#/schedule">
-          Расписание
-          <Icon name="calendar" size={16} />
-        </a>
-      </nav>
+      <header class="gallery-heading">
+        <div>
+          <h1>Каталог</h1>
+          <p>Твои истории и новые открытия</p>
+        </div>
+      </header>
       {feature && (
         <section class="gallery-feature" aria-label="Выбранное аниме" {...cardMenuEvents(feature)}>
           <div class="gallery-feature-poster">
             <Poster key={feature.anime_id} anime={feature} large />
           </div>
           <div class="gallery-feature-copy">
-            <p class="eyebrow">{resume ? 'ПРОДОЛЖИТЬ ПРОСМОТР' : 'В КАТАЛОГЕ'}</p>
-            <h2>{feature.title}</h2>
+            <p class="eyebrow">СЛУЧАЙНОЕ АНИМЕ</p>
+            <h2 aria-live="polite">{feature.title}</h2>
             <div class="gallery-feature-meta">
               {feature.rating?.average ? (
                 <span class="hero-score">★ {feature.rating.average.toFixed(1)}</span>
@@ -190,11 +188,21 @@ export const Gallery: FC<TGalleryProps> = ({ active = true }) => {
             <div class="gallery-feature-actions">
               <ButtonLink
                 href={`#/anime/${feature.anime_id}?view=${resume ? 'watch&play=1' : 'anime-about'}`}
+                publicHref={animeSiteUrl(feature)}
                 variant="primary"
               >
                 <Icon name={resume ? 'play' : 'arrow'} size={18} />
                 {resume ? `Продолжить · серия ${resume.episode}` : 'Подробнее'}
               </ButtonLink>
+              <Button
+                class="gallery-random"
+                aria-label="Другое аниме"
+                onClick={chooseRandom}
+                disabled={choices.length < 2}
+              >
+                <Icon name="refresh" size={18} />
+                <span>Другое аниме</span>
+              </Button>
               <FavoriteButton anime={feature} />
             </div>
           </div>
@@ -213,10 +221,11 @@ export const Gallery: FC<TGalleryProps> = ({ active = true }) => {
               key={entry.anime.anime_id}
               {...cardMenuEvents(entry.anime)}
             >
-              <a
+              <AppLink
                 class="gallery-continue"
                 data-gallery-link
                 href={`#/anime/${entry.anime.anime_id}?view=watch&play=1`}
+                publicHref={animeSiteUrl(entry.anime)}
               >
                 <div class="continue-image">
                   <ArtworkImage
@@ -244,7 +253,7 @@ export const Gallery: FC<TGalleryProps> = ({ active = true }) => {
                   ) : null}
                 </div>
                 <h3>{entry.anime.title}</h3>
-              </a>
+              </AppLink>
               <button
                 type="button"
                 class="continue-remove"
@@ -275,7 +284,6 @@ export const Gallery: FC<TGalleryProps> = ({ active = true }) => {
       )}
       {shelf(popular, 'Лучшие аниме', '#/catalog?sort=top', 'Рейтинг YummyAnime')}
       {shelf(announces, 'Скоро на экранах', '#/catalog?status=announcement')}
-      {active && filters && <FilterSheet query="" initialSection="main" close={closeFilters} />}
     </section>
   );
 };

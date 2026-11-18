@@ -17,6 +17,7 @@ function Probe() {
 
   return (
     <div class={`media-app ${watching ? 'is-playback' : ''}`}>
+      <div class="media-backdrop" aria-hidden="true" />
       <MediaNavigation
         path={path}
         selected={path}

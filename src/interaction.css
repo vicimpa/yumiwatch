@@ -14,6 +14,7 @@ body,
 .media-app {
   -webkit-user-select: none;
   user-select: none;
+  cursor: default;
 }
 ::selection {
   background: #ffb2bc;
@@ -56,6 +57,38 @@ body,
   box-shadow: 0 8px 28px #0009;
   -webkit-user-select: text;
   user-select: text;
+  cursor: text;
+}
+/* Inherited text cursors must not leak into controls nested in copyable text. */
+a[href],
+button:not(:disabled),
+select:not(:disabled),
+input:is([type='checkbox'], [type='radio'], [type='range']):not(:disabled),
+summary,
+label:has(input[type='checkbox']:not(:disabled), input[type='radio']:not(:disabled)),
+[role='button']:not([aria-disabled='true']) {
+  cursor: pointer;
+}
+:is(button, input, select, textarea):disabled,
+[aria-disabled='true'],
+label:has(input:disabled) {
+  cursor: default;
+}
+a.card-title,
+a .result-copy,
+a .history-copy,
+a.gallery-continue h3,
+a.schedule-card h3 {
+  cursor: text;
+}
+img,
+svg,
+button,
+nav,
+.media-system-links,
+.media-brand,
+.phone-brand {
+  -webkit-user-drag: none;
 }
 :where(
   .card-title,
@@ -85,6 +118,7 @@ body,
 ) {
   -webkit-user-select: text;
   user-select: text;
+  cursor: text;
 }
 button,
 button *,

@@ -1,3 +1,4 @@
+import { AppLink } from '~/ui/AppLink';
 // Real keyboard handlers and CSS, with deterministic content and no network dependencies.
 import { render } from 'preact';
 import { useLayoutEffect, useState } from 'preact/hooks';
@@ -62,14 +63,14 @@ function Probe() {
                         </div>
                         <div class="card-caption">
                           <h3>
-                            <a
+                            <AppLink
                               class="card-title"
                               data-gallery-link
                               href={`#/anime/${row * 12 + index}`}
                               data-index={index}
                             >
                               {route} · Аниме {row * 12 + index}
-                            </a>
+                            </AppLink>
                           </h3>
                           <p>2026 · Сериал</p>
                         </div>

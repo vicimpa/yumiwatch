@@ -84,31 +84,24 @@ describe('catalog gallery', () => {
     fireEvent.keyDown(links[1], { key: 'ArrowUp' });
     expect(document.activeElement).toBe(links[1]);
   });
-  it('opens poster cards as previews and updates the selected item without loading playback', async () => {
+  it('shows a random feature, keeps it stable on hover and switches to another title on request', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0);
     const { container } = render(<Gallery />);
+    const feature = await screen.findByRole('region', { name: 'Выбранное аниме' });
+    const title = within(feature).getByRole('heading');
+    expect(title.textContent).toBe(anime.title);
     const rail = await screen.findByRole('region', { name: 'Лучшие аниме' });
     const link = await within(rail).findByRole('link', { name: 'Второе аниме' });
-
-    expect(link.getAttribute('href')).toBe('#/anime/10532?view=anime-about');
+    expect(link.getAttribute('href')).toBe(
+      `https://ru.yummyani.me/catalog/item/${anime.anime_url}`
+    );
+    expect(link.getAttribute('data-app-href')).toBe('#/anime/10532?view=anime-about');
     fireEvent.focusIn(link);
-    expect(
-      within(screen.getByRole('region', { name: 'Выбранное аниме' })).getByRole('heading', {
-        name: 'Второе аниме',
-      })
-    ).toBeTruthy();
+    fireEvent.pointerEnter(link.closest('article')!);
+    expect(title.textContent).toBe(anime.title);
+    fireEvent.click(within(feature).getByRole('button', { name: 'Другое аниме' }));
+    expect(title.textContent).toBe('Второе аниме');
     expect(container.querySelector('iframe,video')).toBeNull();
-    expect(screen.getByRole('navigation', { name: 'Действия каталога' })).toBeTruthy();
-  });
-  it('closes its filters when the retained gallery becomes inactive', async () => {
-    const { rerender } = render(<Gallery />);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Фильтры' }));
-    expect(screen.getByRole('dialog')).toBeTruthy();
-    rerender(<Gallery active={false} />);
-    expect(screen.queryByRole('dialog')).toBeNull();
-    expect(document.body.style.overflow).not.toBe('hidden');
-    rerender(<Gallery />);
-    expect(screen.queryByRole('dialog')).toBeNull();
   });
   it('moves by poster position and leaves ordinary actions to the browser', () => {
     render(

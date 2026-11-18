@@ -1,4 +1,6 @@
-import { yummyFetch } from './api';
+import { cachePersonalRating, yummyFetch } from './api';
+import { personalRating, PERSONAL_RATING_EVENT } from './ratings';
+import { invalidateProfileData } from './profile-cache';
 import {
   confirmContinue,
   mergeContinueHistory,
@@ -18,6 +20,7 @@ import {
   removeHistoryEntry,
   setAnimeList as setGuestList,
   toggleFavorite as toggleGuestFavorite,
+  setPersonalRating as setGuestRating,
 } from './storage';
 import type { Anime, Library, Video, WatchEntry } from './types';
 
@@ -32,7 +35,6 @@ export interface LibraryState extends Library {
 
 interface RemoteAnime extends Omit<Anime, 'rating'> {
   rating?: number | Anime['rating'];
-  user?: { list?: { is_fav?: boolean; list?: { id?: number } | null } };
 }
 
 interface RemoteWatch extends RemoteAnime {
@@ -59,6 +61,7 @@ function emptyState(): LibraryState {
     favorites: [],
     history: [],
     lists: {},
+    rated: [],
     account: true,
     loading: true,
     error: '',
@@ -167,6 +170,7 @@ export function syncLibrary(): Promise<void> {
         throw new Error('Yummy вернул неожиданный формат коллекции.');
       if (revision === capturedRevision) {
         accountState = {
+          rated: animes.filter(value => personalRating(normalizeAnime(value))).map(normalizeAnime),
           favorites: animes.filter(value => value.user?.list?.is_fav).map(normalizeAnime),
           lists: Object.fromEntries(
             WATCH_LISTS.map(({ id }) => [
@@ -242,6 +246,73 @@ export async function loadMoreHistory() {
 }
 
 const favoritePending = new Set<string>();
+
+const ratingPending = new Set<string>();
+export async function setPersonalRating(anime: Anime, rating: number | null) {
+  if (!Number.isSafeInteger(anime.anime_id) || anime.anime_id <= 0)
+    throw new Error('Неизвестное аниме.');
+  if (rating !== null && (!Number.isInteger(rating) || rating < 1 || rating > 10))
+    throw new Error('Выбери оценку от 1 до 10.');
+  const session = getSession();
+  if (!session) {
+    setGuestRating(anime, rating);
+    return;
+  }
+  if (!session.verified) throw new Error('Дождись проверки аккаунта или повтори вход.');
+  const key = `${session.token}:${anime.anime_id}`;
+  if (ratingPending.has(key)) throw new Error('Оценка уже сохраняется.');
+  stateFor(session.token);
+  ratingPending.add(key);
+  try {
+    const result = await yummyFetch<{ rating: number; votes: number }>(
+      `/anime/${anime.anime_id}/rate`,
+      {
+        token: session.token,
+        method: rating === null ? 'DELETE' : 'PUT',
+        ...(rating !== null ? { body: { rate: rating } } : {}),
+      }
+    );
+    if (
+      !result ||
+      !Number.isFinite(result.rating) ||
+      result.rating < 0 ||
+      result.rating > 10 ||
+      !Number.isSafeInteger(result.votes) ||
+      result.votes < 0
+    )
+      throw new Error('Yummy не подтвердил сохранение оценки.');
+    if (getSession()?.token !== session.token || owner !== session.token)
+      throw new DOMException('Сессия изменилась.', 'AbortError');
+    const state = stateFor(session.token);
+    revision++;
+    const update = (value: Anime) =>
+      value.anime_id === anime.anime_id
+        ? {
+            ...value,
+            user: { ...value.user, rating: rating || 0 },
+            rating: { average: result.rating, counters: result.votes },
+          }
+        : value;
+    const rated = (state.rated || []).filter(value => value.anime_id !== anime.anime_id);
+    if (rating) rated.unshift(update(anime));
+    state.rated = rated;
+    state.favorites = state.favorites.map(update);
+    state.lists = Object.fromEntries(
+      Object.entries(state.lists || {}).map(([id, values]) => [id, values.map(update)])
+    );
+    state.history = state.history.map(entry => ({ ...entry, anime: update(entry.anime) }));
+    cachePersonalRating(anime, rating || 0, result);
+    invalidateProfileData(`ratings:${session.user.id}`);
+    emit();
+    window.dispatchEvent(
+      new CustomEvent(PERSONAL_RATING_EVENT, {
+        detail: { animeId: anime.anime_id, userId: session.user.id },
+      })
+    );
+  } finally {
+    ratingPending.delete(key);
+  }
+}
 
 export async function toggleFavorite(anime: Anime) {
   const session = getSession();

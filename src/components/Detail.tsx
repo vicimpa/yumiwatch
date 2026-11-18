@@ -1,8 +1,10 @@
+import { animeSiteUrl } from '~/lib/content-links';
+import { AppLink } from '~/ui/AppLink';
 import type { FunctionalComponent as FC } from 'preact';
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 
 import { animeDetail, animeVideos, peekAnimeDetail, peekAnimeVideos } from '~/lib/api';
-import { exitPlayerFullscreen, isDesktop } from '~/lib/desktop';
+import { exitPlayerFullscreen } from '~/lib/desktop';
 import { useLibrary, useResource, useSession } from '~/lib/hooks';
 import { readPlaybackRecovery } from '~/lib/playback-recovery';
 import { formatTime, latestWatchEntry } from '~/lib/player';
@@ -26,13 +28,13 @@ export type TDetailProps = {
 
 export const Detail: FC<TDetailProps> = ({ id, query = '', returnTo = '/' }) => {
   const params = new URLSearchParams(query);
-  const resource = useResource(
-    signal => animeDetail(id, signal),
-    [id, params.get('view') || 'about'],
-    () => peekAnimeDetail(id)
-  );
   const library = useLibrary(),
     session = useSession();
+  const resource = useResource(
+    signal => animeDetail(id, signal),
+    [id, params.get('view') || 'about', session?.token, session?.verified],
+    () => peekAnimeDetail(id)
+  );
   const videos = useResource(
     signal => animeVideos(Number(id), signal),
     [id, session?.token, session?.verified],
@@ -126,9 +128,7 @@ export const Detail: FC<TDetailProps> = ({ id, query = '', returnTo = '/' }) => 
   const shareAnime = useCallback(async () => {
     if (!anime) return;
 
-    const url = isDesktop()
-      ? `https://ru.yummyani.me/catalog/item/${encodeURIComponent(anime.anime_url)}`
-      : location.href;
+    const url = animeSiteUrl(anime);
 
     try {
       if (navigator.share) await navigator.share({ title: anime.title, url });
@@ -164,13 +164,14 @@ export const Detail: FC<TDetailProps> = ({ id, query = '', returnTo = '/' }) => 
 
   return (
     <section class={`anime-detail-screen ${watching ? 'is-watching' : 'is-about'}`}>
-      <a
+      <AppLink
+        draggable={false}
         class={watching ? 'watch-state-back' : 'back-link'}
         href={watching ? `#/anime/${id}` : `#${returnTo}`}
       >
         <Icon name="back" size={18} />
         {watching ? 'Об аниме' : returnLabel}
-      </a>
+      </AppLink>
       {resource.loading ? (
         <div class="detail-loading">
           <div class="skeleton detail-poster" />
@@ -191,24 +192,6 @@ export const Detail: FC<TDetailProps> = ({ id, query = '', returnTo = '/' }) => 
               <div class="room-main">
                 {!watching && (
                   <>
-                    <a
-                      class="anime-resume-row"
-                      data-nav-primary
-                      href={`#/anime/${id}?view=watch&play=1`}
-                    >
-                      <span class="resume-row-play">
-                        <Icon name="play" size={24} />
-                      </span>
-                      <span>
-                        <strong>{history ? 'Продолжить просмотр' : 'Начать просмотр'}</strong>
-                        <small>
-                          {history
-                            ? `Серия ${history.episode} · ${formatTime(history.position)}${history.duration ? ` / ${formatTime(history.duration)}` : ''}`
-                            : 'Озвучки и доступные источники — ниже'}
-                        </small>
-                      </span>
-                      <Icon name="arrow" size={22} />
-                    </a>
                     <header class="anime-watch-heading overview-heading">
                       <div class="watch-poster">
                         <Poster anime={anime} large />
@@ -226,7 +209,7 @@ export const Detail: FC<TDetailProps> = ({ id, query = '', returnTo = '/' }) => 
                         </div>
                         <div class="watch-title-actions">
                           <Button aria-label="Поделиться аниме" onClick={shareAnime}>
-                            <Icon name="external" size={18} />
+                            <Icon name="share" size={18} />
                           </Button>
                           <FavoriteButton anime={anime} />
                           <Button
@@ -250,6 +233,25 @@ export const Detail: FC<TDetailProps> = ({ id, query = '', returnTo = '/' }) => 
                         <AnimeListButton anime={anime} />
                       </div>
                     </header>
+                    <AppLink
+                      class="anime-resume-row"
+                      data-nav-primary
+                      href={`#/anime/${id}?view=watch&play=1`}
+                      publicHref={animeSiteUrl(anime)}
+                    >
+                      <span class="resume-row-play">
+                        <Icon name="play" size={24} />
+                      </span>
+                      <span>
+                        <strong>{history ? 'Продолжить просмотр' : 'Начать просмотр'}</strong>
+                        <small>
+                          {history
+                            ? `Серия ${history.episode} · ${formatTime(history.position)}${history.duration ? ` / ${formatTime(history.duration)}` : ''}`
+                            : 'Озвучку и серию можно сменить в плеере'}
+                        </small>
+                      </span>
+                      <Icon name="arrow" size={22} />
+                    </AppLink>
                   </>
                 )}
                 {watching ? (
@@ -276,6 +278,7 @@ export const Detail: FC<TDetailProps> = ({ id, query = '', returnTo = '/' }) => 
                     history={history}
                     episodesOpen={panel === 'episodes'}
                     closeEpisodes={closePanel}
+                    onRatingSaved={resource.retry}
                   />
                 )}
               </div>

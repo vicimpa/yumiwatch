@@ -29,8 +29,6 @@ export default defineConfig({
         const files = [
           'index.html',
           'manifest.webmanifest',
-          'open-sans-cyrillic.woff2',
-          'open-sans-latin.woff2',
           'icons/icon-192.png',
           'icons/icon-512.png',
           'icons/apple-touch-icon.png',

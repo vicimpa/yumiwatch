@@ -349,10 +349,31 @@ export const peekAnimeList = (params: Params) => {
 };
 
 export const animeDetail = (id: string | number, signal?: AbortSignal) =>
-  cachedRequest<Anime>(`/anime/${encodeURIComponent(id)}`, {}, signal);
+  cachedRequest<Anime>(`/anime/${encodeURIComponent(id)}`, {}, signal, videoOptions());
 
 export const peekAnimeDetail = (id: string | number) =>
-  peekRequest<Anime>(`/anime/${encodeURIComponent(id)}`);
+  peekRequest<Anime>(`/anime/${encodeURIComponent(id)}`, {}, videoOptions());
+
+export function cachePersonalRating(
+  anime: Anime,
+  rating: number,
+  summary: { rating: number; votes: number }
+) {
+  resetPendingRequests(); // Old detail/distribution replies must not overwrite a confirmed vote.
+  const path = `/anime/${anime.anime_id}`;
+  const options = videoOptions();
+  const saved = peekRequest<Anime>(path, {}, options)?.data || anime;
+  const community = { average: summary.rating, counters: summary.votes };
+  putCache('data', keyFor(path, {}, options), {
+    ...saved,
+    rating: community,
+    user: { ...saved.user, rating },
+  });
+  const publicDetails = peekRequest<Anime>(path)?.data;
+  if (publicDetails && options.token)
+    putCache('data', keyFor(path, {}), { ...publicDetails, rating: community });
+  deleteCache('data', keyFor(`/anime/${anime.anime_id}/rates`, {}));
+}
 
 export const animeRatings = (id: number, signal?: AbortSignal) =>
   cachedRequest<RatingCount[]>(`/anime/${id}/rates`, {}, signal);

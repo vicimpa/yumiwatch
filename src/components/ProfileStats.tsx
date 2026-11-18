@@ -1,9 +1,11 @@
+import { AppLink } from '~/ui/AppLink';
 import type { FunctionalComponent as FC } from 'preact';
-import { useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 
 import { yummyFetch } from '~/lib/api';
 import { useResource, useSession } from '~/lib/hooks';
 import { peekProfileData, profileData } from '~/lib/profile-cache';
+import { PERSONAL_RATING_EVENT } from '~/lib/ratings';
 import {
   calendarDays,
   loadGenreStats,
@@ -47,7 +49,7 @@ export const ProfileTaste: FC<{ id?: number; animes: ProfileAnime[] }> = ({ id, 
       ) : genres.length ? (
         <div class="profile-bars">
           {genres.slice(0, 6).map((genre, index) => (
-            <a
+            <AppLink
               key={genre.id}
               href={`#/catalog?genres=${genre.id}`}
               class="profile-genre"
@@ -60,7 +62,7 @@ export const ProfileTaste: FC<{ id?: number; animes: ProfileAnime[] }> = ({ id, 
               <span class="profile-bar">
                 <i style={{ width: `${(genre.count / max) * 100}%` }} />
               </span>
-            </a>
+            </AppLink>
           ))}
         </div>
       ) : (
@@ -95,6 +97,13 @@ const RatingStats: FC<{ id: number }> = ({ id }) => {
     () => peekProfileData<{ rating: number; count: number }[]>(`ratings:${id}`)
   );
   const values = resource.value?.data || [];
+  useEffect(() => {
+    const refresh = (event: Event) => {
+      if ((event as CustomEvent<{ userId: number }>).detail.userId === id) resource.retry();
+    };
+    window.addEventListener(PERSONAL_RATING_EVENT, refresh);
+    return () => window.removeEventListener(PERSONAL_RATING_EVENT, refresh);
+  }, [id, resource.retry]);
 
   return (
     <section class="profile-panel">

@@ -1,3 +1,5 @@
+import { animeSiteUrl } from '~/lib/content-links';
+import { AppLink } from '~/ui/AppLink';
 import type { FunctionalComponent as FC } from 'preact';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 
@@ -8,6 +10,7 @@ import { useLibrary, useResource, useSession } from '~/lib/hooks';
 import { syncLibrary } from '~/lib/library';
 import { WATCH_LISTS } from '~/lib/lists';
 import { notify } from '~/lib/notifications';
+import { personalRating } from '~/lib/ratings';
 import { formatTime } from '~/lib/player';
 import {
   loadProfile,
@@ -159,9 +162,11 @@ const ProfileCollection: FC<{
   loading: boolean;
   error: string;
   retry: () => void;
-}> = ({ animes, selected, href, own, loading, error, retry }) => {
+  initialSort: string;
+}> = ({ animes, selected, href, own, loading, error, retry, initialSort }) => {
   const [search, setSearch] = useState('');
-  const [sort, setSort] = useState('added');
+  const [sort, setSort] = useState(initialSort);
+  useEffect(() => setSort(initialSort), [initialSort]);
   const [status, setStatus] = useState('all');
   const list = WATCH_LISTS.find(list => list.alias === selected);
   const values = useMemo(
@@ -169,27 +174,36 @@ const ProfileCollection: FC<{
       animes
         .filter(
           anime =>
-            (selected === 'favorites'
-              ? anime.user?.list?.is_fav
-              : list
-                ? anime.user?.list?.list?.id === list.id
-                : true) &&
+            (selected === 'rated'
+              ? personalRating(anime) > 0
+              : selected === 'favorites'
+                ? anime.user?.list?.is_fav
+                : list
+                  ? anime.user?.list?.list?.id === list.id
+                  : true) &&
             anime.title.toLocaleLowerCase('ru').includes(search.trim().toLocaleLowerCase('ru')) &&
             (status === 'all' || anime.anime_status?.alias === status)
         )
         .sort((a, b) =>
-          sort === 'title'
-            ? a.title.localeCompare(b.title, 'ru')
-            : sort === 'rating'
-              ? (b.rating?.average || 0) - (a.rating?.average || 0)
-              : sort === 'year'
-                ? (b.year || 0) - (a.year || 0)
-                : (b.date || 0) - (a.date || 0)
+          sort === 'user_rating'
+            ? personalRating(b) - personalRating(a) || a.title.localeCompare(b.title, 'ru')
+            : sort === 'title'
+              ? a.title.localeCompare(b.title, 'ru')
+              : sort === 'rating'
+                ? (b.rating?.average || 0) - (a.rating?.average || 0)
+                : sort === 'year'
+                  ? (b.year || 0) - (a.year || 0)
+                  : (b.date || 0) - (a.date || 0)
         ),
     [animes, selected, search, sort, status]
   );
   const filters = [
     { alias: 'all', title: 'Все', count: animes.length },
+    {
+      alias: 'rated',
+      title: own ? 'Личный топ' : 'Топ по оценкам',
+      count: animes.filter(anime => personalRating(anime) > 0).length,
+    },
     ...WATCH_LISTS.map(list => ({
       alias: list.alias,
       title: list.title,
@@ -205,7 +219,17 @@ const ProfileCollection: FC<{
   const keyFor = (anime: ProfileAnime) => anime.anime_id;
   const renderAnime = (anime: ProfileAnime) => (
     <div class="profile-anime">
-      <AnimeCard anime={anime} />
+      <AnimeCard
+        anime={anime}
+        rank={
+          selected === 'rated' && sort === 'user_rating' ? values.indexOf(anime) + 1 : undefined
+        }
+      />
+      <p class={`profile-personal-score ${personalRating(anime) ? '' : 'is-unrated'}`}>
+        {personalRating(anime)
+          ? `${own ? 'Моя оценка' : 'Оценка профиля'}: ${personalRating(anime)} / 10`
+          : 'Без оценки'}
+      </p>
       {own && <AnimeListButton anime={anime} />}
     </div>
   );
@@ -217,9 +241,9 @@ const ProfileCollection: FC<{
     <section class="profile-collection">
       <nav class="profile-list-filters" aria-label="Списки аниме">
         {filters.map(filter => (
-          <a
+          <AppLink
             key={filter.alias}
-            href={`${href}?tab=collection&list=${filter.alias}`}
+            href={`${href}?tab=collection&list=${filter.alias}${filter.alias === 'rated' ? '&sort=user_rating' : sort === 'added' ? '' : `&sort=${sort}`}`}
             aria-current={
               selected === filter.alias ||
               (!filters.some(f => f.alias === selected) && filter.alias === 'all')
@@ -229,7 +253,7 @@ const ProfileCollection: FC<{
           >
             {filter.title}
             <span>{filter.count}</span>
-          </a>
+          </AppLink>
         ))}
       </nav>
       <div class="profile-collection-toolbar">
@@ -269,6 +293,7 @@ const ProfileCollection: FC<{
           </option>
           <option value="title">По названию</option>
           <option value="rating">По рейтингу сайта</option>
+          <option value="user_rating">{own ? 'По моей оценке' : 'По оценке профиля'}</option>
           <option value="year">По году</option>
         </Select>
       </div>
@@ -278,10 +303,23 @@ const ProfileCollection: FC<{
       {values.length ? (
         <VirtualGrid items={values} itemKey={keyFor} renderItem={renderAnime} />
       ) : (
-        <Empty icon="search" title={animes.length ? 'Здесь пока пусто' : 'Начало новой коллекции'}>
+        <Empty
+          icon="search"
+          title={
+            selected === 'rated'
+              ? 'Оценённых аниме пока нет'
+              : animes.length
+                ? 'Здесь пока пусто'
+                : 'Начало новой коллекции'
+          }
+        >
           {search || status !== 'all'
             ? 'Попробуй другой запрос или сбрось фильтры.'
-            : 'Аниме, добавленные в этот список, появятся здесь.'}
+            : selected === 'rated'
+              ? own
+                ? 'Поставь оценку на странице аниме — оно появится в твоём личном топе.'
+                : 'Здесь появятся аниме с личными оценками этого профиля.'
+              : 'Аниме, добавленные в этот список, появятся здесь.'}
           {(search || status !== 'all') && (
             <Button
               onClick={() => {
@@ -309,9 +347,10 @@ const ContinueWatching: FC<{ history: WatchEntry[] }> = ({ history }) => (
     {history.length ? (
       <div class="profile-continue-list">
         {history.slice(0, 3).map(entry => (
-          <a
+          <AppLink
             key={entry.anime.anime_id}
             href={`#/anime/${entry.anime.anime_id}?view=watch&play=1`}
+            publicHref={animeSiteUrl(entry.anime)}
             class="profile-continue-card"
             {...cardMenuEvents(entry.anime)}
           >
@@ -339,7 +378,7 @@ const ContinueWatching: FC<{ history: WatchEntry[] }> = ({ history }) => (
             <span class="profile-play">
               <Icon name="play" size={19} />
             </span>
-          </a>
+          </AppLink>
         ))}
       </div>
     ) : (
@@ -397,7 +436,10 @@ export const ProfilePage: FC<{ query: string; userId?: number }> = ({ query, use
     [id, own, session?.token, session?.verified],
     () => (!own && id ? peekProfileList(id) : undefined)
   );
-  const localAnimes = useMemo(() => libraryAnimes(library), [library.lists, library.favorites]);
+  const localAnimes = useMemo(
+    () => libraryAnimes(library),
+    [library.lists, library.favorites, library.rated]
+  );
   const animes = own ? localAnimes : collection.value?.data || [];
   const profile = resource.value?.data;
   const name = profile?.nickname || (own ? session?.user.nickname || 'Твой аниме-мир' : 'Профиль');
@@ -453,7 +495,7 @@ export const ProfilePage: FC<{ query: string; userId?: number }> = ({ query, use
     );
 
   return (
-    <div class="profile-page">
+    <div class="profile-page" data-tab={tab}>
       <header class="profile-hero">
         <div class="profile-cover" aria-hidden="true">
           {profile?.banner?.full && (
@@ -544,7 +586,7 @@ export const ProfilePage: FC<{ query: string; userId?: number }> = ({ query, use
         </div>
         {profile?.about && <p class="profile-bio">{plainText(profile.about)}</p>}
         <div class="profile-highlights">
-          <a href={`${href}?tab=collection`}>
+          <AppLink href={`${href}?tab=collection`}>
             <Icon name="bookmark" size={20} />
             <span>
               <strong>
@@ -556,22 +598,22 @@ export const ProfilePage: FC<{ query: string; userId?: number }> = ({ query, use
               </strong>
               <small>аниме в коллекции</small>
             </span>
-          </a>
-          <a href={`${href}?tab=collection&list=watched`}>
+          </AppLink>
+          <AppLink href={`${href}?tab=collection&list=watched`}>
             <Icon name="check" size={20} />
             <span>
               <strong>{collectionLoading && own ? '…' : completed.toLocaleString('ru')}</strong>
               <small>просмотрено</small>
             </span>
-          </a>
-          <a href={`${href}?tab=stats`}>
+          </AppLink>
+          <AppLink href={`${href}?tab=stats`}>
             <Icon name="clock" size={20} />
             <span>
               <strong>{totalTime === undefined ? '—' : formatWatchTime(totalTime)}</strong>
               <small>в историях</small>
             </span>
-          </a>
-          <a href={`${href}?tab=collection&list=favorites`}>
+          </AppLink>
+          <AppLink href={`${href}?tab=collection&list=favorites`}>
             <Icon name="heart" size={20} />
             <span>
               <strong>
@@ -584,13 +626,13 @@ export const ProfilePage: FC<{ query: string; userId?: number }> = ({ query, use
               </strong>
               <small>в избранном</small>
             </span>
-          </a>
+          </AppLink>
         </div>
       </header>
 
       <nav class="profile-tabs" aria-label="Разделы профиля">
         {tabs.map(item => (
-          <a
+          <AppLink
             key={item.id}
             href={`${href}?tab=${item.id}`}
             aria-current={tab === item.id ? 'page' : undefined}
@@ -600,7 +642,7 @@ export const ProfilePage: FC<{ query: string; userId?: number }> = ({ query, use
             {item.id === 'friends' && profile?.friends?.friends ? (
               <span>{profile.friends.friends}</span>
             ) : null}
-          </a>
+          </AppLink>
         ))}
       </nav>
       {resource.value?.cached && !resource.refreshing && (
@@ -643,6 +685,13 @@ export const ProfilePage: FC<{ query: string; userId?: number }> = ({ query, use
           loading={collectionLoading}
           error={collectionError}
           retry={own ? () => void refresh() : collection.retry}
+          initialSort={
+            ['added', 'title', 'rating', 'year', 'user_rating'].includes(params.get('sort') || '')
+              ? params.get('sort')!
+              : params.get('list') === 'rated'
+                ? 'user_rating'
+                : 'added'
+          }
         />
       ) : own && tab === 'history' ? (
         <ProfileHistory key={`${id || 'guest'}:${session?.token || ''}`} />
@@ -676,7 +725,7 @@ export const ProfilePage: FC<{ query: string; userId?: number }> = ({ query, use
               ) : (
                 <div class="profile-status-grid">
                   {counts.map(list => (
-                    <a
+                    <AppLink
                       key={list.id}
                       href={`${href}?tab=collection&list=${list.alias}`}
                       style={{ '--list-color': list.color }}
@@ -684,7 +733,7 @@ export const ProfilePage: FC<{ query: string; userId?: number }> = ({ query, use
                       <Icon name={list.icon} size={19} />
                       <span>{list.title}</span>
                       <strong>{collectionLoading ? '…' : list.count.toLocaleString('ru')}</strong>
-                    </a>
+                    </AppLink>
                   ))}
                 </div>
               )}

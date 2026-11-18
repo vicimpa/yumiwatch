@@ -1,3 +1,5 @@
+import { animeSiteUrl } from '~/lib/content-links';
+import { AppLink } from '~/ui/AppLink';
 import type { FunctionalComponent as FC } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 
@@ -84,9 +86,10 @@ export const Schedule: FC = () => {
         <>
           <div class="schedule-list">
             {data.map(anime => (
-              <a
+              <AppLink
                 class="schedule-card"
                 href={`#/anime/${anime.anime_id}`}
+                publicHref={animeSiteUrl(anime)}
                 key={anime.anime_id}
                 {...cardMenuEvents(anime)}
               >
@@ -105,7 +108,7 @@ export const Schedule: FC = () => {
                   <p>Ориентировочное время выхода</p>
                 </div>
                 <Icon name="chevron" size={19} />
-              </a>
+              </AppLink>
             ))}
           </div>
           {!data.length && (

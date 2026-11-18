@@ -1,3 +1,5 @@
+import { animeSiteUrl } from '~/lib/content-links';
+import { AppLink } from '~/ui/AppLink';
 import type { FunctionalComponent as FC } from 'preact';
 import { useCallback, useLayoutEffect, useMemo, useState } from 'preact/hooks';
 
@@ -9,6 +11,7 @@ import type { Anime, Result, Video, WatchEntry } from '~/lib/types';
 
 import { AboutEpisodes } from './AboutEpisodes';
 import { AnimeRatingStats } from './AnimeRatingStats';
+import { PersonalRating } from './PersonalRating';
 import { EpisodeSubscriptionButton, useEpisodeSubscriptions } from './EpisodeSubscription';
 import { ArtworkImage, Button, ButtonLink, FormError, Icon, Sheet } from '~/ui';
 
@@ -23,11 +26,13 @@ export type TAnimeAboutProps = {
   history?: WatchEntry;
   episodesOpen?: boolean;
   closeEpisodes?: () => void;
+  onRatingSaved?: () => void;
 };
 
 const EMPTY_VIDEOS: Video[] = [];
 
 const closeNothing = () => {};
+const saveNothing = () => {};
 
 export const AnimeAbout: FC<TAnimeAboutProps> = ({
   anime,
@@ -35,6 +40,7 @@ export const AnimeAbout: FC<TAnimeAboutProps> = ({
   history,
   episodesOpen = false,
   closeEpisodes = closeNothing,
+  onRatingSaved = saveNothing,
 }) => {
   const subscriptions = useEpisodeSubscriptions(anime.anime_id);
   const all = Array.isArray(videos.value?.data) ? videos.value.data : EMPTY_VIDEOS;
@@ -118,12 +124,35 @@ export const AnimeAbout: FC<TAnimeAboutProps> = ({
         </div>
         <div class="detail-genres">
           {anime.genres?.map(genre => (
-            <a key={genre.id} href={`#/catalog?genres=${encodeURIComponent(genre.alias)}`}>
+            <AppLink key={genre.id} href={`#/catalog?genres=${encodeURIComponent(genre.alias)}`}>
               {genre.title}
-            </a>
+            </AppLink>
           ))}
         </div>
         <p class="full-synopsis">{description || 'Описание ещё не добавлено.'}</p>
+        {!!frames.length && (
+          <section class="about-screenshots" aria-label="Скриншоты аниме">
+            <div class="screenshot-rail">
+              {frames.map((image, index) => (
+                <button
+                  key={`${image.sizes.small}:${index}`}
+                  aria-label={`Открыть скриншот ${index + 1}`}
+                  onClick={() => setFrame(index)}
+                >
+                  <ArtworkImage
+                    src={imageUrl(image.sizes.small || image.sizes.full)}
+                    alt={image.episode ? `Кадр серии ${image.episode}` : `Кадр ${index + 1}`}
+                    tone={index}
+                  />
+                  <span class="screenshot-open">
+                    <Icon name="external" size={18} />
+                  </span>
+                  {image.episode && <small>Серия {image.episode}</small>}
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
         <dl class="anime-facts">
           <div>
             <dt>Год</dt>
@@ -171,36 +200,9 @@ export const AnimeAbout: FC<TAnimeAboutProps> = ({
           )}
         </dl>
       </section>
-      <AnimeRatingStats animeId={anime.anime_id} />
-      <section class="about-screenshots" aria-label="Скриншоты аниме">
-        <div class="section-heading">
-          <h2>Скриншоты</h2>
-          <span class="muted">{frames.length}</span>
-        </div>
-        {frames.length ? (
-          <div class="screenshot-rail">
-            {frames.map((image, index) => (
-              <button
-                key={`${image.sizes.small}:${index}`}
-                aria-label={`Открыть скриншот ${index + 1}`}
-                onClick={() => setFrame(index)}
-              >
-                <ArtworkImage
-                  src={imageUrl(image.sizes.small || image.sizes.full)}
-                  alt={image.episode ? `Кадр серии ${image.episode}` : `Кадр ${index + 1}`}
-                  tone={index}
-                />
-                <span class="screenshot-open">
-                  <Icon name="external" size={18} />
-                </span>
-                {image.episode && <small>Серия {image.episode}</small>}
-              </button>
-            ))}
-          </div>
-        ) : (
-          <p class="collection-note">Скриншоты пока не добавлены.</p>
-        )}
-      </section>
+      <AnimeRatingStats animeId={anime.anime_id}>
+        <PersonalRating anime={anime} saved={onRatingSaved} />
+      </AnimeRatingStats>
       <section class="about-voices" aria-label="Доступные озвучки">
         <div class="section-heading">
           <h2>Доступные озвучки</h2>
@@ -221,9 +223,10 @@ export const AnimeAbout: FC<TAnimeAboutProps> = ({
           <div class="voice-gallery">
             {voices.map(group => (
               <div key={group.key} class="voice-source-group">
-                <a
+                <AppLink
                   class="voice-tile"
                   href={`#/anime/${anime.anime_id}?view=watch&play=1&voice=${encodeURIComponent(group.name)}`}
+                  publicHref={animeSiteUrl(anime)}
                 >
                   <span class="voice-tile-icon">
                     <Icon name={/субтитры/i.test(group.name) ? 'comment' : 'volume'} size={22} />
@@ -233,15 +236,15 @@ export const AnimeAbout: FC<TAnimeAboutProps> = ({
                     <small>Наш плеер · {group.episodeCount} серий</small>
                   </span>
                   <Icon name="play" size={19} />
-                </a>
+                </AppLink>
                 <div class="voice-original-players">
                   <small>Оригинальные плееры</small>
                   {group.providers.map(({ video, href }) => (
                     <div key={video.data.player_id} class="voice-subscription">
-                      <a href={href} target="_blank" rel="noreferrer">
+                      <AppLink href={href} target="_blank" rel="noreferrer">
                         {video.data.player.replace(/^Плеер /, '')}
                         <Icon name="external" size={13} />
-                      </a>
+                      </AppLink>
                       <EpisodeSubscriptionButton video={video} subscription={subscriptions} />
                     </div>
                   ))}
@@ -263,9 +266,10 @@ export const AnimeAbout: FC<TAnimeAboutProps> = ({
               const current = Number(item.anime_id) === Number(anime.anime_id);
 
               return (
-                <a
+                <AppLink
                   key={item.anime_id}
                   href={`#/anime/${item.anime_id}`}
+                  publicHref={animeSiteUrl(item)}
                   aria-current={current ? 'page' : undefined}
                   {...cardMenuEvents(item)}
                 >
@@ -276,7 +280,7 @@ export const AnimeAbout: FC<TAnimeAboutProps> = ({
                   </strong>
                   <small>{item.year}</small>
                   <Icon name="chevron" size={16} />
-                </a>
+                </AppLink>
               );
             })}
           </div>

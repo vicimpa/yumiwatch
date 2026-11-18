@@ -5,6 +5,7 @@ export interface Anime {
   description?: string;
   poster?: { medium?: string; big?: string; huge?: string; fullsize?: string; mega?: string };
   rating?: { average: number; counters?: number };
+  user?: { rating?: number; list?: { is_fav?: boolean; list?: { id?: number } | null } };
   year?: number;
   type?: { name?: string; shortname?: string; alias?: string };
   anime_status?: { title: string; alias: string };
@@ -52,6 +53,7 @@ export interface Library {
   favorites: Anime[];
   history: WatchEntry[];
   lists?: Partial<Record<import('./lists').WatchListId, Anime[]>>;
+  rated?: Anime[];
 }
 
 export interface Result<T> {

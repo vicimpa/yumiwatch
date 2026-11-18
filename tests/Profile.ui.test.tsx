@@ -29,7 +29,9 @@ describe('profile experience', () => {
     vi.stubGlobal('fetch', fetcher);
     const { container } = render(<ProfilePage query="" />);
     expect(screen.getByRole('heading', { name: 'Твой аниме-мир' })).toBeTruthy();
-    expect(container.querySelector('a[href="#/profile?tab=collection&list=watched"]')).toBeTruthy();
+    expect(
+      container.querySelector('a[data-app-href="#/profile?tab=collection&list=watched"]')
+    ).toBeTruthy();
     await screen.findByText('Детектив');
     expect(fetcher).not.toHaveBeenCalled();
   });
@@ -45,7 +47,9 @@ describe('profile experience', () => {
       );
     const { container } = render(<ProfilePage query="tab=history" />);
     expect(container.querySelectorAll('.history-card')).toHaveLength(5);
-    expect(container.querySelector('a[href="#/anime/104?view=watch&play=1"]')).toBeTruthy();
+    expect(
+      container.querySelector('a[data-app-href="#/anime/104?view=watch&play=1"]')
+    ).toBeTruthy();
     expect(container.querySelector('.history-copy')?.textContent).toContain('00:30 / 24:01');
     fireEvent.input(screen.getByLabelText('Найти в истории'), { target: { value: 'История 3' } });
     expect(container.querySelectorAll('.history-card')).toHaveLength(1);
@@ -62,7 +66,7 @@ describe('profile experience', () => {
 
   it('offers login back to profile subscriptions for guests', () => {
     const { container } = render(<ProfilePage query="tab=subscriptions" />);
-    expect(container.querySelector('.profile-panel a.button')?.getAttribute('href')).toBe(
+    expect(container.querySelector('.profile-panel a.button')?.getAttribute('data-app-href')).toBe(
       '#/account?next=%2Fprofile%3Ftab%3Dsubscriptions'
     );
   });
@@ -153,4 +157,77 @@ describe('profile experience', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     await screen.findByText('Новое описание');
   });
+});
+
+it('sorts a personal top by personal scores and excludes unrated anime while showing ranks', async () => {
+  const { setPersonalRating } = await import('~/lib/library');
+  const first = { ...anime, anime_id: 1, title: 'Личный фаворит', rating: { average: 5 } };
+  const second = { ...anime, anime_id: 2, title: 'Рейтинг сайта выше', rating: { average: 10 } };
+  const unrated = { ...anime, anime_id: 3, title: 'Без личной оценки', rating: { average: 10 } };
+  setAnimeList(first, 2);
+  setAnimeList(unrated, 2);
+  await setPersonalRating(first, 10);
+  await setPersonalRating(second, 7);
+  const { container } = render(<ProfilePage query="tab=collection&list=rated&sort=user_rating" />);
+  expect([...container.querySelectorAll('.card-title')].map(node => node.textContent)).toEqual([
+    'Личный фаворит',
+    'Рейтинг сайта выше',
+  ]);
+  expect([...container.querySelectorAll('.rank')].map(node => node.textContent)).toEqual([
+    '01',
+    '02',
+  ]);
+  expect(screen.getByText('Моя оценка: 10 / 10')).toBeTruthy();
+  expect(screen.queryByRole('link', { name: 'Без личной оценки' })).toBeNull();
+  expect((screen.getByLabelText('Порядок аниме') as HTMLSelectElement).value).toBe('user_rating');
+});
+
+it('allows sorting the whole collection by personal score with unrated anime at the end', async () => {
+  const { setPersonalRating } = await import('~/lib/library');
+  const high = { ...anime, anime_id: 1, title: 'Первое', rating: { average: 5 } };
+  const low = { ...anime, anime_id: 2, title: 'Второе', rating: { average: 10 } };
+  setAnimeList({ ...anime, anime_id: 3, title: 'Не оценено' }, 2);
+  setAnimeList(high, 2);
+  setAnimeList(low, 2);
+  await setPersonalRating(high, 10);
+  await setPersonalRating(low, 7);
+  const { container, rerender } = render(<ProfilePage query="tab=collection" />);
+  fireEvent.change(screen.getByLabelText('Порядок аниме'), { target: { value: 'user_rating' } });
+  expect([...container.querySelectorAll('.card-title')].map(node => node.textContent)).toEqual([
+    'Первое',
+    'Второе',
+    'Не оценено',
+  ]);
+  expect(screen.getByRole('link', { name: /Личный топ/ }).getAttribute('data-app-href')).toContain(
+    'list=rated&sort=user_rating'
+  );
+  rerender(<ProfilePage query="tab=collection&list=rated&sort=user_rating" />);
+  expect(container.querySelectorAll('.card-title')).toHaveLength(2);
+});
+
+it('shows a public profile’s top using that profile’s scores', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (raw: string) =>
+      reply(
+        raw.includes('/lists')
+          ? [
+              { ...anime, anime_id: 1, title: 'Выбор профиля', rating: 5, user: { rating: 10 } },
+              { ...anime, anime_id: 2, title: 'Другой выбор', rating: 10, user: { rating: 6 } },
+              { ...anime, anime_id: 3, title: 'Не оценено', rating: 10, user: { rating: 0 } },
+            ]
+          : raw.includes('/stats/')
+            ? []
+            : { id: 8, nickname: 'Друг' }
+      )
+    )
+  );
+  const { container } = render(<ProfilePage userId={8} query="tab=collection&list=rated" />);
+  await screen.findByRole('link', { name: 'Выбор профиля' });
+  expect([...container.querySelectorAll('.card-title')].map(node => node.textContent)).toEqual([
+    'Выбор профиля',
+    'Другой выбор',
+  ]);
+  expect(screen.getByText('Оценка профиля: 10 / 10')).toBeTruthy();
+  expect(screen.getByRole('option', { name: 'По оценке профиля' })).toBeTruthy();
 });

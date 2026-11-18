@@ -1,3 +1,4 @@
+import { AppLink } from '~/ui/AppLink';
 import type { FunctionalComponent as FC, JSX } from 'preact';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 
@@ -616,10 +617,10 @@ export const SourcePlayer: FC<TPlayerProps> = ({
       <p class="player-note">
         Нажми Play прямо в плеере. Позиция восстанавливается у совместимых плееров.
         {
-          <a href={playerUrl(current.iframe_url)} target="_blank" rel="noreferrer">
+          <AppLink href={playerUrl(current.iframe_url)} target="_blank" rel="noreferrer">
             {' '}
             Открыть отдельно ↗
-          </a>
+          </AppLink>
         }
       </p>
     </section>

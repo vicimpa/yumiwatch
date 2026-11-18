@@ -1,3 +1,4 @@
+import { AppLink } from '~/ui/AppLink';
 import type { FunctionalComponent as FC } from 'preact';
 
 import { version } from '../../package.json';
@@ -64,7 +65,7 @@ export const Settings: FC<TSettingsProps> = ({ installPrompt, install, installed
         )}
       </SettingsCard>
     )}
-    <a class="settings-card settings-connection-link" href="#/settings/connection">
+    <AppLink class="settings-card settings-connection-link" href="#/settings/connection">
       <div class="settings-icon">
         <Icon name="settings" size={25} />
       </div>
@@ -73,7 +74,7 @@ export const Settings: FC<TSettingsProps> = ({ installPrompt, install, installed
         <p>Токен приложения и состояние серверов</p>
       </div>
       <Icon name="chevron" size={20} />
-    </a>
+    </AppLink>
     <SettingsCard
       title="Когда сеть пропала"
       description="Оболочка приложения и последние загруженные данные остаются доступны после первого посещения. Гостевая коллекция хранится на устройстве. Для коллекции аккаунта, синхронизации и видео нужен интернет."

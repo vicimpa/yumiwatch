@@ -1,3 +1,5 @@
+import { animeSiteUrl } from '~/lib/content-links';
+import { AppLink } from '~/ui/AppLink';
 import type { FunctionalComponent as FC } from 'preact';
 import { useEffect, useMemo, useState } from 'preact/hooks';
 
@@ -77,9 +79,10 @@ export const ProfileSubscriptions: FC = () => {
   return values.length ? (
     <div class="subscription-list">
       {values.map((anime, index) => (
-        <a
+        <AppLink
           class="subscription-card"
           href={`#/anime/${anime.anime_id}`}
+          publicHref={animeSiteUrl(anime)}
           key={`${anime.anime_id}:${index}`}
           {...cardMenuEvents(anime)}
         >
@@ -94,7 +97,7 @@ export const ProfileSubscriptions: FC = () => {
             </p>
           </div>
           <Icon name="chevron" size={18} />
-        </a>
+        </AppLink>
       ))}
     </div>
   ) : (
@@ -170,9 +173,10 @@ export const ProfileHistory: FC = () => {
             <>
               <div class="history-list">
                 {history.map(entry => (
-                  <a
+                  <AppLink
                     class="history-card"
                     href={`#/anime/${entry.anime.anime_id}?view=watch&play=1`}
+                    publicHref={animeSiteUrl(entry.anime)}
                     key={entry.anime.anime_id}
                     {...cardMenuEvents(entry.anime)}
                   >
@@ -204,7 +208,7 @@ export const ProfileHistory: FC = () => {
                     <span class="continue-play">
                       <Icon name="play" size={20} />
                     </span>
-                  </a>
+                  </AppLink>
                 ))}
               </div>
               {library.account ? (

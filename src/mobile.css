@@ -780,6 +780,9 @@
   body {
     overflow-x: clip;
   }
+  .media-workspace > .navigation-history {
+    display: none;
+  }
   .topbar {
     border-bottom-color: #3a3b3f;
   }
@@ -1369,18 +1372,18 @@
     margin-right: 0;
     padding: 0 0 14px;
   }
-  .home-tabs a {
+  .home-tabs :is(a, button) {
     border: 1px solid #45464d;
     border-radius: 20px;
     min-height: 39px;
     padding: 9px 13px;
     font-size: 11px;
   }
-  .home-tabs a.active {
+  .home-tabs :is(a, button).active {
     background: #ff666610;
     border-color: #a45b64;
   }
-  .home-tabs a.active:after {
+  .home-tabs :is(a, button).active:after {
     display: none;
   }
   .section-heading h2 {

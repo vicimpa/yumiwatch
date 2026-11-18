@@ -177,7 +177,11 @@ for (const engine of [webkit, chromium]) {
     await page.setViewportSize({ width: 1280, height: 720 });
     await visibleCard();
 
-    const destination = await page.evaluate(() => document.activeElement.getAttribute('href'));
+    const destination = await page.evaluate(
+      () =>
+        document.activeElement.getAttribute('data-app-href') ||
+        document.activeElement.getAttribute('href')
+    );
 
     await page.keyboard.press('Enter');
     await page.waitForFunction(hash => location.hash === hash, destination);
@@ -242,7 +246,94 @@ for (const engine of [webkit, chromium]) {
         .evaluate(node => getComputedStyle(node).userSelect),
       'none'
     );
-    console.log(engine.name(), 'UI labels blocked, information remains selectable OK');
+    const featureTitle = page.locator('section:not([hidden]) .gallery-feature-copy h2').first();
+    await featureTitle.scrollIntoViewIfNeeded();
+    const featureWordPosition = await featureTitle.evaluate(node => {
+      const range = document.createRange();
+      range.setStart(node.firstChild, 0);
+      range.setEnd(node.firstChild, 8);
+      const text = range.getBoundingClientRect(),
+        box = node.getBoundingClientRect();
+      return { x: text.x + text.width / 2 - box.x, y: text.y + text.height / 2 - box.y };
+    });
+    await featureTitle.dblclick({ position: featureWordPosition });
+    assert.ok(
+      (await page.evaluate(() => getSelection().toString())).length > 0,
+      'Double click does not select a word'
+    );
+    await page.keyboard.press('ControlOrMeta+A');
+    assert.equal(
+      await page.evaluate(() => getSelection().toString()),
+      'Название информационного произведения'
+    );
+    const titleLink = page.locator('.card-title:visible').first();
+    await page.evaluate(() => getSelection().removeAllRanges());
+    const beforeTitleClick = await page.evaluate(() => location.hash);
+    const wordPosition = await titleLink.evaluate(node => {
+      const range = document.createRange();
+      const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+      let textNode;
+      while ((textNode = walker.nextNode())) {
+        if (textNode.textContent.includes('Аниме')) break;
+      }
+      const start = textNode.textContent.indexOf('Аниме');
+      range.setStart(textNode, start);
+      range.setEnd(textNode, start + 5);
+      const text = range.getBoundingClientRect(),
+        link = node.getBoundingClientRect();
+      return { x: text.x + text.width / 2 - link.x, y: text.y + text.height / 2 - link.y };
+    });
+    await titleLink.scrollIntoViewIfNeeded();
+    await titleLink.dblclick({ position: wordPosition });
+    await page.waitForTimeout(500);
+    assert.equal(
+      await page.evaluate(() => location.hash),
+      beforeTitleClick,
+      'Double click navigates away from the title'
+    );
+    const wordSelection = await page.evaluate(() => getSelection().toString());
+    assert.ok(wordSelection.length > 0, 'Title word cannot be selected');
+    assert.equal(await titleLink.evaluate(node => node.draggable), true);
+    assert.ok((await titleLink.getAttribute('href')).startsWith('https://ru.yummyani.me/'));
+    await page.evaluate(() => {
+      getSelection().removeAllRanges();
+      window.contentDrag = null;
+      document.addEventListener(
+        'dragstart',
+        event => {
+          window.contentDrag = {
+            blocked: event.defaultPrevented,
+            url: event.dataTransfer.getData('text/uri-list').trim(),
+          };
+        },
+        { once: true }
+      );
+    });
+    const dragBox = await titleLink.boundingBox();
+    await page.mouse.move(dragBox.x + wordPosition.x, dragBox.y + wordPosition.y);
+    await page.mouse.down();
+    await page.mouse.move(dragBox.x + wordPosition.x + 80, dragBox.y + wordPosition.y - 50, {
+      steps: 12,
+    });
+    await page.mouse.up();
+    const drag = await page.evaluate(() => window.contentDrag);
+    assert.ok(drag && !drag.blocked, 'Content link cannot be dragged');
+    assert.equal(
+      drag.url,
+      await titleLink.getAttribute('href'),
+      'Dragging exposes an internal route'
+    );
+    assert.equal(
+      await page
+        .locator('.media-nav .media-navigation a')
+        .first()
+        .evaluate(node => node.draggable),
+      false
+    );
+    console.log(
+      engine.name(),
+      'native word selection, Cmd+A, public content URLs and menu drag policy OK'
+    );
 
     await page.setViewportSize({ width: 900, height: 480 });
     await brandFits();

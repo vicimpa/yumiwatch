@@ -1,3 +1,11 @@
+import type { Anime } from './types';
+
+export const PERSONAL_RATING_EVENT = 'yumiwatch:personal-rating';
+export const personalRating = (anime: Anime | undefined): number => {
+  const value = anime?.user?.rating;
+  return Number.isInteger(value) && value! >= 1 && value! <= 10 ? value! : 0;
+};
+
 export interface RatingCount {
   rating: number;
   count: number;

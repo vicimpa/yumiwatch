@@ -207,15 +207,25 @@ try {
       await page.waitForFunction(() =>
         [...document.querySelectorAll('img')]
           .filter(image => {
-            const r = image.getBoundingClientRect();
+            const r = image.getBoundingClientRect(),
+              clip = image.closest('.media-scroll')?.getBoundingClientRect(),
+              rail = image.closest('.gallery-rail,.screenshot-rail')?.getBoundingClientRect(),
+              top = Math.max(0, clip?.top || 0, rail?.top || 0),
+              bottom = Math.min(
+                innerHeight,
+                clip?.bottom || innerHeight,
+                rail?.bottom || innerHeight
+              ),
+              left = Math.max(0, clip?.left || 0, rail?.left || 0),
+              right = Math.min(innerWidth, clip?.right || innerWidth, rail?.right || innerWidth);
 
             return (
               r.width &&
               r.height &&
-              r.top < innerHeight &&
-              r.bottom > 0 &&
-              r.left < innerWidth &&
-              r.right > 0
+              r.top < bottom &&
+              r.bottom > top &&
+              r.left < right &&
+              r.right > left
             );
           })
           .every(image => image.complete && image.naturalWidth > 0)

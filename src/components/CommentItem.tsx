@@ -1,3 +1,4 @@
+import { AppLink } from '~/ui/AppLink';
 import type { FunctionalComponent as FC } from 'preact';
 import { useCallback, useState } from 'preact/hooks';
 
@@ -98,9 +99,9 @@ export const CommentItem: FC<TCommentItemProps> = ({
       <div class="comment-content">
         <div class="comment-author">
           {comment.user_id > 0 ? (
-            <a href={profileHref(comment.user_id)} class="comment-profile-link">
+            <AppLink href={profileHref(comment.user_id)} class="comment-profile-link">
               <strong>{comment.name}</strong>
-            </a>
+            </AppLink>
           ) : (
             <strong>{comment.name}</strong>
           )}

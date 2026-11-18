@@ -1,15 +1,8 @@
 import type { FunctionalComponent as FC, JSX } from 'preact';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 
-import { animeList, cachedRequest, peekAnimeList, peekRequest } from '~/lib/api';
-import {
-  catalogParams,
-  describeFilters,
-  filterCount,
-  filterQuery,
-  parseCatalogQuery,
-  type CatalogFilters,
-} from '~/lib/filters';
+import { animeList, peekAnimeList } from '~/lib/api';
+import { catalogParams, filterCount, parseCatalogQuery, type CatalogFilters } from '~/lib/filters';
 import { navigateGallery } from '~/lib/gallery-navigation';
 import { useResource, useSession } from '~/lib/hooks';
 import { readJSON, writeJSON } from '~/lib/storage';
@@ -19,9 +12,25 @@ import { AnimeCard, AnimeRow } from './AnimeCard';
 import { AutoLoad } from './AutoLoad';
 import { FilterSheet } from './Filters';
 import { GalleryToolbar } from './GalleryShelf';
-import { Button, ButtonLink, Empty, ErrorState, Icon, Select, Skeleton, VirtualGrid } from '~/ui';
+import {
+  Button,
+  ButtonLink,
+  ChoiceTabs,
+  Empty,
+  ErrorState,
+  Icon,
+  Select,
+  Skeleton,
+  VirtualGrid,
+} from '~/ui';
 
 const PAGE_SIZE = 24;
+const STATUS_CHOICES = [
+  ['', 'Все'],
+  ['ongoing', 'Онгоинги'],
+  ['released', 'Вышедшие'],
+  ['announcement', 'Анонсы'],
+] as const;
 
 export type TCatalogProps = { query: string; active?: boolean };
 
@@ -35,26 +44,6 @@ export const Catalog: FC<TCatalogProps> = ({ query, active = true }) => {
   }, [active]);
 
   const [layout, setLayout] = useState(() => readJSON('yumiwatch:catalog-layout', 'grid'));
-  const hasGenres = !!(filters.genres || filters.exclude_genres);
-  const genreMeta = useResource(
-    signal =>
-      hasGenres
-        ? cachedRequest<{ genres: { title: string; href: string; value: number }[] }>(
-            '/anime/genres',
-            {},
-            signal
-          )
-        : Promise.resolve({ data: { genres: [] }, cached: false, savedAt: 0 }),
-    [hasGenres],
-    () =>
-      hasGenres
-        ? peekRequest<{ genres: { title: string; href: string; value: number }[] }>('/anime/genres')
-        : undefined
-  );
-  const chips = useMemo(
-    () => describeFilters(filters, genreMeta.value?.data.genres),
-    [filters, genreMeta.value?.data.genres]
-  );
   const [pages, setPages] = useState<Record<number, Anime[]>>({});
   const pageRef = useRef(0);
   const loadingTarget = useRef<number | null>(null);
@@ -222,11 +211,7 @@ export const Catalog: FC<TCatalogProps> = ({ query, active = true }) => {
 
   const clearQuery = useCallback(() => change('q', ''), [change]);
 
-  const openGenres = useCallback(() => setExpanded('genres'), []);
-
-  const clearFilters = useCallback(() => {
-    location.hash = `/catalog${filters.q ? `?q=${encodeURIComponent(filters.q)}` : ''}`;
-  }, [filters]);
+  const chooseStatus = useCallback((value: string) => change('status', value), [change]);
 
   const toggleLayout = useCallback(() => {
     const next = layout === 'grid' ? 'list' : 'grid';
@@ -259,7 +244,6 @@ export const Catalog: FC<TCatalogProps> = ({ query, active = true }) => {
         subtitle="Галерея каталога YummyAnime"
         onFilters={openFilters}
         count={filterCount(filters)}
-        query={filters.q}
       />
       {filters.q && (
         <div class="gallery-query">
@@ -274,43 +258,15 @@ export const Catalog: FC<TCatalogProps> = ({ query, active = true }) => {
         </div>
       )}
       <div class="catalog-toolbar">
-        <div class="filter-chips">
-          {[
-            ['', 'Все'],
-            ['ongoing', 'Онгоинги'],
-            ['released', 'Вышедшие'],
-            ['announcement', 'Анонсы'],
-          ].map(([value, title]) => (
-            <button
-              class={filters.status === value ? 'chip active' : 'chip'}
-              key={value}
-              onClick={() => change('status', value)}
-            >
-              {title}
-            </button>
-          ))}
-        </div>
+        <ChoiceTabs
+          class="catalog-status-tabs"
+          label="Статус аниме"
+          active={active}
+          value={filters.status}
+          choices={STATUS_CHOICES}
+          onChange={chooseStatus}
+        />
       </div>
-      {chips.length > 0 && (
-        <div class="applied-filters">
-          {chips.slice(0, 6).map(chip => (
-            <button
-              key={chip.id}
-              onClick={() => {
-                location.hash = `/catalog?${filterQuery({ ...filters, ...chip.changes })}`;
-              }}
-              aria-label={`Убрать фильтр ${chip.label}`}
-            >
-              {chip.label}
-              <Icon name="close" size={14} />
-            </button>
-          ))}
-          {chips.length > 6 && <button onClick={openGenres}>Ещё {chips.length - 6}</button>}
-          <button class="reset-filter-link" onClick={clearFilters}>
-            Сбросить
-          </button>
-        </div>
-      )}
       <div class="results-heading">
         <div class="catalog-results-title">
           <span class="catalog-results-count">

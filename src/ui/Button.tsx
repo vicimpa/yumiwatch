@@ -1,4 +1,5 @@
 import type { FunctionalComponent as FC, JSX } from 'preact';
+import { AppLink } from './AppLink';
 
 export type TButtonVariant = 'primary' | 'secondary' | 'text' | 'icon';
 
@@ -10,6 +11,7 @@ export type TButtonProps = Omit<JSX.ButtonHTMLAttributes<HTMLButtonElement>, 'cl
 export type TButtonLinkProps = Omit<JSX.AnchorHTMLAttributes<HTMLAnchorElement>, 'class'> & {
   variant?: TButtonVariant;
   class?: string;
+  publicHref?: string;
 };
 
 const variants: Record<TButtonVariant, string> = {
@@ -31,4 +33,4 @@ export const ButtonLink: FC<TButtonLinkProps> = ({
   variant = 'secondary',
   class: className,
   ...props
-}) => <a {...props} class={actionClass(variant, className)} />;
+}) => <AppLink {...props} class={actionClass(variant, className)} />;

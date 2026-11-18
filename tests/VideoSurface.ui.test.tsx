@@ -6,6 +6,7 @@ import { AUTO_ACTION_DELAY_MS } from '~/components/AutoActionCountdown';
 import {
   STREAM_ERROR_DELAY_MS,
   STREAM_STALL_TIMEOUT_MS,
+  STREAM_RESUME_REFRESH_MS,
   VideoSurface,
 } from '~/components/VideoSurface';
 import { CONTROLS_IDLE_MS } from '~/components/VideoControls';
@@ -18,6 +19,7 @@ function Harness({
   next,
   ended,
   skips = {},
+  resume,
 }: {
   failure?: (playing: boolean) => void;
   autoOpening?: boolean;
@@ -26,6 +28,7 @@ function Harness({
   next?: () => void;
   ended?: () => void;
   skips?: { opening?: { time: number; length: number }; ending?: { time: number; length: number } };
+  resume?: () => boolean;
 }) {
   const media = useRef<HTMLVideoElement>(null);
 
@@ -41,6 +44,7 @@ function Harness({
       autoNext={autoNext}
       next={next}
       onStreamError={failure}
+      onResume={resume}
       retry={() => {}}
       title="Тест"
       poster=""
@@ -69,6 +73,49 @@ const advance = () =>
   });
 
 describe('unresponsive media sources', () => {
+  it('renews an opted-in source on play after a long pause, without renewing during the pause', () => {
+    const resume = vi.fn(() => true);
+    const { container } = render(<Harness resume={resume} />);
+    const media = container.querySelector('video')!;
+    playing(media, 42);
+    Object.defineProperty(media, 'paused', { value: true, configurable: true });
+    fireEvent.pause(media);
+    act(() => {
+      vi.advanceTimersByTime(STREAM_RESUME_REFRESH_MS + 1);
+    });
+    expect(resume).not.toHaveBeenCalled();
+    Object.defineProperty(media, 'paused', { value: false, configurable: true });
+    fireEvent.play(media);
+    expect(resume).toHaveBeenCalledOnce();
+    expect(media.currentTime).toBe(42);
+    fireEvent.play(media);
+    expect(resume).toHaveBeenCalledOnce();
+  });
+  it('keeps short pauses on the existing source', () => {
+    const resume = vi.fn(() => true);
+    const { container } = render(<Harness resume={resume} />);
+    const media = container.querySelector('video')!;
+    playing(media, 42);
+    Object.defineProperty(media, 'paused', { value: true, configurable: true });
+    fireEvent.pause(media);
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    Object.defineProperty(media, 'paused', { value: false, configurable: true });
+    fireEvent.play(media);
+    expect(resume).not.toHaveBeenCalled();
+  });
+  it('also renews when the initial paused player has been left open for a long time', () => {
+    const resume = vi.fn(() => true);
+    const { container } = render(<Harness resume={resume} />);
+    const media = container.querySelector('video')!;
+    act(() => {
+      vi.advanceTimersByTime(STREAM_RESUME_REFRESH_MS + 1);
+    });
+    Object.defineProperty(media, 'paused', { value: false, configurable: true });
+    fireEvent.play(media);
+    expect(resume).toHaveBeenCalledOnce();
+  });
   it('publishes immersive idle state and restores window controls when leaving playback', () => {
     const { container, unmount } = render(
       <div class="media-app is-playback">

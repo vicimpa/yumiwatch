@@ -193,9 +193,15 @@ for (const engine of process.env.LAYOUT_BROWSER === 'chrome' ? [chromium] : [web
     });
     await page.waitForFunction(() => !document.documentElement.dataset.pageFallback);
     await page.setViewportSize({ width: 900, height: 480 });
-    await page.mouse.move(100, 350);
-    await page.mouse.wheel(0, 650);
-    await page.waitForFunction(() => document.querySelector('.media-nav').scrollTop > 0);
+    const menuNeedsScroll = await page
+      .locator('.media-nav')
+      .evaluate(element => element.scrollHeight > element.clientHeight);
+
+    if (menuNeedsScroll) {
+      await page.mouse.move(100, 350);
+      await page.mouse.wheel(0, 650);
+      await page.waitForFunction(() => document.querySelector('.media-nav').scrollTop > 0);
+    }
 
     const account = await page.getByRole('link', { name: 'Твой профиль' }).boundingBox();
 

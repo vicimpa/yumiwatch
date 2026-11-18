@@ -19,10 +19,10 @@
 .anime-resume-row {
   display: flex;
   align-items: center;
-  gap: 17px;
-  min-height: 80px;
-  margin-bottom: 25px;
-  padding: 16px 20px;
+  gap: 15px;
+  min-height: 72px;
+  margin-bottom: 24px;
+  padding: 14px 18px;
   border: 1px solid #ff777745;
   border-radius: 10px;
   background: #ff77770a;
@@ -46,8 +46,8 @@
 .resume-row-play {
   display: grid;
   place-items: center;
-  width: 46px;
-  height: 46px;
+  width: 42px;
+  height: 42px;
   border-radius: 50%;
   background: var(--accent);
   color: #222;
@@ -76,6 +76,9 @@
 .anime-about-content > section:first-child {
   margin-top: 0;
 }
+.about-description .about-screenshots {
+  margin-top: 24px;
+}
 .anime-facts {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -85,13 +88,13 @@
   border-top: 1px solid var(--line);
 }
 .anime-facts dt {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
   margin-bottom: 6px;
 }
 .anime-facts dd {
   margin: 0;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.6;
   overflow-wrap: anywhere;
 }
@@ -976,17 +979,18 @@ html[data-interface-style='contrast'] :focus-visible {
 .media-navigation {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 2px;
 }
 .media-navigation > a,
 .media-system-links > a {
   display: flex;
   align-items: center;
   gap: 13px;
-  min-height: 51px;
-  padding: 11px 13px;
-  border-radius: 8px;
-  font-size: 13px;
+  width: 100%;
+  min-height: 54px;
+  padding: 14px 13px;
+  border-radius: var(--radius-control);
+  font-size: 14px;
   color: #c2c2c8;
 }
 .media-navigation > a svg,
@@ -999,8 +1003,8 @@ html[data-interface-style='contrast'] :focus-visible {
   background: #ff777712;
   box-shadow: inset 3px 0 var(--accent);
 }
-.media-navigation > a:hover,
-.media-system-links > a:hover {
+.media-navigation > a:hover:not(.active),
+.media-system-links > a:hover:not(.active) {
   background: #ffffff08;
   color: #fff;
 }
@@ -1501,6 +1505,27 @@ body {
   position: fixed;
   inset: 0;
   width: 100%;
+}
+.media-backdrop {
+  position: fixed;
+  inset: 0 0 0 200px;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--bg);
+}
+.media-app.is-playback .media-backdrop {
+  left: 0;
+  background: #000;
+}
+@media (max-width: 1050px) and (min-width: 761px) {
+  .media-backdrop {
+    left: 175px;
+  }
+}
+@media (max-width: 760px) {
+  .media-backdrop {
+    left: 0;
+  }
 }
 .media-nav {
   overflow-x: hidden;

@@ -1,3 +1,5 @@
+import { animeSiteUrl } from '~/lib/content-links';
+import { AppLink } from '~/ui/AppLink';
 import type { FunctionalComponent as FC, JSX } from 'preact';
 import { useCallback, useEffect, useMemo, useState } from 'preact/hooks';
 
@@ -56,11 +58,12 @@ const AboutEpisodeCard: FC<TAboutEpisodeCardProps> = ({
   const current = history?.episode === video.number && !!saved.position;
 
   return (
-    <a
+    <AppLink
       class={`episode-card ${current ? 'selected' : ''}`}
       aria-label={`Серия ${video.number}`}
       aria-current={current ? 'true' : undefined}
       href={`#/anime/${anime.anime_id}?view=watch&play=1&episode=${encodeURIComponent(video.number)}&voice=${encodeURIComponent(voice)}`}
+      publicHref={animeSiteUrl(anime)}
       onClick={close}
     >
       <EpisodePreview
@@ -70,7 +73,7 @@ const AboutEpisodeCard: FC<TAboutEpisodeCardProps> = ({
       <EpisodeCaption title={`Серия ${video.number}`}>
         {saved.position ? `Продолжить · ${formatTime(saved.position)}` : 'Смотреть'}
       </EpisodeCaption>
-    </a>
+    </AppLink>
   );
 };
 

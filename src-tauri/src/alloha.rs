@@ -168,12 +168,29 @@ pub fn nonce(text: &str) -> String {
     String::from_utf8(result).unwrap()
 }
 
+pub struct Pending {
+    result: Value,
+    session: Session,
+}
+
+#[cfg(test)]
 pub async fn resolve(
     url: &Url,
     candidate: &Candidate,
     upstream: &impl Upstream,
     sessions: &Sessions,
 ) -> Result<Value> {
+    let pending = prepare(url, candidate, upstream).await?;
+
+    Ok(commit(pending, sessions).await)
+}
+
+// Resolver races can drop a pending value without leaving a registered session.
+pub async fn prepare(
+    url: &Url,
+    candidate: &Candidate,
+    upstream: &impl Upstream,
+) -> Result<Pending> {
     let html = upstream
         .text(
             url.as_str(),
@@ -309,6 +326,11 @@ pub async fn resolve(
     if let Some(caption) = caption {
         result["caption"] = json!({"url":session.register(caption["src"].as_str().unwrap())?,"label":caption["label"],"language":"ru"});
     }
+    Ok(Pending { result, session })
+}
+
+pub async fn commit(pending: Pending, sessions: &Sessions) -> Value {
+    let Pending { result, session } = pending;
     let mut sessions = sessions.lock().await;
     sessions.retain(|_, session| !session.expired());
     if sessions.len() >= 8 {
@@ -321,7 +343,7 @@ pub async fn resolve(
         }
     }
     sessions.insert(session.id.clone(), session);
-    Ok(result)
+    result
 }
 
 pub fn rewrite_playlist(

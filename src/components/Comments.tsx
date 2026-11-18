@@ -1,3 +1,4 @@
+import { AppLink } from '~/ui/AppLink';
 import type { FunctionalComponent as FC, JSX } from 'preact';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 
@@ -210,11 +211,11 @@ const CommentsContent: FC<TCommentsContentProps> = ({ animeId, returnTo }) => {
             onSendingChange={setSending}
           />
         ) : (
-          <a href={loginHref}>
+          <AppLink href={loginHref}>
             <Icon name="comment" size={20} />
             <span>Войти, чтобы комментировать</span>
             <Icon name="arrow" size={18} />
-          </a>
+          </AppLink>
         )}
       </div>
     </section>

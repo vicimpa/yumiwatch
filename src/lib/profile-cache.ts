@@ -13,6 +13,10 @@ export function peekProfileData<T>(key: string): Result<T> | undefined {
   return entry ? { data: entry.data, savedAt: entry.savedAt, cached: true } : undefined;
 }
 
+export function invalidateProfileData(key: string) {
+  deleteCache('data', `${scope()}${key}`);
+}
+
 /** Persistent account-scoped SWR. Never persist a raw /profile response or session token. */
 export function profileData<T>(
   key: string,

@@ -11,6 +11,7 @@ import type { Stream, StreamCaption } from '~/lib/streams';
 
 const readyEvents = ['loadeddata', 'canplay', 'seeked', 'playing', 'resize', 'timeupdate'];
 export const STREAM_STARTUP_TIMEOUT_MS = 8000;
+export const STREAM_LOAD_TIMEOUT_MS = 25000;
 
 export function nativeHls(element: HTMLVideoElement) {
   if (!element.canPlayType('application/vnd.apple.mpegurl')) return false;
@@ -180,11 +181,12 @@ export const StreamMedia: FC<TStreamMediaProps> = ({
     element.addEventListener('loadedmetadata', restore, true);
     for (const event of readyEvents) element.addEventListener(event, ready);
     element.addEventListener('error', failed);
-    if (stream.fallback) {
+    {
+      const startupTimeout = stream.fallback ? STREAM_STARTUP_TIMEOUT_MS : STREAM_LOAD_TIMEOUT_MS;
       const checkStartup = () => {
         if (disposed || notified || reportedFailure) return;
         if (navigator.onLine === false) {
-          startupTimer = setTimeout(checkStartup, STREAM_STARTUP_TIMEOUT_MS);
+          startupTimer = setTimeout(checkStartup, startupTimeout);
 
           return;
         }
@@ -193,7 +195,7 @@ export const StreamMedia: FC<TStreamMediaProps> = ({
         callbacks.current.onError(new Error('Источник не подготовил видео вовремя.'));
       };
 
-      startupTimer = setTimeout(checkStartup, STREAM_STARTUP_TIMEOUT_MS);
+      startupTimer = setTimeout(checkStartup, startupTimeout);
     }
     void (async () => {
       try {
@@ -299,7 +301,12 @@ export const StreamMedia: FC<TStreamMediaProps> = ({
             callbacks.current.start(),
             stream.type === 'hls' ? 'application/vnd.apple.mpegurl' : 'application/dash+xml'
           );
-          if (disposed || reportedFailure) return;
+          if (disposed || reportedFailure) {
+            await player.destroy();
+            if (engine.current === player) engine.current = undefined;
+
+            return;
+          }
           releaseRate = bindPlaybackRate(element, player);
           // Only the standby decoder loses its startup buffer. The live layer
           // continues until the requested variant actually decodes a frame.

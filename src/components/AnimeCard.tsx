@@ -1,5 +1,7 @@
+import { AppLink } from '~/ui/AppLink';
 import type { FunctionalComponent as FC } from 'preact';
 
+import { animeSiteUrl } from '~/lib/content-links';
 import type { Anime } from '~/lib/types';
 import { cardMenuEvents } from '~/lib/card-context';
 
@@ -27,17 +29,18 @@ export const AnimeCard: FC<TAnimeCardProps> = ({ anime, rank, onOpen, onFocus, o
       {...cardMenuEvents(anime)}
     >
       <div class="card-image">
-        <a
+        <AppLink
           href={`#/anime/${anime.anime_id}?view=anime-about`}
+          publicHref={animeSiteUrl(anime)}
           onClick={onOpen}
           tabIndex={-1}
           aria-hidden="true"
         >
           <Poster anime={anime} />
           <span class="poster-play">
-            <Icon name="play" size={28} />
+            <Icon name="arrow" size={28} />
           </span>
-        </a>
+        </AppLink>
         {!!score && <span class="score">★ {score.toFixed(1)}</span>}
         <FavoriteButton anime={anime} compact />
         {anime.anime_status?.alias === 'ongoing' && (
@@ -51,14 +54,15 @@ export const AnimeCard: FC<TAnimeCardProps> = ({ anime, rank, onOpen, onFocus, o
         {rank && <span class="rank">{String(rank).padStart(2, '0')}</span>}
         <div>
           <h3>
-            <a
+            <AppLink
               data-gallery-link
               class="card-title"
               href={`#/anime/${anime.anime_id}?view=anime-about`}
+              publicHref={animeSiteUrl(anime)}
               onClick={onOpen}
             >
               {anime.title}
-            </a>
+            </AppLink>
           </h3>
           <p>
             {[anime.year, anime.type?.shortname || anime.type?.name].filter(Boolean).join(' · ')}
@@ -74,7 +78,12 @@ export type TAnimeRowProps = { anime: Anime; onOpen?: () => void };
 
 export const AnimeRow: FC<TAnimeRowProps> = ({ anime, onOpen }) => (
   <article class="anime-result-row" {...cardMenuEvents(anime)}>
-    <a class="result-main" href={`#/anime/${anime.anime_id}?view=anime-about`} onClick={onOpen}>
+    <AppLink
+      class="result-main"
+      href={`#/anime/${anime.anime_id}?view=anime-about`}
+      publicHref={animeSiteUrl(anime)}
+      onClick={onOpen}
+    >
       <div class="result-poster">
         <Poster anime={anime} />
       </div>
@@ -96,7 +105,7 @@ export const AnimeRow: FC<TAnimeRowProps> = ({ anime, onOpen }) => (
           <span>{anime.anime_status?.title}</span>
         </div>
       </div>
-    </a>
+    </AppLink>
     <FavoriteButton anime={anime} compact />
   </article>
 );

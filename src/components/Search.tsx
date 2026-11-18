@@ -1,3 +1,4 @@
+import { AppLink } from '~/ui/AppLink';
 import type { FunctionalComponent as FC, JSX } from 'preact';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 
@@ -162,25 +163,25 @@ export const Search: FC<TSearchProps> = ({ query, active = true }) => {
           )}
           <h2 class="quick-search-title">Быстрый выбор</h2>
           <div class="search-quick-links">
-            <a href="#/catalog?status=ongoing">
+            <AppLink href="#/catalog?status=ongoing">
               <Icon name="play" />
               Онгоинги
               <Icon name="chevron" size={17} />
-            </a>
-            <a href="#/catalog?types=movie">
+            </AppLink>
+            <AppLink href="#/catalog?types=movie">
               <Icon name="grid" />
               Полнометражные
               <Icon name="chevron" size={17} />
-            </a>
-            <a href="#/catalog?sort=top">
+            </AppLink>
+            <AppLink href="#/catalog?sort=top">
               <Icon name="spark" />
               Лучшие по рейтингу
               <Icon name="chevron" size={17} />
-            </a>
-            <a href="#/catalog?translates=subtitles">
+            </AppLink>
+            <AppLink href="#/catalog?translates=subtitles">
               <Icon name="comment" />С субтитрами
               <Icon name="chevron" size={17} />
-            </a>
+            </AppLink>
           </div>
         </>
       ) : text.trim().length < 2 ? (

@@ -23,7 +23,7 @@ import { PlaybackLoader } from './PlaybackLoader';
 import { AutoSkipSettings } from './PlaybackSettings';
 import type { TPlayerProps } from './Player.types';
 import { EpisodeOptions, SourceOptions, VoiceOptions } from './PlayerOptions';
-import { STREAM_ERROR_DELAY_MS, VideoSurface } from './VideoSurface';
+import { STREAM_ERROR_DELAY_MS, STREAM_RESUME_REFRESH_MS, VideoSurface } from './VideoSurface';
 import { WatchPicker } from './WatchPicker';
 import { Button, Empty, ErrorState, Icon, SearchField, Select, Sheet, Sidebar, Toggle } from '~/ui';
 
@@ -230,16 +230,26 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
 
     return preferred?.video_id;
   }, [signature]);
+  const [refreshRequest, setRefreshRequest] = useState<{
+    scope: string;
+    videoId?: number;
+    revision: number;
+  }>({ scope: '', revision: 0 });
+  const resolvingId =
+    refreshRequest.scope === sourceScope &&
+    available.some(video => video.video_id === refreshRequest.videoId)
+      ? refreshRequest.videoId
+      : preferredId;
   const streams = useResource(
     signal =>
       current
-        ? resolveStream(available, signal, { preferredVideoId: preferredId }).then(data => ({
+        ? resolveStream(available, signal, { preferredVideoId: resolvingId }).then(data => ({
             data,
             cached: false,
             savedAt: Date.now(),
           }))
         : Promise.resolve({ data: undefined, cached: false, savedAt: 0 }),
-    [availableSignature, preferredId]
+    [availableSignature, resolvingId, refreshRequest.revision]
   );
   const result =
     streams.value?.data && available.some(video => video.video_id === streams.value!.data!.videoId)
@@ -382,7 +392,7 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
     retrySources();
   }, [sourceScope, retrySources]);
 
-  const streamFailed = useCallback(
+  const prepareRecovery = useCallback(
     (playing: boolean) => {
       recoveryAutoplay.current = playing;
       if (media.current)
@@ -392,6 +402,39 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
           rate: selectedPlaybackRate(media.current),
         };
       watch?.flush();
+    },
+    [watch]
+  );
+
+  const refreshStream = useCallback(
+    (playing: boolean) => {
+      if (navigator.onLine === false || result?.provider !== 'Alloha') return false;
+      prepareRecovery(playing);
+      // A changed resource dependency discards the expired URL, including when
+      // this is the only provider. A failed renewal can then show a retry action.
+      setRefreshRequest(previous => ({
+        scope: sourceScope,
+        videoId: result.videoId,
+        revision: previous.revision + 1,
+      }));
+      return true;
+    },
+    [prepareRecovery, result, sourceScope]
+  );
+
+  const resumeStream = useCallback(() => refreshStream(true), [refreshStream]);
+
+  const streamFailed = useCallback(
+    (playing: boolean) => {
+      // An old session is not evidence that its provider is unavailable. Renew
+      // it once; a failure of the fresh stream follows the ordinary fallbacks.
+      if (
+        result?.provider === 'Alloha' &&
+        navigator.onLine !== false &&
+        Date.now() - (streams.value?.savedAt || 0) >= STREAM_RESUME_REFRESH_MS
+      )
+        return refreshStream(playing);
+      prepareRecovery(playing);
       if (navigator.onLine === false || !result) return false;
       if (selected?.fallback) {
         setFallbackSources(previous => ({
@@ -419,7 +462,15 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
 
       return true;
     },
-    [watch, result, selected, available, sourceScope]
+    [
+      prepareRecovery,
+      refreshStream,
+      result,
+      streams.value?.savedAt,
+      selected,
+      available,
+      sourceScope,
+    ]
   );
 
   const selectPlayer = useCallback(
@@ -590,6 +641,7 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
               autoNext={autoNext}
               retry={retryStream}
               onStreamError={streamFailed}
+              onResume={result?.provider === 'Alloha' ? resumeStream : undefined}
               onQualityError={restoreQuality}
               onBack={onBack}
               onVoice={immersive ? openVoicePicker : undefined}

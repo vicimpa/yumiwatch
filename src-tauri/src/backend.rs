@@ -14,6 +14,29 @@ use crate::{
 };
 
 type Cache = Arc<Mutex<HashMap<String, (Instant, Value)>>>;
+const SOURCE_PRIORITY_WINDOW: Duration = Duration::from_secs(2);
+
+enum Resolved {
+    Direct(Value),
+    Alloha(alloha::Pending),
+}
+
+struct Attempt {
+    index: usize,
+    result: Result<Resolved, String>,
+}
+
+impl Resolved {
+    async fn finish(self, backend: &Backend) -> Result<Value, String> {
+        match self {
+            Self::Alloha(pending) => Ok(alloha::commit(pending, &backend.sessions).await),
+            Self::Direct(value) if value["provider"] == "CVH" => {
+                backend.media.register(value).await
+            }
+            Self::Direct(value) => Ok(value),
+        }
+    }
+}
 
 /// Native state only: no server, listener, child process, or bound socket.
 #[derive(Clone)]
@@ -60,41 +83,36 @@ impl Backend {
                 return Ok(value.clone());
             }
         }
-        let result = tokio::time::timeout(Duration::from_secs(28), async {
-            let mut errors = Vec::new();
-            for candidate in candidates {
-                let result = match providers::provider_url(&candidate.url) {
-                    Ok((url, "alloha")) => {
-                        alloha::resolve(&url, &candidate, &self.client, &self.sessions).await
-                    }
-                    Ok(_) => providers::resolve(&candidate, &self.client).await,
-                    Err(error) => Err(error),
-                };
-                let result = match result {
-                    Ok(value) if value["provider"] == "Aksor" => {
-                        self.available_aksor_streams(value).await
-                    }
-                    other => other,
-                };
-                match result {
-                    Ok(result) => {
-                        return if result["provider"] == "CVH" {
-                            self.media.register(result).await
-                        } else {
-                            Ok(result)
+        // Start reserves with a small priority stagger. A hung provider must not
+        // consume the entire request deadline before the other candidates run.
+        let mut attempts = tokio::task::JoinSet::new();
+        for (index, candidate) in candidates.into_iter().enumerate() {
+            let backend = self.clone();
+            attempts.spawn(async move {
+                tokio::time::sleep(Duration::from_millis(index as u64 * 300)).await;
+                let result = tokio::time::timeout(Duration::from_secs(20), async {
+                    let result = match providers::provider_url(&candidate.url) {
+                        Ok((url, "alloha")) => Resolved::Alloha(
+                            alloha::prepare(&url, &candidate, &backend.client).await?,
+                        ),
+                        Ok(_) => {
+                            Resolved::Direct(providers::resolve(&candidate, &backend.client).await?)
                         }
+                        Err(error) => return Err(error),
+                    };
+                    match result {
+                        Resolved::Direct(value) if value["provider"] == "Aksor" => Ok(
+                            Resolved::Direct(backend.available_aksor_streams(value).await?),
+                        ),
+                        other => Ok(other),
                     }
-                    Err(error) => {
-                        if !errors.contains(&error) {
-                            errors.push(error);
-                        }
-                    }
-                }
-            }
-            Err(errors.join(" "))
-        })
-        .await
-        .map_err(|_| "Источники не ответили вовремя. Попробуй другую озвучку.".to_string())??;
+                })
+                .await
+                .unwrap_or_else(|_| Err("Источник не ответил вовремя.".to_string()));
+                Attempt { index, result }
+            });
+        }
+        let result = first_available(attempts).await?.finish(self).await?;
         let mut cache = self.cache.lock().await;
         cache.retain(|_, (time, _)| time.elapsed() < Duration::from_secs(30));
         if cache.len() >= 64 {
@@ -280,10 +298,188 @@ pub fn error(status: StatusCode, message: &str) -> Response<Vec<u8>> {
         .unwrap()
 }
 
+// Dropping JoinSet cancels unfinished requests. Resolutions hold unregistered
+// sessions, so discarded and cancelled attempts cannot evict the selected one.
+async fn first_available(mut attempts: tokio::task::JoinSet<Attempt>) -> Result<Resolved, String> {
+    let mut errors = Vec::new();
+    let mut preferred_pending = true;
+    let priority_window = tokio::time::sleep(SOURCE_PRIORITY_WINDOW);
+    tokio::pin!(priority_window);
+    let mut reserve: Option<(usize, Resolved)> = None;
+
+    loop {
+        tokio::select! {
+            attempt = attempts.join_next() => {
+                match attempt {
+                    Some(Ok(Attempt { index: 0, result: Ok(value) })) => return Ok(value),
+                    Some(Ok(Attempt { result: Ok(value), .. })) if !preferred_pending => {
+                        return Ok(value);
+                    }
+                    Some(Ok(Attempt { index, result: Ok(value) })) => {
+                        if reserve.as_ref().map_or(true, |(current, _)| index < *current) {
+                            reserve = Some((index, value));
+                        }
+                    }
+                    Some(Ok(Attempt { index, result: Err(error) })) => {
+                        if !errors.contains(&error) {
+                            errors.push(error);
+                        }
+                        if index == 0 {
+                            preferred_pending = false;
+                            if let Some((_, value)) = reserve.take() {
+                                return Ok(value);
+                            }
+                        }
+                    }
+                    Some(Err(error)) => {
+                        let error = error.to_string();
+                        if !errors.contains(&error) {
+                            errors.push(error);
+                        }
+                    }
+                    None => {
+                        if let Some((_, value)) = reserve.take() {
+                            return Ok(value);
+                        }
+                        return Err(errors.join(" "));
+                    }
+                }
+            }
+            _ = &mut priority_window, if preferred_pending => {
+                preferred_pending = false;
+                if let Some((_, value)) = reserve.take() {
+                    return Ok(value);
+                }
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::providers::tests::candidate;
+    use crate::providers::tests::{candidate, MockUpstream};
+    use serde_json::json;
+    use url::Url;
+
+    fn direct(index: usize, result: Result<Value, String>) -> Attempt {
+        Attempt {
+            index,
+            result: result.map(Resolved::Direct),
+        }
+    }
+
+    fn direct_value(resolved: Resolved) -> Value {
+        match resolved {
+            Resolved::Direct(value) => value,
+            Resolved::Alloha(_) => panic!("expected a direct stream"),
+        }
+    }
+
+    async fn pending_alloha() -> alloha::Pending {
+        let url = Url::parse("https://alloha.yani.tv/?token=public").unwrap();
+        let upstream = MockUpstream::new(vec![
+            r#"<meta name="viewporti" content="abcdefgh"><script src="/build/app.123abc.js"></script><script>const fileList = JSON.parse('{"active":{"id":123}}');</script>"#.into(),
+            json!({"hlsSource":[{"label":"(Russian) Dub - Арт-Дубляж","quality":{"360":"https://edge.userplay.live/series/master.m3u8"}}]}).to_string(),
+            format!("return '{}'","A".repeat(380)),
+        ]);
+        alloha::prepare(&url, &candidate(url.as_str(), "Арт-Дубляж"), &upstream)
+            .await
+            .unwrap()
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn slow_source_yields_to_reserve_after_priority_window() {
+        let mut attempts = tokio::task::JoinSet::new();
+        attempts.spawn(async {
+            tokio::time::sleep(Duration::from_secs(20)).await;
+            direct(0, Err("Alloha unavailable".to_string()))
+        });
+        attempts.spawn(async { direct(1, Err("Second provider unavailable".to_string())) });
+        attempts.spawn(async {
+            tokio::time::sleep(Duration::from_millis(600)).await;
+            direct(2, Ok(json!({"provider": "Reserve", "videoId": 3})))
+        });
+        let started = tokio::time::Instant::now();
+        let result = direct_value(super::first_available(attempts).await.unwrap());
+        assert_eq!(result["videoId"], 3);
+        assert!(started.elapsed() >= SOURCE_PRIORITY_WINDOW);
+        assert!(started.elapsed() < Duration::from_secs(3));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn fast_reserve_does_not_preempt_healthy_preferred_source() {
+        let mut attempts = tokio::task::JoinSet::new();
+        attempts.spawn(async {
+            tokio::time::sleep(Duration::from_millis(500)).await;
+            direct(0, Ok(json!({"provider": "Preferred", "videoId": 1})))
+        });
+        attempts.spawn(async {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            direct(1, Ok(json!({"provider": "Reserve", "videoId": 2})))
+        });
+        let started = tokio::time::Instant::now();
+        let result = direct_value(super::first_available(attempts).await.unwrap());
+        assert_eq!(result["videoId"], 1);
+        assert!(started.elapsed() < SOURCE_PRIORITY_WINDOW);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn failed_preferred_source_releases_reserve_immediately() {
+        let mut attempts = tokio::task::JoinSet::new();
+        attempts.spawn(async {
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            direct(0, Err("Preferred unavailable".to_string()))
+        });
+        attempts.spawn(async {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            direct(1, Ok(json!({"provider": "Reserve", "videoId": 2})))
+        });
+        let started = tokio::time::Instant::now();
+        let result = direct_value(super::first_available(attempts).await.unwrap());
+        assert_eq!(result["videoId"], 2);
+        assert_eq!(started.elapsed(), Duration::from_millis(200));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn losing_and_cancelled_attempts_do_not_register_alloha_sessions() {
+        let backend = Backend::new().unwrap();
+        let preferred = pending_alloha().await;
+        let reserve = pending_alloha().await;
+        let cancelled = pending_alloha().await;
+        assert!(backend.sessions.lock().await.is_empty());
+
+        let mut attempts = tokio::task::JoinSet::new();
+        attempts.spawn(async {
+            tokio::time::sleep(Duration::from_millis(300)).await;
+            Attempt {
+                index: 0,
+                result: Ok(Resolved::Alloha(preferred)),
+            }
+        });
+        attempts.spawn(async {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            Attempt {
+                index: 1,
+                result: Ok(Resolved::Alloha(reserve)),
+            }
+        });
+        attempts.spawn(async {
+            tokio::time::sleep(Duration::from_secs(20)).await;
+            Attempt {
+                index: 2,
+                result: Ok(Resolved::Alloha(cancelled)),
+            }
+        });
+
+        let selected = super::first_available(attempts).await.unwrap();
+        assert!(backend.sessions.lock().await.is_empty());
+        let result = selected.finish(&backend).await.unwrap();
+        assert_eq!(result["provider"], "Alloha");
+        assert_eq!(backend.sessions.lock().await.len(), 1);
+        tokio::task::yield_now().await;
+        assert_eq!(backend.sessions.lock().await.len(), 1);
+    }
 
     #[tokio::test]
     #[ignore = "requires live Yummy/provider network access"]

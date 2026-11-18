@@ -1,3 +1,5 @@
+import { animeSiteUrl } from '~/lib/content-links';
+import { AppLink } from '~/ui/AppLink';
 import { createPortal } from 'preact/compat';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { cardContext } from '~/lib/card-context';
@@ -29,7 +31,21 @@ export function CardContextMenu() {
   };
 
   useEffect(() => {
-    const suppress = (event: MouseEvent) => event.preventDefault();
+    const suppress = (event: MouseEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+
+      // Keep editing and copying available in native WebView context menus.
+      if (target?.closest('input, textarea, [contenteditable="true"]')) return;
+      if (
+        window.getSelection()?.toString() &&
+        target?.closest(
+          '[data-selectable], .full-synopsis, .comment-text, .card-caption, .watch-title, .anime-facts'
+        )
+      )
+        return;
+
+      event.preventDefault();
+    };
     document.addEventListener('contextmenu', suppress);
     return () => {
       document.removeEventListener('contextmenu', suppress);
@@ -185,24 +201,26 @@ export function CardContextMenu() {
         </>
       ) : (
         <>
-          <a
+          <AppLink
             role="menuitem"
             href={`#/anime/${anime.anime_id}?view=anime-about`}
+            publicHref={animeSiteUrl(anime)}
             onClick={() => close()}
           >
             <Icon name="grid" size={17} />
             Открыть тайтл
-          </a>
-          <a
+          </AppLink>
+          <AppLink
             role="menuitem"
             href={`#/anime/${anime.anime_id}?view=watch&play=1`}
+            publicHref={animeSiteUrl(anime)}
             onClick={() => close()}
           >
             <Icon name="play" size={17} />
             {continuing ? 'Продолжить просмотр' : 'Начать просмотр'}
-          </a>
+          </AppLink>
           {anime.anime_url && (
-            <a
+            <AppLink
               role="menuitem"
               href={`https://ru.yummyani.me/catalog/item/${encodeURIComponent(anime.anime_url)}`}
               target="_blank"
@@ -211,7 +229,7 @@ export function CardContextMenu() {
             >
               <Icon name="external" size={17} />
               Открыть на YummyAnime
-            </a>
+            </AppLink>
           )}
           <div role="separator" />
           {action(
@@ -244,16 +262,12 @@ export function CardContextMenu() {
             },
             !posterUrl(anime)
           )}
-          {action('Скопировать название', 'edit', async () => {
+          {action('Скопировать название', 'copy', async () => {
             await navigator.clipboard.writeText(anime.title);
             notify('Название скопировано');
           })}
-          {action('Скопировать ссылку', 'share', async () => {
-            await navigator.clipboard.writeText(
-              anime.anime_url
-                ? `https://ru.yummyani.me/catalog/item/${encodeURIComponent(anime.anime_url)}`
-                : `https://ru.yummyani.me/catalog/item/${anime.anime_id}`
-            );
+          {action('Скопировать ссылку', 'link', async () => {
+            await navigator.clipboard.writeText(animeSiteUrl(anime));
             notify('Ссылка скопирована');
           })}
           {continuing && (

@@ -20,7 +20,7 @@ export const FavoriteButton: FC<TFavoriteButtonProps> = ({ anime, compact = fals
     try {
       const added = await toggleFavorite(anime);
 
-      notify(added ? 'Добавлено в твою коллекцию' : 'Удалено из избранного');
+      notify(added ? 'Добавлено в избранное' : 'Удалено из избранного');
     } catch (error) {
       notify((error as Error).message);
     } finally {
@@ -40,7 +40,7 @@ export const FavoriteButton: FC<TFavoriteButtonProps> = ({ anime, compact = fals
       onClick={saveFavorite}
     >
       <Icon name={favorite ? 'check' : 'bookmark'} size={compact ? 17 : 19} />
-      {!compact && (favorite ? 'В избранном' : 'В избранное')}
+      {!compact && <span>{favorite ? 'В избранном' : 'В избранное'}</span>}
     </button>
   );
 };

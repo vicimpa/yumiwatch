@@ -5,6 +5,7 @@ export {
   type TButtonProps,
   type TButtonVariant,
 } from './Button';
+export { ChoiceTabs, type TChoiceTabsProps } from './ChoiceTabs';
 export { Field, type TFieldProps } from './Field';
 export {
   Form,

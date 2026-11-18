@@ -67,7 +67,7 @@ export const AnimeListButton: FC<TAnimeListButtonProps> = ({ anime }) => {
         class="list-status-button"
       >
         <Icon name={selected ? 'check' : 'list'} size={17} />
-        {selected?.title || 'Добавить в список'}
+        <span>{selected?.title || 'Добавить в список'}</span>
         <Icon name="chevron" size={15} />
       </Button>
       {open && (

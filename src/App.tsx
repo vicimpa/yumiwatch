@@ -1,3 +1,4 @@
+import { AppLink } from '~/ui/AppLink';
 import type { FunctionalComponent as FC } from 'preact';
 import { useCallback, useLayoutEffect, useRef } from 'preact/hooks';
 
@@ -103,6 +104,7 @@ export const App: FC = () => {
       <WindowChrome watching={watching} />
       <WindowCursor />
       <InterfaceEffects onBack={goBack} watching={watching} />
+      <div class="media-backdrop" aria-hidden="true" />
 
       <MediaNavigation
         path={path}
@@ -135,9 +137,9 @@ export const App: FC = () => {
           <div class="update-bar release-update-bar" role="status">
             <Icon name="spark" size={17} />
             <span>Вышла YummyWatch {releaseUpdate.release.version}</span>
-            <a href={releaseUpdate.release.url} target="_blank" rel="noreferrer">
+            <AppLink href={releaseUpdate.release.url} target="_blank" rel="noreferrer">
               Что нового и скачать <Icon name="external" size={14} />
-            </a>
+            </AppLink>
             <button
               class="release-update-close"
               aria-label="Скрыть уведомление до следующего запуска"

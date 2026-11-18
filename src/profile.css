@@ -8,13 +8,21 @@
   gap: 24px;
   min-width: 0;
 }
+.profile-personal-score {
+  margin: 8px 0;
+  color: var(--accent);
+  font-size: 11px;
+}
+.profile-personal-score.is-unrated {
+  color: var(--muted);
+}
 .profile-page > *,
 .profile-collection {
   min-width: 0;
 }
 .profile-hero {
   border: 1px solid var(--line);
-  border-radius: 16px;
+  border-radius: var(--radius-panel);
   background: var(--surface);
   overflow: hidden;
 }
@@ -84,7 +92,7 @@
   flex-shrink: 0;
   overflow: hidden;
   border: 5px solid var(--surface);
-  border-radius: 28px;
+  border-radius: 20px;
   background: #514149;
   font-size: 38px;
   font-weight: 700;
@@ -165,10 +173,6 @@
   padding: 4px 10px;
   border-right: 1px solid var(--line);
   border-radius: 4px;
-}
-.profile-highlights > a:first-child {
-  justify-content: flex-start;
-  padding-left: 0;
 }
 .profile-highlights > a:last-child {
   border: 0;
@@ -654,11 +658,21 @@ a.profile-genre:hover {
 }
 .profile-anime .list-status-button {
   width: 100%;
+  min-width: 0;
   justify-content: space-between;
   font-size: 10px;
   padding: 8px;
   min-height: 34px;
   gap: 5px;
+}
+.profile-anime .list-status-button > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.profile-anime .list-status-button > svg:last-child {
+  margin-left: 0;
 }
 .profile-people-search {
   display: flex;
@@ -806,6 +820,26 @@ a.profile-genre:hover {
 @media (max-width: 600px) {
   .profile-page {
     gap: 19px;
+  }
+  .profile-page:not([data-tab='overview']) .profile-cover,
+  .profile-page:not([data-tab='overview']) .profile-highlights {
+    display: none;
+  }
+  .profile-page:not([data-tab='overview']) .profile-identity {
+    margin-top: 0;
+    padding-top: 16px;
+  }
+  .profile-page:not([data-tab='overview']) .profile-large-avatar {
+    width: 60px;
+    height: 60px;
+    border-radius: 16px;
+    font-size: 23px;
+  }
+  .profile-page:not([data-tab='overview']) .profile-intro {
+    padding-top: 0;
+  }
+  .profile-page:not([data-tab='overview']) .profile-hero-actions {
+    padding-top: 0;
   }
   .profile-cover {
     height: 120px;

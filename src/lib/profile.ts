@@ -187,6 +187,13 @@ export function libraryAnimes(library: Library): ProfileAnime[] {
       user: { ...saved.user, list: { ...saved.user?.list, is_fav: true } },
     });
   }
+  for (const anime of library.rated || []) {
+    const saved = values.get(anime.anime_id) || anime;
+    values.set(anime.anime_id, {
+      ...saved,
+      user: { ...saved.user, rating: anime.user?.rating },
+    });
+  }
   return [...values.values()];
 }
 

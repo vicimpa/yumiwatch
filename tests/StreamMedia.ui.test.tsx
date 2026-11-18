@@ -3,13 +3,19 @@ import { useRef } from 'preact/hooks';
 import { act, cleanup, render, waitFor } from '@testing-library/preact';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setPlaybackRate } from '~/lib/playback-rate';
-import { StreamMedia, nativeHls, STREAM_STARTUP_TIMEOUT_MS } from '~/components/StreamMedia';
+import {
+  StreamMedia,
+  nativeHls,
+  STREAM_STARTUP_TIMEOUT_MS,
+  STREAM_LOAD_TIMEOUT_MS,
+} from '~/components/StreamMedia';
 
 const engine = vi.hoisted(() => ({
   listeners: new Map<string, (event: Event) => void>(),
   loaded: vi.fn(),
   retry: vi.fn().mockReturnValue(true),
   configure: vi.fn(),
+  destroy: vi.fn(),
   rate: vi.fn(),
 }));
 
@@ -56,7 +62,9 @@ vi.mock('shaka-player', () => ({
         return [];
       }
 
-      async destroy() {}
+      async destroy() {
+        engine.destroy();
+      }
     },
   },
 }));
@@ -103,6 +111,7 @@ beforeEach(() => {
   engine.loaded.mockClear();
   engine.retry.mockClear();
   engine.configure.mockClear();
+  engine.destroy.mockClear();
   engine.rate.mockClear();
   vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {});
 });
@@ -168,6 +177,32 @@ describe('adaptive stream errors', () => {
     expect(failure).not.toHaveBeenCalled();
     finish();
     await waitFor(() => expect(pending).toHaveBeenLastCalledWith(false));
+  });
+  it('bounds a hung Alloha manifest even without a format fallback and ignores late completion', async () => {
+    vi.useFakeTimers();
+    let finish!: () => void;
+    engine.loaded.mockImplementationOnce(
+      () =>
+        new Promise<void>(resolve => {
+          finish = resolve;
+        })
+    );
+    const failure = vi.fn(),
+      pending = vi.fn();
+    render(<Harness provider="Alloha" failure={failure} pending={pending} />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(typeof finish).toBe('function');
+    await act(async () => {
+      vi.advanceTimersByTime(STREAM_LOAD_TIMEOUT_MS + 1);
+    });
+    expect(failure).toHaveBeenCalledOnce();
+    expect(pending).toHaveBeenLastCalledWith(false);
+    await act(async () => finish());
+    expect(failure).toHaveBeenCalledOnce();
+    expect(engine.destroy).toHaveBeenCalledOnce();
+    vi.useRealTimers();
   });
   it('loads native MP4 without a CORS Origin that the CVH CDN rejects', async () => {
     const load = vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {});

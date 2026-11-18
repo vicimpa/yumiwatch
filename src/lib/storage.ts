@@ -1,4 +1,5 @@
 import { WATCH_LISTS, type WatchListId } from './lists';
+import { personalRating } from './ratings';
 import type { Anime, Library, Video } from './types';
 
 export const LIBRARY_KEY = 'yumiwatch:library:v1';
@@ -38,6 +39,13 @@ export function readLibrary(): Library {
       : undefined;
 
   return {
+    ...(Array.isArray(value.rated)
+      ? {
+          rated: value.rated.filter(
+            anime => anime?.anime_id && anime?.title && personalRating(anime)
+          ),
+        }
+      : {}),
     ...(lists ? { lists } : {}),
     favorites: Array.isArray(value.favorites)
       ? value.favorites.filter(a => a?.anime_id && a?.title)
@@ -58,6 +66,25 @@ function saveLibrary(library: Library) {
   if (!writeJSON(LIBRARY_KEY, library))
     throw new Error('Не удалось сохранить: хранилище устройства заполнено или недоступно.');
   window.dispatchEvent(new Event(LIBRARY_EVENT));
+}
+
+export function setPersonalRating(anime: Anime, rating: number | null) {
+  const library = readLibrary();
+  const update = (value: Anime) =>
+    value.anime_id === anime.anime_id
+      ? { ...value, user: { ...value.user, rating: rating || 0 } }
+      : value;
+  const rated = (library.rated || []).filter(value => value.anime_id !== anime.anime_id);
+  if (rating) rated.unshift(update(compact(anime)));
+  saveLibrary({
+    ...library,
+    rated,
+    favorites: library.favorites.map(update),
+    lists: Object.fromEntries(
+      Object.entries(library.lists || {}).map(([id, values]) => [id, values.map(update)])
+    ),
+    history: library.history.map(entry => ({ ...entry, anime: update(entry.anime) })),
+  });
 }
 
 export function toggleFavorite(anime: Anime) {

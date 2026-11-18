@@ -452,7 +452,7 @@ for (const engine of [chromium, webkit]) {
             1,
             'Current title is not marked in viewing order'
           );
-          assert.equal(await currentTitle.getAttribute('href'), '#/anime/10531');
+          assert.equal(await currentTitle.getAttribute('data-app-href'), '#/anime/10531');
           assert.ok(
             await currentTitle.locator('.viewing-order-current').isVisible(),
             'Current title has no visible label'
@@ -593,7 +593,7 @@ for (const engine of [chromium, webkit]) {
                 return (
                   r.width > 0 &&
                   (r.right > innerWidth + 1 || r.left < -1) &&
-                  !element.closest('.gallery-rail,.gallery-categories,.screenshot-rail')
+                  !element.closest('.gallery-rail,.screenshot-rail')
                 );
               })
               .slice(0, 15)

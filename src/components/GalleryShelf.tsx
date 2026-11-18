@@ -112,7 +112,6 @@ export type TGalleryToolbarProps = {
   subtitle?: string;
   onFilters?: () => void;
   count?: number;
-  query?: string;
 };
 
 export const GalleryToolbar: FC<TGalleryToolbarProps> = ({
@@ -120,7 +119,6 @@ export const GalleryToolbar: FC<TGalleryToolbarProps> = ({
   subtitle,
   onFilters,
   count = 0,
-  query = '',
 }) => (
   <header class="gallery-heading">
     <div>
@@ -128,10 +126,6 @@ export const GalleryToolbar: FC<TGalleryToolbarProps> = ({
       {subtitle && <p>{subtitle}</p>}
     </div>
     <nav class="gallery-actions" aria-label="Действия каталога">
-      <ButtonLink href={`#/search${query ? `?q=${encodeURIComponent(query)}` : ''}`}>
-        <Icon name="search" size={20} />
-        <span>Поиск</span>
-      </ButtonLink>
       {onFilters && (
         <button
           class={`button secondary ${count ? 'has-filters' : ''}`}

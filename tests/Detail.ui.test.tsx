@@ -117,12 +117,38 @@ describe('anime media center screens', () => {
       const link = await screen.findByRole('link', { name: label });
       const click = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 });
 
-      expect(link.getAttribute('href')).toBe(`#${returnTo}`);
+      expect(link.getAttribute('data-app-href')).toBe(`#${returnTo}`);
       fireEvent(link, click);
-      expect(click.defaultPrevented).toBe(false);
+      expect(click.defaultPrevented).toBe(true);
+      expect(location.hash).toBe(`#${returnTo}`);
       expect(back).not.toHaveBeenCalled();
     }
   );
+  it('places screenshots between the description and facts, then groups ratings', async () => {
+    const { container } = render(<Detail id="10531" />);
+    const resume = await screen.findByRole('link', { name: /Начать просмотр/ });
+    const overview = container.querySelector('.overview-heading')!;
+    const description = await screen.findByRole('heading', { name: 'Об аниме' });
+    const screenshots = container.querySelector('.about-screenshots')!;
+    const facts = container.querySelector('.anime-facts')!;
+    const ratings = container.querySelector('.about-ratings')!;
+    const personal = container.querySelector('.personal-rating')!;
+    expect(
+      overview.compareDocumentPosition(resume) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(
+      resume.compareDocumentPosition(description) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(
+      description.compareDocumentPosition(screenshots) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(
+      screenshots.compareDocumentPosition(facts) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(facts.compareDocumentPosition(ratings) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(ratings.contains(personal)).toBe(true);
+    expect(screen.queryByRole('heading', { name: 'Скриншоты' })).toBeNull();
+  });
   it('marks only the current title in viewing order by ID even when titles match', async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       new Response(
@@ -144,24 +170,25 @@ describe('anime media center screens', () => {
     );
 
     expect(links.map(link => link.getAttribute('aria-current'))).toEqual([null, 'page', null]);
-    expect(links[1].getAttribute('href')).toBe('#/anime/10531');
+    expect(links[1].getAttribute('data-app-href')).toBe('#/anime/10531');
   });
-  it('opens the anime page first with a resume row, screenshots, facts and available voices', async () => {
+  it('opens the anime page with an overview, resume row, screenshots, facts and available voices', async () => {
     const { container } = render(<Detail id="10531" />);
 
     await screen.findByText('Описание аниме');
     await screen.findByRole('region', { name: 'Доступные озвучки' });
     expect(container.querySelector('.room-main')?.firstElementChild?.className).toBe(
-      'anime-resume-row'
+      'anime-watch-heading overview-heading'
     );
+    expect(container.querySelector('.room-main')?.children[1]?.className).toBe('anime-resume-row');
     expect(screen.getByText('Тестовая студия')).toBeTruthy();
-    await screen.findByRole('region', { name: 'Оценки зрителей' });
+    await screen.findByRole('region', { name: 'Оценки аниме' });
     await screen.findByRole('img', { name: /Распределение 4 оценок/ });
     expect(screen.getByRole('button', { name: 'Открыть скриншот 1' })).toBeTruthy();
 
     const voice = await screen.findByRole('link', { name: /AniDub/ });
 
-    expect(voice.getAttribute('href')).toContain('voice=AniDub');
+    expect(voice.getAttribute('data-app-href')).toContain('voice=AniDub');
     expect(screen.getByRole('heading', { name: 'Порядок просмотра' })).toBeTruthy();
     expect(container.querySelector('iframe,video')).toBeNull();
     expect(vi.mocked(fetch).mock.calls.every(([url]) => !String(url).includes('/resolver'))).toBe(
@@ -178,8 +205,8 @@ describe('anime media center screens', () => {
     const panel = screen.getByRole('dialog', { name: 'Серии' });
     const episode = await within(panel).findByRole('link', { name: 'Серия 2' });
 
-    expect(episode.getAttribute('href')).toContain('episode=2');
-    expect(episode.getAttribute('href')).toContain('voice=AniLibria');
+    expect(episode.getAttribute('data-app-href')).toContain('episode=2');
+    expect(episode.getAttribute('data-app-href')).toContain('voice=AniLibria');
     expect(container.querySelector('video,iframe')).toBeNull();
     expect(resolveStream).not.toHaveBeenCalled();
     fireEvent.input(within(panel).getByRole('searchbox', { name: 'Найти серию' }), {
@@ -192,9 +219,9 @@ describe('anime media center screens', () => {
     fireEvent.change(within(panel).getByRole('combobox', { name: 'Озвучка серий' }), {
       target: { value: 'dub:anidub' },
     });
-    expect(within(panel).getByRole('link', { name: 'Серия 1' }).getAttribute('href')).toContain(
-      'voice=AniDub'
-    );
+    expect(
+      within(panel).getByRole('link', { name: 'Серия 1' }).getAttribute('data-app-href')
+    ).toContain('voice=AniDub');
     expect(within(panel).queryByRole('link', { name: 'Серия 2' })).toBeNull();
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(screen.queryByRole('dialog', { name: 'Серии' })).toBeNull();

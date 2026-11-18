@@ -1,3 +1,4 @@
+import { AppLink } from '~/ui/AppLink';
 import type { FunctionalComponent as FC } from 'preact';
 import { useState } from 'preact/hooks';
 import { useLiveUsers } from '~/hooks/useYummyRealtime';
@@ -96,7 +97,7 @@ export const ProfileFriends: FC<{ id?: number }> = ({ id }) => {
       ) : users.length ? (
         <div class="profile-people-grid">
           {users.map(user => (
-            <a href={profileHref(user.id)} class="profile-person" key={user.id}>
+            <AppLink href={profileHref(user.id)} class="profile-person" key={user.id}>
               <span class="profile-person-avatar">
                 <Avatar url={user.avatars?.big || user.avatars?.small} name={user.nickname} />
               </span>
@@ -109,7 +110,7 @@ export const ProfileFriends: FC<{ id?: number }> = ({ id }) => {
                 </small>
               </span>
               <Icon name="chevron" size={17} />
-            </a>
+            </AppLink>
           ))}
         </div>
       ) : (

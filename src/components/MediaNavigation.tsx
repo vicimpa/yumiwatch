@@ -1,3 +1,4 @@
+import { AppLink } from '~/ui/AppLink';
 import type { ComponentChildren, FunctionalComponent as FC } from 'preact';
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 
@@ -57,16 +58,16 @@ export const MediaNavigation: FC<TMediaNavigationProps> = ({
 
   const content = (
     <>
-      <a class="media-brand" tabIndex={-1} href="#/" aria-label="YummyWatch — каталог">
+      <AppLink class="media-brand" tabIndex={-1} href="#/" aria-label="YummyWatch — каталог">
         <img src={`${import.meta.env.BASE_URL}icons/icon.svg`} alt="" width="38" height="38" />
         <span>
           Yummy<span>Watch</span>
           <small>АНИМЕ ПОД РУКОЙ</small>
         </span>
-      </a>
+      </AppLink>
       <nav class="media-navigation" aria-label="Разделы медиакаталога">
         {sections.map(section => (
-          <a
+          <AppLink
             key={section.href}
             href={`#${section.href}`}
             class={selected === section.href ? 'active' : ''}
@@ -74,13 +75,13 @@ export const MediaNavigation: FC<TMediaNavigationProps> = ({
           >
             <Icon name={section.icon} size={22} />
             <span>{section.title}</span>
-          </a>
+          </AppLink>
         ))}
       </nav>
       <div class="media-system-links">
         {session && (
           <>
-            <a
+            <AppLink
               href="#/notifications"
               class={selected === '/notifications' ? 'active' : ''}
               aria-current={selected === '/notifications' ? 'page' : undefined}
@@ -90,8 +91,8 @@ export const MediaNavigation: FC<TMediaNavigationProps> = ({
               <UnreadBadge
                 count={social.value.userId === session.user.id ? social.value.notificationCount : 0}
               />
-            </a>
-            <a
+            </AppLink>
+            <AppLink
               href="#/messages"
               class={selected === '/messages' ? 'active' : ''}
               aria-current={selected === '/messages' ? 'page' : undefined}
@@ -101,14 +102,14 @@ export const MediaNavigation: FC<TMediaNavigationProps> = ({
               <UnreadBadge
                 count={social.value.userId === session.user.id ? social.value.messageCount : 0}
               />
-            </a>
+            </AppLink>
           </>
         )}
-        <a class={path.startsWith('/settings') ? 'active' : ''} href="#/settings">
+        <AppLink class={path.startsWith('/settings') ? 'active' : ''} href="#/settings">
           <Icon name="settings" size={22} />
           <span>Настройки</span>
-        </a>
-        <a
+        </AppLink>
+        <AppLink
           class={`media-account ${selected === '/profile' || selected === '/account' ? 'active' : ''}`}
           href="#/profile"
           aria-current={selected === '/profile' || selected === '/account' ? 'page' : undefined}
@@ -126,7 +127,7 @@ export const MediaNavigation: FC<TMediaNavigationProps> = ({
             )}
           </span>
           <span>{session?.user.nickname || 'Твой профиль'}</span>
-        </a>
+        </AppLink>
       </div>
     </>
   );
@@ -139,10 +140,10 @@ export const MediaNavigation: FC<TMediaNavigationProps> = ({
     <>
       <header class="phone-header" hidden={watching}>
         {history && <div class="media-sidebar-chrome">{history}</div>}
-        <a href="#/" class="phone-brand" aria-label="YummyWatch — каталог">
+        <AppLink href="#/" class="phone-brand" aria-label="YummyWatch — каталог">
           <img src={`${import.meta.env.BASE_URL}icons/icon.svg`} width="30" height="30" alt="" />
           Yummy<span>Watch</span>
-        </a>
+        </AppLink>
         {session && (
           <ButtonLink
             href="#/notifications"
@@ -175,7 +176,7 @@ export const MediaNavigation: FC<TMediaNavigationProps> = ({
             selected === section.href || (section.href === '/' && selected === '/catalog');
 
           return (
-            <a
+            <AppLink
               key={section.href}
               href={`#${section.href}`}
               class={active ? 'active' : ''}
@@ -183,7 +184,7 @@ export const MediaNavigation: FC<TMediaNavigationProps> = ({
             >
               <Icon name={section.icon} size={22} />
               <span>{section.title}</span>
-            </a>
+            </AppLink>
           );
         })}
         <button

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
 import { AUTO_ACTION_DELAY_MS } from '~/components/AutoActionCountdown';
 import { Player } from '~/components/Player';
+import { STREAM_RESUME_REFRESH_MS } from '~/components/VideoSurface';
 import { resolveStream } from '~/lib/streams';
 import { probeAudioPlayback } from '~/lib/autoplay';
 import { readPlaybackRecovery } from '~/lib/playback-recovery';
@@ -77,6 +78,215 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe('our player mode', () => {
+  it('renews a single Alloha source after a long pause and restores position, sound and speed', async () => {
+    const source = video('1');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response(JSON.stringify({ response: [source] })))
+    );
+    vi.mocked(resolveStream)
+      .mockReset()
+      .mockImplementation(async () => ({
+        provider: 'Alloha',
+        videoId: source.video_id,
+        duration: 1400,
+        streams: [
+          {
+            quality: 360,
+            type: 'mp4',
+            url: `https://cdn.example/session-${vi.mocked(resolveStream).mock.calls.length}.mp4`,
+          },
+        ],
+      }));
+    const { container } = render(<Player anime={anime} />);
+    await waitFor(() =>
+      expect(container.querySelector('video')?.getAttribute('src')).toContain('session-1')
+    );
+    const first = container.querySelector('video')!;
+    Object.defineProperty(first, 'duration', { value: 1400, configurable: true });
+    Object.defineProperty(first, 'paused', { value: false, configurable: true });
+    fireEvent.loadedMetadata(first);
+    fireEvent.playing(first);
+    first.currentTime = 321;
+    first.muted = true;
+    first.volume = 0.25;
+    first.playbackRate = 1.5;
+    fireEvent.timeUpdate(first);
+    Object.defineProperty(first, 'paused', { value: true, configurable: true });
+    fireEvent.pause(first);
+    const now = Date.now();
+    vi.spyOn(Date, 'now').mockReturnValue(now + STREAM_RESUME_REFRESH_MS + 61000);
+    vi.mocked(HTMLMediaElement.prototype.play).mockClear();
+    Object.defineProperty(first, 'paused', { value: false, configurable: true });
+    fireEvent.play(first);
+    await waitFor(() =>
+      expect(container.querySelector('video')?.getAttribute('src')).toContain('session-2')
+    );
+    const replacement = container.querySelector('video')!;
+    expect(replacement).not.toBe(first);
+    Object.defineProperty(replacement, 'duration', { value: 1400, configurable: true });
+    fireEvent.loadedMetadata(replacement);
+    expect(replacement.currentTime).toBe(321);
+    expect(replacement.muted).toBe(true);
+    expect(replacement.volume).toBe(0.25);
+    expect(replacement.playbackRate).toBe(1.5);
+    expect(HTMLMediaElement.prototype.play).toHaveBeenCalled();
+    expect(resolveStream).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(resolveStream).mock.calls[1][2]).toEqual({
+      preferredVideoId: source.video_id,
+    });
+    expect(vi.mocked(resolveStream).mock.calls[1][0].map(video => video.video_id)).toEqual([
+      source.video_id,
+    ]);
+  });
+
+  it('restores Alloha sound and speed when an offline error is retried after reconnecting', async () => {
+    const source = video('1');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response(JSON.stringify({ response: [source] })))
+    );
+    vi.mocked(resolveStream)
+      .mockReset()
+      .mockImplementation(async () => ({
+        provider: 'Alloha',
+        videoId: source.video_id,
+        duration: 1400,
+        streams: [
+          {
+            quality: 360,
+            type: 'mp4',
+            url: `https://cdn.example/offline-${vi.mocked(resolveStream).mock.calls.length}.mp4`,
+          },
+        ],
+      }));
+    const { container } = render(<Player anime={anime} />);
+    await waitFor(() =>
+      expect(container.querySelector('video')?.getAttribute('src')).toContain('offline-1')
+    );
+    const first = container.querySelector('video')!;
+    Object.defineProperty(first, 'duration', { value: 1400, configurable: true });
+    Object.defineProperty(first, 'paused', { value: false, configurable: true });
+    fireEvent.loadedMetadata(first);
+    fireEvent.playing(first);
+    first.currentTime = 321;
+    first.muted = true;
+    first.volume = 0.25;
+    first.playbackRate = 1.5;
+    fireEvent.timeUpdate(first);
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + STREAM_RESUME_REFRESH_MS + 61000);
+    const online = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
+    mediaError(first);
+    await screen.findByRole('button', { name: 'Повторить загрузку' }, { timeout: 3000 });
+    expect(resolveStream).toHaveBeenCalledTimes(1);
+    online.mockReturnValue(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Повторить загрузку' }));
+    await waitFor(() =>
+      expect(container.querySelector('video')?.getAttribute('src')).toContain('offline-2')
+    );
+    const replacement = container.querySelector('video')!;
+    expect(replacement).not.toBe(first);
+    Object.defineProperty(replacement, 'duration', { value: 1400, configurable: true });
+    fireEvent.loadedMetadata(replacement);
+    expect(replacement.currentTime).toBe(321);
+    expect(replacement.muted).toBe(true);
+    expect(replacement.volume).toBe(0.25);
+    expect(replacement.playbackRate).toBe(1.5);
+  });
+
+  it('shows a retry action if renewing an expired Alloha session fails instead of keeping its old video mounted', async () => {
+    const source = video('1');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response(JSON.stringify({ response: [source] })))
+    );
+    vi.mocked(resolveStream)
+      .mockReset()
+      .mockResolvedValueOnce({
+        provider: 'Alloha',
+        videoId: source.video_id,
+        duration: 1400,
+        streams: [{ quality: 360, type: 'mp4', url: 'https://cdn.example/expired-session.mp4' }],
+      })
+      .mockRejectedValue(new Error('Не удалось обновить сессию Alloha'));
+    const { container } = render(<Player anime={anime} />);
+    await waitFor(() =>
+      expect(container.querySelector('video')?.getAttribute('src')).toContain('expired-session')
+    );
+    const first = container.querySelector('video')!;
+    Object.defineProperty(first, 'duration', { value: 1400, configurable: true });
+    Object.defineProperty(first, 'paused', { value: false, configurable: true });
+    fireEvent.loadedMetadata(first);
+    fireEvent.playing(first);
+    first.currentTime = 123;
+    fireEvent.timeUpdate(first);
+    Object.defineProperty(first, 'paused', { value: true, configurable: true });
+    fireEvent.pause(first);
+    const now = Date.now();
+    vi.spyOn(Date, 'now').mockReturnValue(now + STREAM_RESUME_REFRESH_MS + 61000);
+    // Expired-session errors can also arrive before the user's next play event.
+    mediaError(first);
+    await screen.findByRole('button', { name: 'Повторить' }, { timeout: 3000 });
+    expect(resolveStream).toHaveBeenCalledTimes(2);
+    expect(container.querySelector('video')).toBeNull();
+    expect(screen.getByText('Не удалось обновить сессию Alloha')).toBeTruthy();
+  });
+  it('tries a reserve after a renewed Alloha stream fails instead of renewing indefinitely', async () => {
+    const source = video('1'),
+      reserve = video('1', 'AniLibria', 4);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response(JSON.stringify({ response: [source, reserve] })))
+    );
+    vi.mocked(resolveStream)
+      .mockReset()
+      .mockImplementation(async candidates => {
+        const attempt = vi.mocked(resolveStream).mock.calls.length;
+        return {
+          provider: attempt < 3 ? 'Alloha' : 'Reserve',
+          videoId: attempt < 3 ? source.video_id : candidates[0].video_id,
+          duration: 1400,
+          streams: [
+            { quality: 360, type: 'mp4', url: `https://cdn.example/attempt-${attempt}.mp4` },
+          ],
+        };
+      });
+    const { container } = render(<Player anime={anime} />);
+    await waitFor(() =>
+      expect(container.querySelector('video')?.getAttribute('src')).toContain('attempt-1')
+    );
+    const first = container.querySelector('video')!;
+    Object.defineProperty(first, 'duration', { value: 1400, configurable: true });
+    Object.defineProperty(first, 'paused', { value: false, configurable: true });
+    fireEvent.loadedMetadata(first);
+    fireEvent.playing(first);
+    first.currentTime = 321;
+    fireEvent.timeUpdate(first);
+    Object.defineProperty(first, 'paused', { value: true, configurable: true });
+    fireEvent.pause(first);
+    const now = Date.now();
+    vi.spyOn(Date, 'now').mockReturnValue(now + STREAM_RESUME_REFRESH_MS + 61000);
+    Object.defineProperty(first, 'paused', { value: false, configurable: true });
+    fireEvent.play(first);
+    await waitFor(() =>
+      expect(container.querySelector('video')?.getAttribute('src')).toContain('attempt-2')
+    );
+    mediaError(container.querySelector('video')!);
+    await waitFor(() =>
+      expect(container.querySelector('video')?.getAttribute('src')).toContain('attempt-3')
+    );
+    expect(
+      vi
+        .mocked(resolveStream)
+        .mock.calls.map(([candidates]) => candidates.map(video => video.video_id))
+    ).toEqual([
+      [source.video_id, reserve.video_id],
+      [source.video_id, reserve.video_id],
+      [reserve.video_id],
+    ]);
+    expect(container.querySelector('video')!.currentTime).toBe(321);
+    expect(container.querySelector('iframe')).toBeNull();
+  });
   it('tries the same Kodik video as MP4 before discarding its provider and keeps the saved position', async () => {
     const source = video('1');
     vi.mocked(resolveStream).mockClear();

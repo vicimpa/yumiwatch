@@ -1,3 +1,4 @@
+import { AppLink } from '~/ui/AppLink';
 import type { FunctionalComponent as FC } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import { useSession } from '~/lib/hooks';
@@ -80,13 +81,13 @@ export const ActivityNotice: FC = () => {
   if (!notice) return null;
   return (
     <aside class="activity-notice" aria-label="Новое событие">
-      <a href={notice.href} onClick={dismissActivity}>
+      <AppLink href={notice.href} onClick={dismissActivity}>
         <Icon name="bell" size={22} />
         <span role="status">
           <strong>{notice.title}</strong>
           <span>{notice.text}</span>
         </span>
-      </a>
+      </AppLink>
       <Button variant="icon" aria-label="Скрыть уведомление" onClick={dismissActivity}>
         <Icon name="close" size={16} />
       </Button>
@@ -204,7 +205,7 @@ const Notifications: FC = () => {
                         </time>
                       )}
                       {href && (
-                        <a
+                        <AppLink
                           href={href}
                           target={href.startsWith('https:') ? '_blank' : undefined}
                           rel="noreferrer"
@@ -214,7 +215,7 @@ const Notifications: FC = () => {
                           }}
                         >
                           Открыть <Icon name="arrow" size={14} />
-                        </a>
+                        </AppLink>
                       )}
                     </div>
                   </div>

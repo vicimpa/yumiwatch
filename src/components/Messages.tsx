@@ -1,3 +1,4 @@
+import { AppLink } from '~/ui/AppLink';
 import type { FunctionalComponent as FC } from 'preact';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { ApiError } from '~/lib/api';
@@ -267,12 +268,12 @@ const Conversation: FC<{ id: number }> = ({ id }) => {
         <span class="social-avatar">
           <Avatar url={dialog?.avatars?.small} name={dialog?.nickname || nickname} />
         </span>
-        <a href={`#/users/id${id}`}>
+        <AppLink href={`#/users/id${id}`}>
           <strong>{dialog?.nickname || nickname}</strong>
           <small>
             Профиль YummyAnime <Icon name="chevron" size={12} />
           </small>
-        </a>
+        </AppLink>
         <Button
           variant="icon"
           class="conversation-refresh"
@@ -492,7 +493,7 @@ const Messages: FC<{ query: string }> = ({ query }) => {
                   dialog.nickname.toLocaleLowerCase('ru').includes(search.toLocaleLowerCase('ru'))
                 )
                 .map(dialog => (
-                  <a
+                  <AppLink
                     key={dialog.user_id}
                     href={`#/messages?user=${dialog.user_id}`}
                     class={`dialog-card ${selected === dialog.user_id ? 'active' : ''}`}
@@ -509,7 +510,7 @@ const Messages: FC<{ query: string }> = ({ query }) => {
                       <small>{socialText(dialog.last_message)}</small>
                     </span>
                     <UnreadBadge count={dialog.unread_count} />
-                  </a>
+                  </AppLink>
                 ))
             )}
           </div>

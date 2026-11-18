@@ -387,7 +387,9 @@ try {
           'Arrows focused a hidden/invalid route'
         );
 
-        const href = await page.evaluate(() => document.activeElement.getAttribute('href'));
+        const href = await page.evaluate(() =>
+          document.activeElement.getAttribute('data-app-href')
+        );
 
         await page.keyboard.press('Enter');
         await page.waitForFunction(href => location.hash === href, href);
@@ -454,7 +456,7 @@ try {
       await page
         .getByRole('searchbox', { name: 'Поиск аниме', exact: true })
         .fill('Унесенные призраками');
-      await page.locator('.search-results a[href^="#/anime/1486"]').first().waitFor();
+      await page.locator('.search-results a[data-app-href^="#/anime/1486"]').first().waitFor();
       await check('search');
       await page.goBack();
       await page.waitForFunction(() => location.hash.includes('/catalog?sort=top'));
@@ -464,7 +466,7 @@ try {
         catalogScroll
       );
       await nav('Поиск');
-      await page.locator('.search-results a[href^="#/anime/1486"]').first().click();
+      await page.locator('.search-results a[data-app-href^="#/anime/1486"]').first().click();
       await transition();
       await page.locator('.voice-tile').filter({ hasText: '2x2' }).waitFor();
       await check('film about');
@@ -632,7 +634,7 @@ try {
       await page.setViewportSize({ width: 1280, height: 820 });
       await nav('Твой профиль');
       await page.getByRole('link', { name: 'Всё избранное' }).click();
-      await page.locator('a[href^="#/anime/1486"]:visible').first().waitFor();
+      await page.locator('a[data-app-href^="#/anime/1486"]:visible').first().waitFor();
       await check('guest favorites');
       await nav('Настройки');
       await page.getByRole('heading', { name: 'Настройки', exact: true }).waitFor();

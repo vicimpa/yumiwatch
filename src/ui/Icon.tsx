@@ -26,6 +26,8 @@ export type IconName =
   | 'chart'
   | 'edit'
   | 'share'
+  | 'copy'
+  | 'link'
   | 'lock'
   | 'trash'
   | 'bookmark'
@@ -73,10 +75,18 @@ const paths: Record<IconName, JSX.Element> = {
   ),
   share: (
     <>
-      <circle cx="18" cy="5" r="3" {...tint} />
-      <circle cx="6" cy="12" r="3" {...tint} />
-      <circle cx="18" cy="19" r="3" {...tint} />
-      <path d="m8.6 10.5 6.8-4M8.6 13.5l6.8 4" />
+      <path d="M12 15V3m-4 4 4-4 4 4M7 10H5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1h-2" />
+    </>
+  ),
+  copy: (
+    <>
+      <rect x="8" y="8" width="12" height="13" rx="2" {...tint} />
+      <path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h3" />
+    </>
+  ),
+  link: (
+    <>
+      <path d="m10 13 4-4m-6 5-1 1a3.5 3.5 0 0 0 5 5l4-4a3.5 3.5 0 0 0 0-5m0-1 1-1a3.5 3.5 0 0 0-5-5L8 8a3.5 3.5 0 0 0 0 5" />
     </>
   ),
   lock: (

@@ -4,9 +4,66 @@ import { installSelectionPolicy } from '~/lib/text-selection';
 let release = () => {};
 afterEach(() => {
   release();
+  getSelection()?.removeAllRanges();
   document.body.innerHTML = '';
 });
 describe('application text selection', () => {
+  it('selects the current content block with Cmd+A, including on a Russian layout', () => {
+    release = installSelectionPolicy();
+    document.body.innerHTML =
+      '<main id="main"><h2 data-selectable>Название аниме</h2><button>Кнопка</button></main>';
+    const title = document.querySelector('h2')!;
+    const range = document.createRange();
+    range.setStart(title.firstChild!, 0);
+    range.setEnd(title.firstChild!, 8);
+    getSelection()!.addRange(range);
+    document.body.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'ф',
+        code: 'KeyA',
+        metaKey: true,
+        bubbles: true,
+        cancelable: true,
+      })
+    );
+    document.dispatchEvent(new Event('selectionchange'));
+    expect(getSelection()!.toString()).toBe('Название аниме');
+  });
+  it('selects main content when there is no current selection and blocks chrome dragging', () => {
+    release = installSelectionPolicy();
+    document.body.innerHTML =
+      '<nav><a draggable="false">Каталог</a></nav><main id="main"><p data-selectable>Описание</p><a href="https://ru.yummyani.me/catalog/item/42">Аниме</a></main>';
+    document.body.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'a', ctrlKey: true, bubbles: true, cancelable: true })
+    );
+    document.dispatchEvent(new Event('selectionchange'));
+    expect(getSelection()!.toString()).toContain('Описание');
+    expect(getSelection()!.toString()).not.toContain('Каталог');
+    getSelection()!.removeAllRanges();
+    for (const [selector, prevented] of [
+      ['nav a', true],
+      ['main a', false],
+    ] as const) {
+      const drag = new Event('dragstart', { bubbles: true, cancelable: true });
+      document.querySelector(selector)!.dispatchEvent(drag);
+      expect(drag.defaultPrevented).toBe(prevented);
+    }
+  });
+  it('selects an open sidebar even when main content comes first in the document', () => {
+    release = installSelectionPolicy();
+    document.body.innerHTML =
+      '<main id="main"><p data-selectable>Основной текст</p></main><aside data-sidebar-open="true"><div class="sidebar-scroll"><p class="comment-text">Текст панели</p></div></aside>';
+    document.body.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'a',
+        metaKey: true,
+        bubbles: true,
+        cancelable: true,
+      })
+    );
+    document.dispatchEvent(new Event('selectionchange'));
+    expect(getSelection()!.toString()).toBe('Текст панели');
+  });
   it('blocks Select All on application chrome while leaving input selection native', () => {
     release = installSelectionPolicy();
     document.body.innerHTML =

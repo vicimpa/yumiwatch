@@ -28,9 +28,11 @@ describe('all YummyAnime lists', () => {
     const filters = screen.getByRole('navigation', { name: 'Списки аниме' });
     for (const name of ['Смотрю', 'В планах', 'Просмотрено', 'Брошено', 'Отложено', 'Избранное'])
       expect(filters.textContent).toContain(name);
-    expect(container.querySelector('a[href="#/profile?tab=collection&list=will"]')).toBeTruthy();
-    expect(container.querySelector('a[href="#/profile?tab=history"]')).toBeTruthy();
-    expect(container.querySelector('a[href="#/profile?tab=subscriptions"]')).toBeTruthy();
+    expect(
+      container.querySelector('a[data-app-href="#/profile?tab=collection&list=will"]')
+    ).toBeTruthy();
+    expect(container.querySelector('a[data-app-href="#/profile?tab=history"]')).toBeTruthy();
+    expect(container.querySelector('a[data-app-href="#/profile?tab=subscriptions"]')).toBeTruthy();
     expect(container.querySelector('a[href^="#/library"]')).toBeNull();
   });
   it('moves a guest anime between statuses and keeps favorites independent', async () => {

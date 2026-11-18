@@ -57,9 +57,9 @@ it('replaces the native card menu with title, poster and library actions', async
   container.querySelector('.anime-card')!.dispatchEvent(event);
   expect(event.defaultPrevented).toBe(true);
   await screen.findByRole('menu');
-  expect(screen.getByRole('menuitem', { name: 'Открыть тайтл' }).getAttribute('href')).toContain(
-    `#/anime/${anime.anime_id}?view=anime-about`
-  );
+  expect(
+    screen.getByRole('menuitem', { name: 'Открыть тайтл' }).getAttribute('data-app-href')
+  ).toContain(`#/anime/${anime.anime_id}?view=anime-about`);
   fireEvent.click(screen.getByRole('menuitem', { name: 'В избранное' }));
   await waitFor(() => expect(getLibraryState().favorites).toHaveLength(1));
   expect(screen.queryByRole('menu')).toBeNull();
@@ -108,6 +108,20 @@ it('dismisses on outside interaction and prevents the generic WebView context me
   const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
   document.body.dispatchEvent(event);
   expect(event.defaultPrevented).toBe(true);
+});
+
+it('keeps the native context menu available in editable fields', () => {
+  render(
+    <>
+      <input aria-label="Поиск" />
+      <CardContextMenu />
+    </>
+  );
+  const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+
+  screen.getByRole('textbox', { name: 'Поиск' }).dispatchEvent(event);
+
+  expect(event.defaultPrevented).toBe(false);
 });
 
 it.each(['', 'tab=history'])('opens history card actions in the profile (%s)', async query => {

@@ -1,3 +1,4 @@
+import { AppLink } from '~/ui/AppLink';
 import type { FunctionalComponent as FC, JSX } from 'preact';
 import { useCallback, useState } from 'preact/hooks';
 
@@ -35,10 +36,10 @@ export const ConnectionSettings: FC = () => {
 
   return (
     <>
-      <a class="back-link" href="#/settings">
+      <AppLink class="back-link" href="#/settings">
         <Icon name="back" size={17} />
         Настройки
-      </a>
+      </AppLink>
       <div class="page-heading">
         <h1>Подключение</h1>
         <p>YummyWatch уже настроен для работы с Yummy.</p>
