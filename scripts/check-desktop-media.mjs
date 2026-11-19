@@ -46,7 +46,8 @@ function call(action, values) {
 }
 
 const id = process.env.ANIME_ID || '21747',
-  voice = process.env.PLAYER_VOICE || 'SHIZA';
+  voice = process.env.PLAYER_VOICE || 'SHIZA',
+  seekPosition = Number(process.env.PLAYER_SEEK || 60);
 const surfaceMode = process.env.CHECK_SURFACE === '1' || process.argv.includes('--surface');
 let browser;
 const failures = [];
@@ -81,7 +82,8 @@ try {
           episode: video.number,
         })),
       });
-      const stream = result.streams.find(s => s.quality === 360) || result.streams[0];
+      const quality = Number(process.env.PLAYER_QUALITY || 360);
+      const stream = result.streams.find(s => s.quality === quality) || result.streams[0];
       const root = 'https://yumiwatch-media.localhost/';
 
       if (result.relay) stream.url = new URL(stream.url, root).href;
@@ -146,13 +148,14 @@ try {
       }
       await page.addScriptTag({ path: 'node_modules/shaka-player/dist/shaka-player.compiled.js' });
       await page.evaluate(
-        async ({ stream, relayed, caption }) => {
+        async ({ stream, relayed, caption, provider }) => {
           const video = document.querySelector('video');
 
           video.muted = true;
           if (
             stream.type === 'mp4' ||
             (stream.type === 'hls' &&
+              provider !== 'Kodik' &&
               !relayed &&
               video.canPlayType('application/vnd.apple.mpegurl'))
           ) {
@@ -165,7 +168,23 @@ try {
 
             await player.attach(video);
             player.configure({
-              streaming: { preferNativeHls: false, fallbackToNativeHlsOnMseError: false },
+              streaming: {
+                preferNativeHls: false,
+                fallbackToNativeHlsOnMseError: false,
+                bufferingGoal: 15,
+                rebufferingGoal: 2,
+                bufferBehind: 15,
+                ...(provider === 'Alloha' || provider === 'Kodik'
+                  ? { inaccurateManifestTolerance: 2 }
+                  : {}),
+              },
+              manifest: {
+                availabilityWindowOverride: Infinity,
+                hls:
+                  provider === 'Kodik' || provider === 'Alloha'
+                    ? { sequenceMode: false, ignoreManifestTimestampsInSegmentsMode: true }
+                    : {},
+              },
               abr: { enabled: false },
             });
             await player.load(
@@ -198,7 +217,7 @@ try {
           window.playError = '';
           void video.play().catch(e => (window.playError = e.message));
         },
-        { stream, relayed: !!result.relay, caption }
+        { stream, relayed: !!result.relay, caption, provider: result.provider }
       );
       await page.waitForFunction(
         () => document.querySelector('video').currentTime > 2 || window.playError,
@@ -218,19 +237,51 @@ try {
 
       assert.ok(state.time > 2, `${result.provider}: ${state.error || 'No video frames'}`);
       assert.equal(errors.length, 0);
+      await page.evaluate(position => {
+        document.querySelector('video').currentTime = position;
+      }, seekPosition);
+      await page.waitForFunction(
+        position => {
+          const v = document.querySelector('video');
+
+          return v.currentTime > position + 1 && !v.seeking && v.readyState >= 2;
+        },
+        seekPosition,
+        { timeout: 30000 }
+      );
+      if (process.env.PLAYER_WAIT) await page.waitForTimeout(Number(process.env.PLAYER_WAIT));
+      if (process.env.MEDIA_TRACE === '1')
+        console.log(
+          'Seek state:',
+          await page.evaluate(() => {
+            const v = document.querySelector('video');
+            const player = window.probePlayer;
+
+            return {
+              time: v.currentTime,
+              seekable: Array.from({ length: v.seekable.length }, (_, i) => [
+                v.seekable.start(i),
+                v.seekable.end(i),
+              ]),
+              seekRange: player?.seekRange(),
+              live: player?.isLive(),
+              dynamic: player?.isDynamic(),
+            };
+          })
+        );
       await page.evaluate(() => {
-        document.querySelector('video').currentTime = 60;
+        document.querySelector('video').currentTime = 5;
       });
       await page.waitForFunction(
         () => {
           const v = document.querySelector('video');
 
-          return v.currentTime > 61 && !v.seeking && v.readyState >= 2;
+          return v.currentTime < 30 && !v.seeking && v.readyState >= 2;
         },
         { timeout: 30000 }
       );
       console.log(
-        `${result.provider}: ${state.width}×${state.height}, decoded playback and seek to 60s, ${video.data.dubbing}`
+        `${result.provider}: ${state.width}×${state.height}, decoded playback and seeks to ${seekPosition}s and back, ${video.data.dubbing}`
       );
     } catch (error) {
       if (process.env.MEDIA_TRACE === '1') console.error(error);

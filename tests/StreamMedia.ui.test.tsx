@@ -243,6 +243,12 @@ describe('adaptive stream errors', () => {
     await waitFor(() => expect(engine.loaded).toHaveBeenCalled());
     expect(container.querySelector('video')?.getAttribute('src')).toBeNull();
   });
+  it('keeps the full episode seek range when a provider omits the VOD end marker', async () => {
+    render(<Harness provider="Kodik" failure={() => {}} />);
+    await waitFor(() => expect(engine.loaded).toHaveBeenCalled());
+
+    expect(engine.configure.mock.calls[0][0].manifest.availabilityWindowOverride).toBe(Infinity);
+  });
   it.each(['Kodik', 'Alloha', 'CVH', 'Aksor'])(
     'keeps segment timestamps continuous for Kodik and Alloha HLS (%s)',
     async provider => {

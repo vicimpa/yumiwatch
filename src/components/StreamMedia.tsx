@@ -259,6 +259,10 @@ export const StreamMedia: FC<TStreamMediaProps> = ({
               retryParameters: { maxAttempts: 3, baseDelay: 1000, timeout: 20000 },
             },
             manifest: {
+              // Episodes are VOD even when a provider omits ENDLIST. Keep the
+              // whole presentation seekable instead of moving its start forward
+              // as Shaka refreshes what would otherwise look like a live playlist.
+              availabilityWindowOverride: Infinity,
               // Kodik and Alloha round EXTINF durations despite continuous TS timestamps.
               // Re-aligning every segment to the playlist introduces artificial gaps and skips whole seconds.
               hls:

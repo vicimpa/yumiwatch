@@ -36,6 +36,16 @@ Linux-бинарник собирается на Ubuntu 24.04. AppImage вклю
 
 Для Arch скачай `.pkg.tar.zst` и установи через `sudo pacman -U ./linux-x64-yummywatch-0.0.7-1-x86_64.pkg.tar.zst`.
 
+Для Nix и NixOS на x86_64 и ARM64 Linux доступен flake. Он собирает приложение из исходников и включает WebKitGTK и медиаплагины GStreamer:
+
+```sh
+nix run github:vicimpa/yummywatch
+
+# Или из локальной копии репозитория:
+nix build
+./result/bin/yummywatch
+```
+
 Первый выпуск desktop-пакетов — без сертификатов подписи Apple Developer ID и Windows Authenticode. Для каждого файла опубликована SHA-256 в `SHA256SUMS.txt`.
 
 Версии для Android и iOS готовятся к выпуску. В этом релизе доступны установщики для компьютера.
