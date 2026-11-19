@@ -37,26 +37,54 @@ export function installSelectionPolicy() {
     node instanceof Element ? node : node instanceof Node ? node.parentElement : null;
   const keydown = (event: KeyboardEvent) => {
     if (
-      (event.ctrlKey || event.metaKey) &&
-      (event.code === 'KeyA' || event.key.toLowerCase() === 'a') &&
-      !element(event.target)?.closest(editable)
-    ) {
-      event.preventDefault();
-      const selection = window.getSelection();
-      const target =
-        element(selection?.anchorNode || null)?.closest(copyable) ||
-        element(event.target)?.closest(copyable);
-      const scope =
-        target ||
-        document.querySelector('[data-sidebar-open=true] .sidebar-scroll') ||
-        document.querySelector('#main');
-      selection?.removeAllRanges();
-      if (scope && (target || scope.querySelector(copyable))) {
-        const range = document.createRange();
-        range.selectNodeContents(scope);
-        allRange = range.cloneRange();
-        selection?.addRange(range);
+      !(event.ctrlKey || event.metaKey) ||
+      (event.code !== 'KeyA' && event.key.toLowerCase() !== 'a')
+    )
+      return;
+
+    const field = element(event.target)?.closest(editable);
+
+    if (field) {
+      allRange = undefined;
+      if (field instanceof HTMLInputElement && field.selectionStart === null) return;
+      if (
+        field instanceof HTMLInputElement ||
+        field instanceof HTMLTextAreaElement ||
+        field instanceof HTMLElement
+      ) {
+        event.preventDefault();
+        const selection = window.getSelection();
+
+        selection?.removeAllRanges();
+        if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement) {
+          field.focus({ preventScroll: true });
+          field.select();
+        } else {
+          const range = document.createRange();
+
+          range.selectNodeContents(field);
+          selection?.addRange(range);
+        }
       }
+
+      return;
+    }
+
+    event.preventDefault();
+    const selection = window.getSelection();
+    const target =
+      element(selection?.anchorNode || null)?.closest(copyable) ||
+      element(event.target)?.closest(copyable);
+    const scope =
+      target ||
+      document.querySelector('[data-sidebar-open=true] .sidebar-scroll') ||
+      document.querySelector('#main');
+    selection?.removeAllRanges();
+    if (scope && (target || scope.querySelector(copyable))) {
+      const range = document.createRange();
+      range.selectNodeContents(scope);
+      allRange = range.cloneRange();
+      selection?.addRange(range);
     }
   };
   const selectstart = (event: Event) => {
