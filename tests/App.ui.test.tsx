@@ -170,6 +170,7 @@ describe('macOS picture in picture navigation', () => {
       let paused = true;
       let pictureInPicture = false;
       let position = 9;
+      let duration = 90;
       let holdPosition = false;
       let finishPositionRead: (() => void) | undefined;
       let savedOnClose: number | undefined;
@@ -207,7 +208,7 @@ describe('macOS picture in picture navigation', () => {
           failure: false,
           paused,
           position,
-          duration: 90,
+          duration,
           buffered: 30,
         };
         if (request.action === 'poll' && holdPosition)
@@ -314,7 +315,7 @@ describe('macOS picture in picture navigation', () => {
             ? new DOMRect(cardLeft, cardTop, 320, 180)
             : new DOMRect(0, 0, 800, 600);
         });
-        recordWatch({ ...anime, anime_id: animeId }, video('1'), '', position, 90);
+        recordWatch({ ...anime, anime_id: animeId }, video('1'), '', 20, duration);
         const toggle = screen.getByRole('button', { name: 'Картинка в картинке' });
         fireEvent.click(toggle);
         await waitFor(() => expect(toggle.getAttribute('aria-pressed')).toBe('true'));
@@ -334,6 +335,18 @@ describe('macOS picture in picture navigation', () => {
           0
         );
         expect(card.getAttribute('data-app-href')).toBe('#' + watchPath);
+
+        const time = card.querySelector('.continue-time');
+        const progress = card.querySelector<HTMLElement>('.continue-progress');
+        await waitFor(() => expect(time?.textContent).toBe('00:28 / 01:30'));
+        position = 45;
+        await waitFor(() => expect(time?.textContent).toBe('00:45 / 01:30'));
+        expect(progress?.style.width).toBe('50%');
+        position = 12;
+        duration = 120;
+        await waitFor(() => expect(time?.textContent).toBe('00:12 / 02:00'));
+        expect(progress?.style.width).toBe('10%');
+        expect(canvas.hidden).toBe(false);
 
         cardLeft = 120;
         fireEvent.scroll(rail);

@@ -1,16 +1,26 @@
-import { useLayoutEffect, useRef } from 'preact/hooks';
+import type { RefObject } from 'preact';
+import { useLayoutEffect, useRef, useState } from 'preact/hooks';
 
 import {
   readNativePictureInPictureCard,
   setNativePictureInPictureCard,
 } from '~/lib/native-playback';
+import type { PlaybackMedia } from '~/lib/playback-media';
 
 const FRAME_INTERVAL = 1000 / 30;
 
-export function usePictureInPictureCard(canvas: HTMLCanvasElement | null, watchPath?: string) {
+type CardTime = { position: number; duration?: number };
+
+export function usePictureInPictureCard(
+  canvas: HTMLCanvasElement | null,
+  watchPath?: string,
+  media?: RefObject<PlaybackMedia>
+) {
   const placement = useRef(Promise.resolve());
+  const [time, setTime] = useState<CardTime>();
 
   useLayoutEffect(() => {
+    setTime(undefined);
     const element = canvas?.parentElement;
     const context = canvas?.getContext('2d', { alpha: false });
     if (!canvas || !element || !context || !watchPath) return;
@@ -27,6 +37,21 @@ export function usePictureInPictureCard(canvas: HTMLCanvasElement | null, watchP
     let generation = 0;
     let nextFrame: ReturnType<typeof setTimeout> | undefined;
     let measurement = 0;
+    let lastTime: CardTime | undefined;
+
+    const updateTime = () => {
+      const video = media?.current;
+      const ready = video && video.readyState >= 1 && !video.error;
+      const position =
+        ready && Number.isFinite(video.currentTime)
+          ? Math.max(0, Math.floor(video.currentTime))
+          : undefined;
+      const duration =
+        ready && Number.isFinite(video.duration) && video.duration > 0 ? video.duration : undefined;
+      if (lastTime?.position === position && lastTime?.duration === duration) return;
+      lastTime = position === undefined ? undefined : { position, duration };
+      setTime(lastTime);
+    };
 
     const draw = async (version: number) => {
       const started = performance.now();
@@ -46,6 +71,7 @@ export function usePictureInPictureCard(canvas: HTMLCanvasElement | null, watchP
         // Keep the last frame or history preview until a new frame arrives.
       }
       if (version === generation) {
+        if (presented) updateTime();
         nextFrame = setTimeout(
           () => void draw(version),
           Math.max(0, FRAME_INTERVAL - (performance.now() - started))
@@ -97,7 +123,11 @@ export function usePictureInPictureCard(canvas: HTMLCanvasElement | null, watchP
       if (visible === docked) return;
       docked = visible;
       if (docked) void draw(++generation);
-      else stop(true);
+      else {
+        stop(true);
+        lastTime = undefined;
+        setTime(undefined);
+      }
     };
 
     const schedule = () => {
@@ -134,5 +164,7 @@ export function usePictureInPictureCard(canvas: HTMLCanvasElement | null, watchP
       window.removeEventListener('resize', schedule);
       document.removeEventListener('visibilitychange', schedule);
     };
-  }, [canvas, watchPath]);
+  }, [canvas, watchPath, media]);
+
+  return time;
 }

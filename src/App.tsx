@@ -150,8 +150,10 @@ export const App: FC = () => {
               <div class="route-panel" hidden={route !== '/'}>
                 <Home
                   active={route === '/'}
-                  liveWatchPath={
-                    route === '/' && pip.active && !nativeWatchPath ? playerPath : undefined
+                  liveWatch={
+                    route === '/' && pip.active && !nativeWatchPath && playerPath
+                      ? { path: playerPath, media: watchMedia }
+                      : undefined
                   }
                 />
               </div>

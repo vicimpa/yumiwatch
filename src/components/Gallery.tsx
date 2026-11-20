@@ -1,5 +1,5 @@
 import { AppLink } from '~/ui/AppLink';
-import type { FunctionalComponent as FC } from 'preact';
+import type { FunctionalComponent as FC, RefObject } from 'preact';
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 
 import { CURRENT_SEASONS } from '~/data/catalog';
@@ -8,7 +8,8 @@ import { animeSiteUrl } from '~/lib/content-links';
 import { navigateGallery } from '~/lib/gallery-navigation';
 import { useLibrary, useResource } from '~/lib/hooks';
 import { formatTime } from '~/lib/player';
-import type { Anime } from '~/lib/types';
+import type { PlaybackMedia } from '~/lib/playback-media';
+import type { Anime, WatchEntry } from '~/lib/types';
 import { cardMenuEvents } from '~/lib/card-context';
 import { usePictureInPictureCard } from '~/hooks/usePictureInPictureCard';
 import { removeContinue } from '~/lib/library';
@@ -21,9 +22,10 @@ import { GalleryShelf } from './GalleryShelf';
 import { Poster } from './Poster';
 import { Button, ButtonLink, CachedNotice, CardSkeleton, ErrorState, Icon } from '~/ui';
 
-export type TGalleryProps = { active?: boolean; liveWatchPath?: string };
+type LiveWatch = { path: string; media: RefObject<PlaybackMedia> };
+export type TGalleryProps = { active?: boolean; liveWatch?: LiveWatch };
 
-export const Gallery: FC<TGalleryProps> = ({ active = true, liveWatchPath }) => {
+export const Gallery: FC<TGalleryProps> = ({ active = true, liveWatch }) => {
   const now = new Date(),
     seasonIndex = Math.floor(now.getMonth() / 3),
     season = CURRENT_SEASONS[seasonIndex].value;
@@ -70,9 +72,7 @@ export const Gallery: FC<TGalleryProps> = ({ active = true, liveWatchPath }) => 
   const focusedAnime = useRef<number>();
   const library = useLibrary();
   const [feature, setFeature] = useState<Anime>();
-  const [liveCard, setLiveCard] = useState<HTMLCanvasElement | null>(null);
-  const liveAnime = Number(liveWatchPath?.split('?')[0]?.split('/')[2]);
-  usePictureInPictureCard(liveCard, liveWatchPath);
+  const liveAnime = Number(liveWatch?.path.split('?')[0]?.split('/')[2]);
 
   useEffect(() => {
     const returning = active && !wasActive.current;
@@ -212,7 +212,7 @@ export const Gallery: FC<TGalleryProps> = ({ active = true, liveWatchPath }) => 
           count={library.history.length}
         >
           {library.history.slice(0, 12).map(entry => {
-            const live = entry.anime.anime_id === liveAnime;
+            const live = entry.anime.anime_id === liveAnime ? liveWatch : undefined;
             return (
               <article
                 class="gallery-continue-card"
@@ -224,32 +224,11 @@ export const Gallery: FC<TGalleryProps> = ({ active = true, liveWatchPath }) => 
                   class="gallery-continue"
                   data-gallery-link
                   href={
-                    live ? '#' + liveWatchPath : `#/anime/${entry.anime.anime_id}?view=watch&play=1`
+                    live ? '#' + live.path : `#/anime/${entry.anime.anime_id}?view=watch&play=1`
                   }
                   publicHref={animeSiteUrl(entry.anime)}
                 >
-                  <div class="continue-image">
-                    <WatchPreview entry={entry} />
-                    {live && (
-                      <canvas ref={setLiveCard} class="continue-video" aria-hidden="true" hidden />
-                    )}
-                    <span class="continue-series">Серия {entry.episode}</span>
-                    <span class="continue-time">
-                      {formatTime(entry.position)}
-                      {entry.duration ? ` / ${formatTime(entry.duration)}` : ''}
-                    </span>
-                    <span class="continue-play">
-                      <Icon name="play" size={22} />
-                    </span>
-                    {entry.duration ? (
-                      <span
-                        class="continue-progress"
-                        style={{
-                          width: `${Math.min(100, ((entry.position || 0) / entry.duration) * 100)}%`,
-                        }}
-                      />
-                    ) : null}
-                  </div>
+                  <ContinuePreview entry={entry} live={live} />
                   <h3>{entry.anime.title}</h3>
                 </AppLink>
                 <button
@@ -286,3 +265,29 @@ export const Gallery: FC<TGalleryProps> = ({ active = true, liveWatchPath }) => 
     </section>
   );
 };
+
+function ContinuePreview({ entry, live }: { entry: WatchEntry; live?: LiveWatch }) {
+  const [canvas, setCanvas] = useState<HTMLCanvasElement | null>(null);
+  const time = usePictureInPictureCard(canvas, live?.path, live?.media);
+  const { position, duration } = time ?? entry;
+  return (
+    <div class="continue-image">
+      <WatchPreview entry={entry} />
+      {live && <canvas ref={setCanvas} class="continue-video" aria-hidden="true" hidden />}
+      <span class="continue-series">Серия {entry.episode}</span>
+      <span class="continue-time">
+        {formatTime(position)}
+        {duration ? ` / ${formatTime(duration)}` : ''}
+      </span>
+      <span class="continue-play">
+        <Icon name="play" size={22} />
+      </span>
+      {duration ? (
+        <span
+          class="continue-progress"
+          style={{ width: `${Math.min(100, ((position || 0) / duration) * 100)}%` }}
+        />
+      ) : null}
+    </div>
+  );
+}
