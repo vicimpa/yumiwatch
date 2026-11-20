@@ -21,6 +21,7 @@ pub fn token() -> String {
         .collect()
 }
 
+#[derive(Clone)]
 pub struct Session {
     id: String,
     created: Instant,
@@ -168,9 +169,16 @@ pub fn nonce(text: &str) -> String {
     String::from_utf8(result).unwrap()
 }
 
+#[derive(Clone)]
 pub struct Pending {
     result: Value,
     session: Session,
+}
+
+impl Pending {
+    pub fn result(&self) -> &Value {
+        &self.result
+    }
 }
 
 #[cfg(test)]
@@ -333,6 +341,10 @@ pub async fn commit(pending: Pending, sessions: &Sessions) -> Value {
     let Pending { result, session } = pending;
     let mut sessions = sessions.lock().await;
     sessions.retain(|_, session| !session.expired());
+    if let Some(registered) = sessions.get_mut(&session.id) {
+        registered.used = Instant::now();
+        return result;
+    }
     if sessions.len() >= 8 {
         if let Some(oldest) = sessions
             .iter()

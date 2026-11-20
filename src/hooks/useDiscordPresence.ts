@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'preact/hooks';
+import { useEffect, useMemo, useRef } from 'preact/hooks';
 
 import { DiscordPresence, type PresencePlayback } from '~/core/DiscordPresence';
 import { imageUrl } from '~/lib/api';
@@ -14,6 +14,7 @@ export function useDiscordPresence(
   video: Video | undefined,
   playback: PresencePlayback | undefined
 ) {
+  const registered = useRef<DiscordPresence>();
   const presence = useMemo(() => {
     if (!video || !discordPresenceAvailable()) return;
 
@@ -24,21 +25,17 @@ export function useDiscordPresence(
       () => discordPresence.publish(),
       discordPresenceEnabled
     );
-  }, [anime.anime_id, video?.video_id]);
+  }, [anime.anime_id, video?.video_id, video?.data.dubbing]);
 
   useEffect(() => {
-    if (!presence) return;
-
-    const unregister = discordPresence.register(100, () => presence.current);
-
-    return () => {
-      unregister();
-      presence.dispose();
-    };
-  }, [presence]);
-
-  useEffect(() => {
-    presence?.update(playback || { position: 0, duration: 0, playing: false, reason: 'buffering' });
+    const previous = registered.current;
+    registered.current = presence;
+    if (presence)
+      presence.update(
+        playback || { position: 0, duration: 0, playing: false, reason: 'buffering' }
+      );
+    else discordPresence.publish();
+    if (previous !== presence) previous?.dispose();
   }, [
     presence,
     playback?.position,
@@ -47,4 +44,13 @@ export function useDiscordPresence(
     playback?.reason,
     playback?.playbackRate,
   ]);
+
+  useEffect(() => {
+    const unregister = discordPresence.register(100, () => registered.current?.current);
+
+    return () => {
+      unregister();
+      registered.current?.dispose();
+    };
+  }, []);
 }

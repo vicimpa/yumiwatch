@@ -14,8 +14,13 @@ use crate::{
 };
 
 type Cache = Arc<Mutex<HashMap<String, (Instant, Value)>>>;
+type SourceResolution = tokio::sync::OnceCell<Result<Resolved, String>>;
+type SourceCache = Arc<Mutex<HashMap<Candidate, (Instant, Arc<SourceResolution>)>>>;
 const SOURCE_PRIORITY_WINDOW: Duration = Duration::from_secs(2);
+const RESOLUTION_TTL: Duration = Duration::from_secs(30);
+type ReserveRank = (bool, bool, bool, u64, usize);
 
+#[derive(Clone)]
 enum Resolved {
     Direct(Value),
     Alloha(alloha::Pending),
@@ -27,6 +32,41 @@ struct Attempt {
 }
 
 impl Resolved {
+    fn result(&self) -> &Value {
+        match self {
+            Self::Direct(value) => value,
+            Self::Alloha(pending) => pending.result(),
+        }
+    }
+
+    fn streams(&self) -> impl Iterator<Item = &Value> {
+        self.result()["streams"].as_array().into_iter().flatten()
+    }
+
+    fn reserve_rank(&self, quality: Option<u32>, index: usize) -> Option<ReserveRank> {
+        let is_kodik = self.result()["provider"] == "Kodik";
+        let slow = |stream: &Value| is_kodik && stream["type"] == "mp4";
+        let has_regular = self.streams().any(|stream| !slow(stream));
+        let Some(target) = quality.map(u64::from) else {
+            return (is_kodik && !has_regular).then_some((false, true, false, 0, index));
+        };
+        self.streams()
+            .filter_map(|stream| {
+                let quality = stream["quality"].as_u64()?;
+                let slow = slow(stream);
+                let exact = quality == target;
+                (exact || !slow || !has_regular).then_some((
+                    !exact,
+                    slow,
+                    quality > target,
+                    quality.abs_diff(target),
+                    index,
+                ))
+            })
+            .min()
+            .filter(|rank| rank.0 || rank.1)
+    }
+
     async fn finish(self, backend: &Backend) -> Result<Value, String> {
         match self {
             Self::Alloha(pending) => Ok(alloha::commit(pending, &backend.sessions).await),
@@ -38,12 +78,13 @@ impl Resolved {
     }
 }
 
-/// Native state only: no server, listener, child process, or bound socket.
+/// Provider resolution and transport shared by WebView and native playback.
 #[derive(Clone)]
 pub struct Backend {
     pub client: Client,
     sessions: Sessions,
     cache: Cache,
+    sources: SourceCache,
     transfers: Arc<Semaphore>,
     media: crate::media::Media,
 }
@@ -58,12 +99,17 @@ impl Backend {
                 .build()?,
             sessions: Arc::default(),
             cache: Arc::default(),
+            sources: Arc::default(),
             transfers: Arc::new(Semaphore::new(4)),
             media: crate::media::Media::default(),
         })
     }
 
     pub async fn resolve(&self, candidates: Vec<Candidate>) -> Result<Value, String> {
+        self.resolve_quality(candidates, None).await
+    }
+
+    fn validate_candidates(candidates: &[Candidate]) -> Result<(), String> {
         if candidates.is_empty()
             || candidates.len() > 12
             || candidates
@@ -72,13 +118,22 @@ impl Backend {
         {
             return Err("Нужны источники выбранной серии.".into());
         }
-        let key = serde_json::to_string(&candidates)
+        Ok(())
+    }
+
+    pub async fn resolve_quality(
+        &self,
+        candidates: Vec<Candidate>,
+        quality: Option<u32>,
+    ) -> Result<Value, String> {
+        Self::validate_candidates(&candidates)?;
+        let key = serde_json::to_string(&(&candidates, quality))
             .map_err(|_| "Некорректные источники.".to_string())?;
         {
             let cache = self.cache.lock().await;
             if let Some((_, value)) = cache
                 .get(&key)
-                .filter(|(time, _)| time.elapsed() < Duration::from_secs(30))
+                .filter(|(time, _)| time.elapsed() < RESOLUTION_TTL)
             {
                 return Ok(value.clone());
             }
@@ -90,31 +145,16 @@ impl Backend {
             let backend = self.clone();
             attempts.spawn(async move {
                 tokio::time::sleep(Duration::from_millis(index as u64 * 300)).await;
-                let result = tokio::time::timeout(Duration::from_secs(20), async {
-                    let result = match providers::provider_url(&candidate.url) {
-                        Ok((url, "alloha")) => Resolved::Alloha(
-                            alloha::prepare(&url, &candidate, &backend.client).await?,
-                        ),
-                        Ok(_) => {
-                            Resolved::Direct(providers::resolve(&candidate, &backend.client).await?)
-                        }
-                        Err(error) => return Err(error),
-                    };
-                    match result {
-                        Resolved::Direct(value) if value["provider"] == "Aksor" => Ok(
-                            Resolved::Direct(backend.available_aksor_streams(value).await?),
-                        ),
-                        other => Ok(other),
-                    }
-                })
-                .await
-                .unwrap_or_else(|_| Err("Источник не ответил вовремя.".to_string()));
+                let result = backend.prepare_source(candidate).await;
                 Attempt { index, result }
             });
         }
-        let result = first_available(attempts).await?.finish(self).await?;
+        let result = first_available(attempts, quality)
+            .await?
+            .finish(self)
+            .await?;
         let mut cache = self.cache.lock().await;
-        cache.retain(|_, (time, _)| time.elapsed() < Duration::from_secs(30));
+        cache.retain(|_, (time, _)| time.elapsed() < RESOLUTION_TTL);
         if cache.len() >= 64 {
             if let Some(oldest) = cache
                 .iter()
@@ -126,6 +166,86 @@ impl Backend {
         }
         cache.insert(key, (Instant::now(), result.clone()));
         Ok(result)
+    }
+
+    async fn prepare_source(&self, candidate: Candidate) -> Result<Resolved, String> {
+        let resolution = {
+            let mut sources = self.sources.lock().await;
+            sources.retain(|_, (time, _)| time.elapsed() < RESOLUTION_TTL);
+            if sources.len() >= 64 && !sources.contains_key(&candidate) {
+                if let Some(oldest) = sources
+                    .iter()
+                    .min_by_key(|(_, (time, _))| time)
+                    .map(|(key, _)| key.clone())
+                {
+                    sources.remove(&oldest);
+                }
+            }
+            sources
+                .entry(candidate.clone())
+                .or_insert_with(|| (Instant::now(), Arc::default()))
+                .1
+                .clone()
+        };
+        let result = resolution
+            .get_or_init(|| async {
+                tokio::time::timeout(Duration::from_secs(20), async {
+                    let (url, family) = providers::provider_url(&candidate.url)?;
+                    if family == "alloha" {
+                        return Ok(Resolved::Alloha(
+                            alloha::prepare(&url, &candidate, &self.client).await?,
+                        ));
+                    }
+                    let value = providers::resolve(&candidate, &self.client).await?;
+                    let value = if family == "aksor" {
+                        self.available_aksor_streams(value).await?
+                    } else {
+                        value
+                    };
+                    Ok(Resolved::Direct(value))
+                })
+                .await
+                .unwrap_or_else(|_| Err("Источник не ответил вовремя.".to_string()))
+            })
+            .await;
+        if result.is_err() {
+            let mut sources = self.sources.lock().await;
+            if sources
+                .get(&candidate)
+                .is_some_and(|(_, current)| Arc::ptr_eq(current, &resolution))
+            {
+                sources.remove(&candidate);
+            }
+        }
+        result.clone()
+    }
+
+    pub async fn inspect_qualities(&self, candidates: Vec<Candidate>) -> Result<Vec<u32>, String> {
+        Self::validate_candidates(&candidates)?;
+        let mut attempts = tokio::task::JoinSet::new();
+        let slots = Arc::new(Semaphore::new(3));
+        for candidate in candidates {
+            let backend = self.clone();
+            let slots = slots.clone();
+            attempts.spawn(async move {
+                let _slot = slots
+                    .acquire()
+                    .await
+                    .expect("quality probe semaphore is open");
+                backend.prepare_source(candidate).await
+            });
+        }
+        let mut qualities = std::collections::BTreeSet::new();
+        while let Some(attempt) = attempts.join_next().await {
+            if let Ok(Ok(source)) = attempt {
+                qualities.extend(source.streams().filter_map(|stream| {
+                    u32::try_from(stream["quality"].as_u64()?)
+                        .ok()
+                        .filter(|q| *q > 0)
+                }));
+            }
+        }
+        Ok(qualities.into_iter().collect())
     }
 
     async fn available_aksor_streams(&self, mut result: Value) -> Result<Value, String> {
@@ -300,23 +420,35 @@ pub fn error(status: StatusCode, message: &str) -> Response<Vec<u8>> {
 
 // Dropping JoinSet cancels unfinished requests. Resolutions hold unregistered
 // sessions, so discarded and cancelled attempts cannot evict the selected one.
-async fn first_available(mut attempts: tokio::task::JoinSet<Attempt>) -> Result<Resolved, String> {
+async fn first_available(
+    mut attempts: tokio::task::JoinSet<Attempt>,
+    quality: Option<u32>,
+) -> Result<Resolved, String> {
     let mut errors = Vec::new();
     let mut preferred_pending = true;
     let priority_window = tokio::time::sleep(SOURCE_PRIORITY_WINDOW);
     tokio::pin!(priority_window);
     let mut reserve: Option<(usize, Resolved)> = None;
+    let mut last_resort: Option<(ReserveRank, Resolved)> = None;
 
     loop {
         tokio::select! {
             attempt = attempts.join_next() => {
                 match attempt {
-                    Some(Ok(Attempt { index: 0, result: Ok(value) })) => return Ok(value),
-                    Some(Ok(Attempt { result: Ok(value), .. })) if !preferred_pending => {
-                        return Ok(value);
-                    }
                     Some(Ok(Attempt { index, result: Ok(value) })) => {
-                        if reserve.as_ref().map_or(true, |(current, _)| index < *current) {
+                        if let Some(rank) = value.reserve_rank(quality, index) {
+                            if last_resort.as_ref().is_none_or(|(current, _)| rank < *current) {
+                                last_resort = Some((rank, value));
+                            }
+                            if index == 0 {
+                                preferred_pending = false;
+                                if let Some((_, value)) = reserve.take() {
+                                    return Ok(value);
+                                }
+                            }
+                        } else if index == 0 || !preferred_pending {
+                            return Ok(value);
+                        } else if reserve.as_ref().is_none_or(|(current, _)| index < *current) {
                             reserve = Some((index, value));
                         }
                     }
@@ -338,7 +470,9 @@ async fn first_available(mut attempts: tokio::task::JoinSet<Attempt>) -> Result<
                         }
                     }
                     None => {
-                        if let Some((_, value)) = reserve.take() {
+                        if let Some(value) = reserve.map(|(_, value)| value)
+                            .or_else(|| last_resort.map(|(_, value)| value))
+                        {
                             return Ok(value);
                         }
                         return Err(errors.join(" "));
@@ -376,6 +510,13 @@ mod tests {
         }
     }
 
+    fn variant(index: usize, provider: &str, format: &str, quality: u32) -> Attempt {
+        direct(
+            index,
+            Ok(json!({"provider": provider, "streams": [{"type": format, "quality": quality}]})),
+        )
+    }
+
     async fn pending_alloha() -> alloha::Pending {
         let url = Url::parse("https://alloha.yani.tv/?token=public").unwrap();
         let upstream = MockUpstream::new(vec![
@@ -401,7 +542,7 @@ mod tests {
             direct(2, Ok(json!({"provider": "Reserve", "videoId": 3})))
         });
         let started = tokio::time::Instant::now();
-        let result = direct_value(super::first_available(attempts).await.unwrap());
+        let result = direct_value(super::first_available(attempts, None).await.unwrap());
         assert_eq!(result["videoId"], 3);
         assert!(started.elapsed() >= SOURCE_PRIORITY_WINDOW);
         assert!(started.elapsed() < Duration::from_secs(3));
@@ -419,7 +560,7 @@ mod tests {
             direct(1, Ok(json!({"provider": "Reserve", "videoId": 2})))
         });
         let started = tokio::time::Instant::now();
-        let result = direct_value(super::first_available(attempts).await.unwrap());
+        let result = direct_value(super::first_available(attempts, None).await.unwrap());
         assert_eq!(result["videoId"], 1);
         assert!(started.elapsed() < SOURCE_PRIORITY_WINDOW);
     }
@@ -436,9 +577,115 @@ mod tests {
             direct(1, Ok(json!({"provider": "Reserve", "videoId": 2})))
         });
         let started = tokio::time::Instant::now();
-        let result = direct_value(super::first_available(attempts).await.unwrap());
+        let result = direct_value(super::first_available(attempts, None).await.unwrap());
         assert_eq!(result["videoId"], 2);
         assert_eq!(started.elapsed(), Duration::from_millis(200));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn kodik_mp4_waits_for_other_sources_even_when_preferred() {
+        let mut attempts = tokio::task::JoinSet::new();
+        attempts.spawn(async {
+            direct(
+                0,
+                Ok(json!({"provider": "Kodik", "streams": [{"type": "mp4"}]})),
+            )
+        });
+        attempts.spawn(async {
+            tokio::time::sleep(SOURCE_PRIORITY_WINDOW + Duration::from_millis(100)).await;
+            direct(
+                1,
+                Ok(json!({"provider": "CVH", "streams": [{"type": "mp4"}]})),
+            )
+        });
+
+        let result = direct_value(super::first_available(attempts, None).await.unwrap());
+        assert_eq!(result["provider"], "CVH");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn kodik_mp4_is_returned_when_other_sources_fail() {
+        let mut attempts = tokio::task::JoinSet::new();
+        attempts.spawn(async { direct(0, Err("CVH unavailable".to_string())) });
+        attempts.spawn(async {
+            direct(
+                1,
+                Ok(json!({"provider": "Kodik", "streams": [{"type": "mp4"}]})),
+            )
+        });
+
+        let result = direct_value(super::first_available(attempts, None).await.unwrap());
+        assert_eq!(result["provider"], "Kodik");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn an_exact_quality_outweighs_a_faster_preferred_candidate() {
+        let mut attempts = tokio::task::JoinSet::new();
+        attempts.spawn(async { variant(0, "CVH", "mp4", 360) });
+        attempts.spawn(async {
+            tokio::time::sleep(Duration::from_millis(300)).await;
+            variant(1, "Kodik", "mp4", 720)
+        });
+        attempts.spawn(async {
+            tokio::time::sleep(Duration::from_millis(800)).await;
+            variant(2, "Alloha", "hls", 720)
+        });
+        let result = direct_value(super::first_available(attempts, Some(720)).await.unwrap());
+        assert_eq!(result["provider"], "Alloha");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn an_exact_kodik_mp4_is_available_when_other_sources_have_only_different_qualities() {
+        let mut attempts = tokio::task::JoinSet::new();
+        attempts.spawn(async { variant(0, "CVH", "mp4", 480) });
+        attempts.spawn(async { variant(1, "Kodik", "mp4", 720) });
+        let result = direct_value(super::first_available(attempts, Some(720)).await.unwrap());
+        assert_eq!(result["provider"], "Kodik");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn falls_back_to_the_closest_lower_quality_when_no_candidate_matches() {
+        let mut attempts = tokio::task::JoinSet::new();
+        attempts.spawn(async { variant(0, "CVH", "mp4", 360) });
+        attempts.spawn(async { variant(1, "Alloha", "hls", 1080) });
+        attempts.spawn(async { variant(2, "Aksor", "dash", 480) });
+        let result = direct_value(super::first_available(attempts, Some(720)).await.unwrap());
+        assert_eq!(result["provider"], "Aksor");
+    }
+
+    #[tokio::test]
+    async fn inspects_all_qualities_without_registering_playback_sessions() {
+        let backend = Backend::new().unwrap();
+        let cvh = candidate(
+            "https://ru.yummyani.me/iframeCVH.html?anime_id=1",
+            "Арт-Дубляж",
+        );
+        let alloha = candidate("https://alloha.yani.tv/?token=public", "Арт-Дубляж");
+        let sources = [
+            (
+                cvh.clone(),
+                Resolved::Direct(json!({"provider": "CVH", "streams": [
+                    {"type": "mp4", "quality": 1080},
+                    {"type": "mp4", "quality": 360},
+                    {"type": "mp4", "quality": 480},
+                ]})),
+            ),
+            (alloha.clone(), Resolved::Alloha(pending_alloha().await)),
+        ];
+        {
+            let mut cache = backend.sources.lock().await;
+            for (candidate, result) in sources {
+                let resolution = Arc::new(SourceResolution::new());
+                assert!(resolution.set(Ok(result)).is_ok());
+                cache.insert(candidate, (Instant::now(), resolution));
+            }
+        }
+
+        assert_eq!(
+            backend.inspect_qualities(vec![cvh, alloha]).await.unwrap(),
+            vec![360, 480, 1080]
+        );
+        assert!(backend.sessions.lock().await.is_empty());
     }
 
     #[tokio::test(start_paused = true)]
@@ -472,7 +719,7 @@ mod tests {
             }
         });
 
-        let selected = super::first_available(attempts).await.unwrap();
+        let selected = super::first_available(attempts, None).await.unwrap();
         assert!(backend.sessions.lock().await.is_empty());
         let result = selected.finish(&backend).await.unwrap();
         assert_eq!(result["provider"], "Alloha");
@@ -638,7 +885,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn native_backend_needs_no_listener_and_rejects_unregistered_resources() {
+    async fn media_protocol_rejects_unregistered_resources() {
         let backend = Backend::new().unwrap();
         assert!(backend.resolve(vec![]).await.is_err());
         assert!(backend

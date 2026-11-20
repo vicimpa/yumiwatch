@@ -11,14 +11,14 @@ export function resetRequests() {
 
 export interface CacheEntry<T = unknown> {
   key: string;
-  kind: 'data' | 'image';
+  kind: 'data' | 'image' | 'frame';
   data: T;
   savedAt: number;
   bytes: number;
 }
 
 const entries = new Map<string, CacheEntry>();
-const limits = { data: 16 * 1024 * 1024, image: 128 * 1024 * 1024 };
+const limits = { data: 16 * 1024 * 1024, image: 128 * 1024 * 1024, frame: 24 * 1024 * 1024 };
 let legacyRead = false,
   db: IDBDatabase | undefined,
   opening: Promise<void> | undefined;
@@ -70,7 +70,7 @@ function persist(entry: CacheEntry) {
 
     // WebKit's ephemeral stores can reject Blob records. Raw bytes are portable
     // and restore into an ordinary in-memory Blob before rendering the app.
-    if (entry.kind === 'image')
+    if (entry.kind !== 'data')
       void (entry.data as Blob)
         .arrayBuffer()
         .then(bytes => {
@@ -115,7 +115,7 @@ export function putCache<T>(
   savedAt = Date.now(),
   save = true
 ) {
-  const bytes = kind === 'image' ? (data as Blob).size : (JSON.stringify(data)?.length || 0) * 2;
+  const bytes = kind !== 'data' ? (data as Blob).size : (JSON.stringify(data)?.length || 0) * 2;
 
   if (bytes > limits[kind]) return;
 
@@ -132,7 +132,8 @@ export function putCache<T>(
     const value = recent[index];
 
     total += value.bytes;
-    if (total > limits[kind] || index >= 512) deleteCache(kind, value.key);
+    if (total > limits[kind] || index >= (kind === 'frame' ? 128 : 512))
+      deleteCache(kind, value.key);
   }
   if (save) {
     dirty.add(address);
@@ -148,7 +149,7 @@ export function deleteCache(kind: CacheEntry['kind'], key: string) {
     } catch {
       /* Best effort. */
     }
-  } else if (typeof indexedDB === 'undefined') {
+  } else if (kind === 'data' && typeof indexedDB === 'undefined') {
     const address = key.startsWith('account:') ? 'yumiwatch:api:private:v1' : 'yumiwatch:api:v1';
     const saved = readJSON<Record<string, unknown>>(address, {});
 
@@ -197,12 +198,12 @@ export function initializeCache(): Promise<void> {
         const saved = (load.result as CacheEntry[])
           .flatMap(e => {
             if (
-              !['data', 'image'].includes(e.kind) ||
+              !['data', 'image', 'frame'].includes(e.kind) ||
               typeof e.key !== 'string' ||
               !Number.isFinite(e.savedAt)
             )
               return [];
-            if (e.kind === 'image' && !(e.data instanceof Blob)) {
+            if (e.kind !== 'data' && !(e.data instanceof Blob)) {
               const image = e.data as { bytes?: ArrayBuffer; mime?: string };
 
               if (!(image?.bytes instanceof ArrayBuffer) || !image.mime?.startsWith('image/'))

@@ -16,6 +16,7 @@ import { useResource, useSession } from '~/lib/hooks';
 import {
   Button,
   ButtonLink,
+  Dropdown,
   Field,
   Form,
   FormActions,
@@ -23,7 +24,6 @@ import {
   Icon,
   Input,
   SEARCH_INPUT_PROPS,
-  Select,
   Sheet,
 } from '~/ui';
 
@@ -215,15 +215,9 @@ export const FilterSheet: FC<TFilterSheetProps> = ({ query, close, initialSectio
     []
   );
 
-  const changeSort = useCallback(
-    (event: JSX.TargetedEvent<HTMLSelectElement>) => set('sort', event.currentTarget.value),
-    [set]
-  );
+  const changeSort = useCallback((value: string) => set('sort', value), [set]);
 
-  const changeDirection = useCallback(
-    (event: JSX.TargetedEvent<HTMLSelectElement>) => set('sort_forward', event.currentTarget.value),
-    [set]
-  );
+  const changeDirection = useCallback((value: string) => set('sort_forward', value), [set]);
 
   const includeAllLists = useCallback(() => set('exclude_list', ''), [set]);
 
@@ -440,23 +434,33 @@ export const FilterSheet: FC<TFilterSheetProps> = ({ query, close, initialSectio
             <fieldset class="filter-group">
               <legend>Сортировка</legend>
               <Field label="Порядок">
-                <Select value={draft.sort} onChange={changeSort}>
-                  <option value="views">По просмотрам</option>
-                  <option value="top">По месту в топе</option>
-                  <option value="rating">По рейтингу</option>
-                  <option value="rating_counters">По числу оценок</option>
-                  <option value="year">По году выхода</option>
-                  <option value="title">По названию</option>
-                  <option value="id">По добавлению</option>
-                  <option value="random">Случайно</option>
-                </Select>
+                <Dropdown
+                  aria-label="Порядок"
+                  value={draft.sort}
+                  onChange={changeSort}
+                  options={[
+                    { value: 'views', label: 'По просмотрам' },
+                    { value: 'top', label: 'По месту в топе' },
+                    { value: 'rating', label: 'По рейтингу' },
+                    { value: 'rating_counters', label: 'По числу оценок' },
+                    { value: 'year', label: 'По году выхода' },
+                    { value: 'title', label: 'По названию' },
+                    { value: 'id', label: 'По добавлению' },
+                    { value: 'random', label: 'Случайно' },
+                  ]}
+                />
               </Field>
               <Field class="sort-direction" label="Направление">
-                <Select value={draft.sort_forward} onChange={changeDirection}>
-                  <option value="">По умолчанию</option>
-                  <option value="true">По возрастанию</option>
-                  <option value="false">По убыванию</option>
-                </Select>
+                <Dropdown
+                  aria-label="Направление"
+                  value={draft.sort_forward}
+                  onChange={changeDirection}
+                  options={[
+                    { value: '', label: 'По умолчанию' },
+                    { value: 'true', label: 'По возрастанию' },
+                    { value: 'false', label: 'По убыванию' },
+                  ]}
+                />
               </Field>
             </fieldset>
           </>

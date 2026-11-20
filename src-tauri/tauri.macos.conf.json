@@ -12,13 +12,34 @@
         "backgroundColor": "#00000000",
         "transparent": true,
         "backgroundThrottling": "disabled",
-        "windowEffects": { "effects": ["sidebar"], "state": "active" },
+        "windowEffects": {
+          "effects": ["sidebar"],
+          "state": "active"
+        },
         "theme": "Dark",
         "decorations": true,
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
-        "trafficLightPosition": { "x": 16, "y": 18 }
+        "trafficLightPosition": {
+          "x": 16,
+          "y": 18
+        }
       }
     ]
+  },
+  "build": {
+    "beforeDevCommand": "node scripts/prepare-macos-libmpv.mjs --dev && npm run clean:tauri && npm run dev:web -- --port 4179 --strictPort",
+    "beforeBuildCommand": "node scripts/prepare-macos-libmpv.mjs && npm run clean:tauri && VITE_NATIVE_VIDEO_ONLY=true npm run build:web"
+  },
+  "bundle": {
+    "resources": {
+      "src/native_video/shaders/": "upscaling/"
+    },
+    "macOS": {
+      "frameworks": ["native-libs/macos/libmpv.2.dylib"],
+      "files": {
+        "Resources/libmpv-licenses": "native-libs/macos/libmpv-licenses"
+      }
+    }
   }
 }

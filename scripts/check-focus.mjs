@@ -83,9 +83,15 @@ for (const engine of [webkit, chromium]) {
     await page.locator('#main').focus();
     await page.keyboard.press('Shift');
 
-    const containerOutline = await page
-      .locator('#main')
-      .evaluate(n => getComputedStyle(n).outlineStyle);
+    const containerOutline = await page.locator('#main').evaluate(node => {
+      const dataset = document.documentElement.dataset;
+      const original = dataset.interfaceStyle;
+      const classic = getComputedStyle(node).outlineStyle;
+      dataset.interfaceStyle = 'contrast';
+      const contrast = getComputedStyle(node).outlineStyle;
+      dataset.interfaceStyle = original;
+      return { classic, contrast };
+    });
 
     await page.keyboard.press('ArrowDown');
     await page.waitForTimeout(600);
@@ -117,7 +123,11 @@ for (const engine of [webkit, chromium]) {
       Math.abs(before.card - after.card) < 2,
       'Card jumped after selecting a different title'
     );
-    assert.equal(containerOutline, 'none', 'Whole content container has a focus border');
+    assert.deepEqual(
+      containerOutline,
+      { classic: 'none', contrast: 'none' },
+      'Whole content container has a focus border'
+    );
     for (let i = 0; i < 3; i++) {
       await page.keyboard.press('ArrowDown');
       await page.waitForTimeout(400);
@@ -162,6 +172,22 @@ for (const engine of [webkit, chromium]) {
       (await cursors()).every(cursor => cursor !== 'none'),
       'Pause did not restore cursor'
     );
+    for (const style of ['classic', 'contrast']) {
+      await page.evaluate(value => {
+        document.documentElement.dataset.interfaceStyle = value;
+      }, style);
+      const settings = page.getByRole('button', { name: 'Настройки плеера', exact: true });
+      await page.keyboard.press('Tab');
+      await settings.focus();
+      const controlOutline = await settings.evaluate(node => getComputedStyle(node).outlineStyle);
+      assert.notEqual(controlOutline, 'none', `Player buttons lost visible focus in ${style}`);
+      for (const selector of ['.video-hit-area', '.video-controls']) {
+        const surface = page.locator(selector);
+        await surface.focus();
+        const outline = await surface.evaluate(node => getComputedStyle(node).outlineStyle);
+        assert.equal(outline, 'none', `${selector} draws a full-frame focus outline in ${style}`);
+      }
+    }
     await page.evaluate(() => {
       document.documentElement.dataset.playerChrome = 'hidden';
       document.documentElement.dataset.screen = 'catalog';

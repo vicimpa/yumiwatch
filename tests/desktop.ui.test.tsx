@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import {
   apiFetch,
   desktopInvoke,
+  exitDesktopFullscreen,
   exitPlayerFullscreen,
   initializeDesktop,
   isDesktopWindow,
@@ -109,6 +110,27 @@ describe('desktop IPC and application chrome', () => {
     expect(native.setFullscreen).toHaveBeenCalledTimes(2);
   });
 
+  it('uses AppKit fullscreen events without querying window state on every macOS resize', async () => {
+    const { dataset } = document.documentElement;
+    dataset.desktop = 'macos';
+    const { container } = render(<WindowChrome />);
+    await waitFor(() => expect(dataset.desktopFullscreen).toBe('false'));
+    expect(native.isMaximized).not.toHaveBeenCalled();
+    expect(native.onResized).not.toHaveBeenCalled();
+
+    for (let step = 0; step < 12; step++) window.dispatchEvent(new Event('resize'));
+    expect(native.isFullscreen).toHaveBeenCalledOnce();
+
+    native.isFullscreen.mockResolvedValue(true);
+    window.dispatchEvent(new Event('yumiwatch:native-fullscreen'));
+    await waitFor(() => expect(dataset.desktopFullscreen).toBe('true'));
+    expect(container.querySelector('.window-chrome')).toBeNull();
+
+    native.isFullscreen.mockResolvedValue(false);
+    window.dispatchEvent(new Event('yumiwatch:native-fullscreen'));
+    await waitFor(() => expect(dataset.desktopFullscreen).toBe('false'));
+    expect(container.querySelector('.window-chrome')).not.toBeNull();
+  });
   it('does not let an old resize query overwrite the most recent native fullscreen state', async () => {
     let old!: (value: boolean) => void, resized!: () => void;
 
@@ -189,6 +211,23 @@ describe('desktop IPC and application chrome', () => {
     await waitFor(() => expect(native.setFocus).toHaveBeenCalledTimes(3));
     expect(native.setFullscreen).toHaveBeenCalledTimes(3);
   });
+  it('restores keyboard focus to the player instead of the full-size hit area', async () => {
+    document.documentElement.dataset.desktop = 'macos';
+    native.isFullscreen.mockResolvedValue(true);
+    const { container } = render(
+      <main id="main" tabIndex={-1}>
+        <DesktopPlayer />
+      </main>
+    );
+    const hitArea = container.querySelector<HTMLButtonElement>('.video-hit-area')!;
+    hitArea.focus();
+    expect(document.activeElement).toBe(hitArea);
+
+    await act(async () => {
+      await exitDesktopFullscreen();
+    });
+    expect(document.activeElement).toBe(container.querySelector('.video-controls'));
+  });
   it.each(['android', 'ios'])(
     'keeps native IPC on %s without calling desktop window APIs',
     async platform => {
@@ -233,8 +272,18 @@ describe('desktop IPC and application chrome', () => {
       await waitFor(() => expect(document.documentElement.dataset.desktopFullscreen).toBe('false'));
     }
   );
-  it('preserves fullscreen on Escape while allowing navigation and player settings to close', async () => {
+  it('closes player settings, then exits fullscreen, then goes back on separate Escape presses', async () => {
     native.isFullscreen.mockResolvedValue(true);
+    let finishExit!: () => void;
+    native.setFullscreen.mockImplementation(
+      () =>
+        new Promise<void>(resolve => {
+          finishExit = () => {
+            native.isFullscreen.mockResolvedValue(false);
+            resolve();
+          };
+        })
+    );
 
     const back = vi.fn();
 
@@ -250,10 +299,21 @@ describe('desktop IPC and application chrome', () => {
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(screen.queryByRole('dialog', { name: 'Настройки плеера' })).toBeNull();
     expect(back).not.toHaveBeenCalled();
-    fireEvent.keyDown(window, { key: 'Escape' });
-    expect(back).toHaveBeenCalledOnce();
     expect(native.setFullscreen).not.toHaveBeenCalled();
     expect(document.documentElement.dataset.desktopFullscreen).toBe('true');
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    await waitFor(() => expect(native.setFullscreen).toHaveBeenCalledExactlyOnceWith(false));
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(back).not.toHaveBeenCalled();
+    await act(async () => finishExit());
+    expect(document.documentElement.dataset.desktopFullscreen).toBe('false');
+
+    fireEvent.keyDown(window, { key: 'Escape', repeat: true });
+    expect(back).not.toHaveBeenCalled();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(back).toHaveBeenCalledOnce();
+    expect(native.setFullscreen).toHaveBeenCalledExactlyOnceWith(false);
   });
   it('uses the same toggle for the global key and player button without toggling twice', async () => {
     native.setFullscreen.mockImplementation(async value => {

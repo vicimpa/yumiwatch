@@ -59,9 +59,17 @@ it('disables the setting if the application ID is missing', () => {
   expect((screen.getByRole('checkbox') as HTMLInputElement).disabled).toBe(true);
 });
 
-function Watching({ episode = '1', playback }: { episode?: string; playback?: PresencePlayback }) {
+function Watching({
+  episode = '1',
+  dubbing,
+  playback,
+}: {
+  episode?: string;
+  dubbing?: string;
+  playback?: PresencePlayback;
+}) {
   useAppDiscordPresence('/anime/10531?view=watch');
-  useDiscordPresence(anime, video(episode), playback);
+  useDiscordPresence(anime, video(episode, dubbing), playback);
 
   return null;
 }
@@ -70,18 +78,32 @@ it('publishes loading through native IPC before the player has a playback snapsh
   const { rerender } = render(<Watching />);
   await waitFor(() =>
     expect(native.desktopInvoke.mock.lastCall?.[1].activity).toMatchObject({
-      details: anime.title,
+      details: `${anime.title} (AniLibria)`,
       state: 'Серия 1 · Загрузка',
     })
   );
   expect(native.desktopInvoke.mock.lastCall?.[1].activity).not.toHaveProperty('timestamps');
-  rerender(<Watching episode="2" />);
-  await waitFor(() =>
-    expect(native.desktopInvoke.mock.lastCall?.[1].activity?.state).toBe('Серия 2 · Загрузка')
-  );
+  native.desktopInvoke.mockClear();
   rerender(
     <Watching
       episode="2"
+      dubbing="Субтитры Yummy"
+      playback={{ position: 0, duration: 1400, playing: false, reason: 'loadedmetadata' }}
+    />
+  );
+  await waitFor(() =>
+    expect(native.desktopInvoke.mock.lastCall?.[1].activity).toMatchObject({
+      details: `${anime.title} (Субтитры Yummy)`,
+      state: 'Серия 2 · Загрузка',
+    })
+  );
+  expect(native.desktopInvoke.mock.calls.map(([, args]) => args.activity)).toEqual([
+    expect.objectContaining({ state: 'Серия 2 · Загрузка' }),
+  ]);
+  rerender(
+    <Watching
+      episode="2"
+      dubbing="Субтитры Yummy"
       playback={{ position: 0, duration: 1400, playing: true, reason: 'playing' }}
     />
   );

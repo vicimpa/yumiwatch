@@ -17,7 +17,7 @@ use crate::skips::provider_skips;
 
 pub type Result<T> = std::result::Result<T, String>;
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Eq, Hash, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Candidate {
     pub url: String,

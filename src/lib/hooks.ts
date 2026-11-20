@@ -205,7 +205,13 @@ export function useHash() {
         cancelScrollRestore.current = restorePageScroll(next);
       };
 
-      if (animate && document.startViewTransition) {
+      // WebKitGTK can abort the web process when a view transition starts with
+      // the DMA-BUF renderer disabled. Use the slide below on Linux desktop.
+      if (
+        animate &&
+        document.documentElement.dataset.desktop !== 'linux' &&
+        document.startViewTransition
+      ) {
         try {
           document.documentElement.dataset.pageTransition = 'active';
 

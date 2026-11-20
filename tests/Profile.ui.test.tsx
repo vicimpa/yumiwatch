@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { chooseOption } from './dropdown-actions';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/preact';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ProfilePage } from '~/components/Profile';
@@ -77,13 +78,13 @@ describe('profile experience', () => {
     setAnimeList({ ...anime, anime_id: 10, title: 'Атака титанов', year: 2013 }, 1);
     render(<ProfilePage query="tab=collection" />);
     expect(screen.getAllByRole('article')).toHaveLength(2);
-    fireEvent.change(screen.getByLabelText('Порядок аниме'), { target: { value: 'title' } });
+    chooseOption(screen.getByLabelText('Порядок аниме'), 'По названию');
     expect(document.querySelector('.card-title')?.textContent).toBe('Атака титанов');
     fireEvent.input(screen.getByLabelText('Найти в коллекции профиля'), {
       target: { value: 'фарм' },
     });
     await waitFor(() => expect(screen.getAllByRole('article')).toHaveLength(1));
-    fireEvent.change(screen.getByLabelText('Статус выхода'), { target: { value: 'ongoing' } });
+    chooseOption(screen.getByLabelText('Статус выхода'), 'Онгоинги');
     expect(screen.getByText('Здесь пока пусто')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Сбросить фильтры' }));
     expect(screen.getAllByRole('article')).toHaveLength(2);
@@ -134,9 +135,7 @@ describe('profile experience', () => {
     render(<ProfilePage query="" />);
     fireEvent.click(await screen.findByRole('button', { name: 'Редактировать' }));
     fireEvent.input(screen.getByLabelText('О себе'), { target: { value: 'Новое описание' } });
-    fireEvent.change(screen.getByLabelText('Кто видит мои списки'), {
-      target: { value: 'friends' },
-    });
+    chooseOption(screen.getByLabelText('Кто видит мои списки'), 'Только друзья');
     expect(fetcher.mock.calls.filter(([, options]) => options.method === 'PATCH')).toHaveLength(0);
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
     await screen.findByText('Yummy не подтвердил сохранение профиля.');
@@ -179,7 +178,7 @@ it('sorts a personal top by personal scores and excludes unrated anime while sho
   ]);
   expect(screen.getByText('Моя оценка: 10 / 10')).toBeTruthy();
   expect(screen.queryByRole('link', { name: 'Без личной оценки' })).toBeNull();
-  expect((screen.getByLabelText('Порядок аниме') as HTMLSelectElement).value).toBe('user_rating');
+  expect((screen.getByLabelText('Порядок аниме') as HTMLButtonElement).value).toBe('user_rating');
 });
 
 it('allows sorting the whole collection by personal score with unrated anime at the end', async () => {
@@ -192,7 +191,7 @@ it('allows sorting the whole collection by personal score with unrated anime at 
   await setPersonalRating(high, 10);
   await setPersonalRating(low, 7);
   const { container, rerender } = render(<ProfilePage query="tab=collection" />);
-  fireEvent.change(screen.getByLabelText('Порядок аниме'), { target: { value: 'user_rating' } });
+  chooseOption(screen.getByLabelText('Порядок аниме'), 'По моей оценке');
   expect([...container.querySelectorAll('.card-title')].map(node => node.textContent)).toEqual([
     'Первое',
     'Второе',
@@ -229,5 +228,7 @@ it('shows a public profile’s top using that profile’s scores', async () => {
     'Другой выбор',
   ]);
   expect(screen.getByText('Оценка профиля: 10 / 10')).toBeTruthy();
-  expect(screen.getByRole('option', { name: 'По оценке профиля' })).toBeTruthy();
+  expect(screen.getByRole('combobox', { name: 'Порядок аниме' }).textContent).toBe(
+    'По оценке профиля'
+  );
 });

@@ -222,3 +222,36 @@ html[data-desktop='macos'][data-interface-style='contrast'] .gallery-feature {
     padding-top: 110px;
   }
 }
+
+/* AppKit draws video behind the transparent WKWebView. Its overlays remain interactive. */
+html[data-desktop='macos'][data-native-video] body,
+html[data-native-video] .media-app .media-backdrop,
+html[data-native-video] .is-watching,
+html[data-native-video] .watch-sticky,
+html[data-native-video] .native-video-frame {
+  background: transparent;
+}
+.native-stream-layer {
+  background: #000 center / contain no-repeat;
+}
+.native-stream-layer.native-stream-ready {
+  background: transparent;
+  background-image: none !important;
+}
+
+/* Backdrop filters require a fresh composite as their panels move or resize. */
+html[data-desktop='macos'][data-live-resize]
+  :is(
+    .media-sidebar,
+    .video-center-play,
+    .video-settings,
+    .score,
+    .save-button,
+    .hero-tag,
+    .bottom-nav,
+    .anime-sections-nav
+  ),
+html[data-desktop='macos'][data-live-resize] .mobile-sheet::backdrop {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}

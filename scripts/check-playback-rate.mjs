@@ -128,6 +128,9 @@ try {
           console.error(engine.name(), type, message.text());
       });
       await page.goto(origin);
+      await page.addStyleTag({
+        content: await readFile(new URL('../src/ui/Dropdown.css', import.meta.url), 'utf8'),
+      });
       await page.evaluate(
         ({ origin, type }) => {
           window.surfaceInit = {
@@ -170,7 +173,8 @@ try {
       await page.waitForFunction(() => window.surfaceProbe.media().currentTime > 11);
       await page.locator('.video-controls').dispatchEvent('pointermove');
       await page.getByRole('button', { name: 'Настройки плеера', exact: true }).click();
-      await page.getByRole('combobox', { name: 'Скорость воспроизведения' }).selectOption('2');
+      await page.getByRole('combobox', { name: 'Скорость воспроизведения' }).click();
+      await page.getByRole('option', { name: '2×', exact: true }).click();
       await page.evaluate(() => {
         window.speedTrace = [];
         window.speedTimer = setInterval(() => {
@@ -205,7 +209,9 @@ try {
         `${engine.name()} ${type}: effective speed ${advanced / elapsed}`
       );
       assert.equal(
-        await page.getByRole('combobox', { name: 'Скорость воспроизведения' }).inputValue(),
+        await page
+          .getByRole('combobox', { name: 'Скорость воспроизведения' })
+          .getAttribute('value'),
         '2'
       );
       await page.evaluate(() => {

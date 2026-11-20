@@ -1,0 +1,73 @@
+.app-update {
+  display: grid;
+  place-items: center;
+  align-self: stretch;
+  flex: 0 0 34px;
+}
+.app-update-trigger,
+.app-update-dismiss {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  border-radius: var(--radius-control);
+}
+.app-update-trigger {
+  width: 34px;
+  height: 34px;
+  color: var(--accent);
+}
+.app-update-trigger:hover,
+.app-update-trigger[aria-expanded='true'],
+.app-update-dismiss:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+.app-update-popover {
+  position: absolute;
+  z-index: 2;
+  right: 0;
+  bottom: 100%;
+  width: min(100%, 220px);
+  padding-bottom: 6px;
+}
+.app-update-panel {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: linear-gradient(var(--surface), var(--surface)), #18191c;
+  color: var(--text);
+  box-shadow: 0 8px 24px #0006;
+}
+.app-update-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.app-update-dismiss {
+  width: 24px;
+  height: 24px;
+  color: var(--muted);
+}
+.app-update-panel > .text-link {
+  justify-self: start;
+  padding: 0;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.app-update-panel > .text-link svg {
+  flex-shrink: 0;
+}
+@media (pointer: coarse) {
+  .app-update {
+    flex-basis: 44px;
+  }
+  .app-update-trigger {
+    width: 44px;
+    height: 44px;
+  }
+}

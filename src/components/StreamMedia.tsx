@@ -6,7 +6,9 @@ import { hlsSkips, mergeSkips, metadataSkips, type SkipMarkers } from '../../sha
 import { useCachedImage } from '~/hooks/useCachedImage';
 import { isDesktopMedia } from '~/lib/desktop';
 import { interfaceSettings } from '~/lib/interface-settings';
-import { bindPlaybackRate } from '~/lib/playback-rate';
+import { bindPlaybackRate, setPlaybackRate } from '~/lib/playback-rate';
+import { playbackSettings } from '~/lib/playback-settings';
+import { trackWatchFrames } from '~/lib/watch-frames';
 import type { Stream, StreamCaption } from '~/lib/streams';
 
 const readyEvents = ['loadeddata', 'canplay', 'seeked', 'playing', 'resize', 'timeupdate'];
@@ -49,6 +51,7 @@ export type TStreamMediaProps = {
   active: boolean;
   title: string;
   poster: string;
+  frameKey?: string;
   provider?: string;
   start: () => number;
   onReady: () => void;
@@ -64,6 +67,7 @@ export const StreamMedia: FC<TStreamMediaProps> = ({
   active,
   title,
   poster,
+  frameKey,
   provider,
   start,
   onReady,
@@ -72,9 +76,9 @@ export const StreamMedia: FC<TStreamMediaProps> = ({
   onPending,
 }) => {
   const cachedPoster = useCachedImage(poster);
-  const callbacks = useRef({ start, onReady, onError, onSkips, onPending });
+  const callbacks = useRef({ start, onReady, onError, onSkips, onPending, frameKey, active });
 
-  callbacks.current = { start, onReady, onError, onSkips, onPending };
+  callbacks.current = { start, onReady, onError, onSkips, onPending, frameKey, active };
 
   const engine = useRef<shaka.Player>();
   const desiredQuality = useRef(stream.quality);
@@ -97,8 +101,14 @@ export const StreamMedia: FC<TStreamMediaProps> = ({
 
   useEffect(() => {
     const element = video.current!;
+    const stopRecording = trackWatchFrames(element, () =>
+      callbacks.current.active ? callbacks.current.frameKey : undefined
+    );
 
+    const settings = playbackSettings();
     element.volume = interfaceSettings().volume;
+    element.muted = !callbacks.current.active || settings.muted;
+    if (settings.rate !== 1) setPlaybackRate(element, settings.rate);
 
     let disposed = false,
       notified = false,
@@ -259,6 +269,10 @@ export const StreamMedia: FC<TStreamMediaProps> = ({
               retryParameters: { maxAttempts: 3, baseDelay: 1000, timeout: 20000 },
             },
             manifest: {
+              // Episodes are VOD even when a provider omits ENDLIST. Keep the
+              // whole presentation seekable instead of moving its start forward
+              // as Shaka refreshes what would otherwise look like a live playlist.
+              availabilityWindowOverride: Infinity,
               // Kodik and Alloha round EXTINF durations despite continuous TS timestamps.
               // Re-aligning every segment to the playlist introduces artificial gaps and skips whole seconds.
               hls:
@@ -352,6 +366,7 @@ export const StreamMedia: FC<TStreamMediaProps> = ({
       element.removeEventListener('loadedmetadata', restore, true);
       for (const event of readyEvents) element.removeEventListener(event, ready);
       element.removeEventListener('error', failed);
+      stopRecording();
       element.pause();
       engine.current = undefined;
       if (player) closing.current = player.destroy();

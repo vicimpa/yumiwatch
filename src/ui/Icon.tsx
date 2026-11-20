@@ -38,6 +38,7 @@ export type IconName =
   | 'volume'
   | 'volumeOff'
   | 'fullscreen'
+  | 'pictureInPicture'
   | 'minimize'
   | 'skipNext'
   | 'skipBack';
@@ -45,6 +46,12 @@ export type IconName =
 // One 24 px grid, rounded strokes and quiet filled surfaces across the app.
 const tint = { fill: 'currentColor', 'fill-opacity': 0.12 };
 const paths: Record<IconName, JSX.Element> = {
+  pictureInPicture: (
+    <>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <rect x="11" y="11" width="7" height="5" rx="1" {...tint} />
+    </>
+  ),
   bell: (
     <>
       <path d="M5 17h14l-2-3V9a5 5 0 0 0-10 0v5Z" {...tint} />

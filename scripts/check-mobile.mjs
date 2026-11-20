@@ -22,6 +22,7 @@ const bundle = (Array.isArray(output) ? output[0] : output).output.find(
 const styles = (
   await Promise.all(
     [
+      'ui/Dropdown.css',
       'styles.css',
       'yummy.css',
       'mobile.css',
@@ -404,6 +405,11 @@ for (const engine of [chromium, webkit]) {
           await page.screenshot({
             path: `test-results/mobile/${engine.name()}-${viewport.width}-filters.png`,
           });
+          await filters.getByRole('button', { name: 'Рейтинг', exact: true }).click();
+          const sort = filters.getByRole('combobox', { name: 'Порядок', exact: true });
+          await sort.click();
+          await filters.getByRole('option', { name: 'По году выхода', exact: true }).click();
+          assert.equal(await sort.getAttribute('value'), 'year');
           await filters.getByRole('button', { name: 'Закрыть', exact: true }).click();
           if (viewport.width === 390) await checkPagination();
           await page.evaluate(() => {

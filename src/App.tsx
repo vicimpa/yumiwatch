@@ -1,4 +1,3 @@
-import { AppLink } from '~/ui/AppLink';
 import type { FunctionalComponent as FC } from 'preact';
 import { useCallback, useLayoutEffect, useRef } from 'preact/hooks';
 
@@ -7,13 +6,16 @@ import { useAppEnvironment } from '~/hooks/useAppEnvironment';
 import { useAppDiscordPresence } from '~/hooks/useAppDiscordPresence';
 import { useAppUpdate } from '~/hooks/useAppUpdate';
 import { useInstallation } from '~/hooks/useInstallation';
+import { usePictureInPicturePage } from '~/hooks/usePictureInPicturePage';
 import { useReleaseUpdate } from '~/hooks/useReleaseUpdate';
 import { useYummyRealtime } from '~/hooks/useYummyRealtime';
 import { useHash, useSession, useVisualViewport } from '~/lib/hooks';
 import { isDesktopWindow } from '~/lib/desktop';
+import { usesNativePlayback } from '~/lib/native-playback';
 
 import { InterfaceEffects } from '~/components/InterfaceEffects';
 import { MediaNavigation } from '~/components/MediaNavigation';
+import { Detail } from '~/components/Detail';
 import { Catalog, Home } from '~/components/Pages';
 import { RoutePage } from '~/components/RoutePage';
 import { Search } from '~/components/Search';
@@ -21,6 +23,7 @@ import { WindowChrome } from '~/components/WindowChrome';
 import { WindowCursor } from '~/components/WindowCursor';
 import { Scrollbars } from '~/components/Scrollbars';
 import { ActivityNotice } from '~/components/Social';
+import { AppUpdateNotice } from '~/components/AppUpdateNotice';
 import { NavigationHistory } from '~/components/NavigationHistory';
 import { navigateBack } from '~/lib/navigation';
 import { CardTitleTooltip, Icon, Toast } from '~/ui';
@@ -70,6 +73,9 @@ export const App: FC = () => {
   const detailView =
     params.get('view') === 'watch' || params.has('watch') ? 'watch' : 'anime-about';
   const watching = detailRoute && detailView === 'watch';
+  const nativeWatchPath = watching && usesNativePlayback() ? path : undefined;
+  const { playerPath, media: watchMedia, pip } = usePictureInPicturePage(nativeWatchPath);
+  const [playerRoute, playerQuery] = playerPath?.split('?') || [];
   const sidebarHistory =
     isDesktopWindow() &&
     ['macos', 'windows'].includes(document.documentElement.dataset.desktop || '');
@@ -110,6 +116,18 @@ export const App: FC = () => {
         path={path}
         watching={watching}
         selected={detailRoute ? browseReturn.current.split('?')[0] : route}
+        updateNotice={
+          !watching &&
+          (update ? (
+            <AppUpdateNotice apply={applyUpdate} />
+          ) : releaseUpdate.release ? (
+            <AppUpdateNotice
+              key={releaseUpdate.release.version}
+              release={releaseUpdate.release}
+              dismiss={releaseUpdate.dismiss}
+            />
+          ) : null)
+        }
         history={
           sidebarHistory ? (
             <NavigationHistory path={path} hidden={watching} placement="sidebar" />
@@ -126,34 +144,18 @@ export const App: FC = () => {
               : 'Ты без сети. Гостевая коллекция и загруженные страницы доступны.'}
           </div>
         )}
-        {!watching && update && (
-          <div class="update-bar" role="status">
-            <Icon name="spark" size={17} />
-            Готова новая версия YummyWatch
-            <button onClick={applyUpdate}>Обновить</button>
-          </div>
-        )}
-        {!watching && !update && releaseUpdate.release && (
-          <div class="update-bar release-update-bar" role="status">
-            <Icon name="spark" size={17} />
-            <span>Вышла YummyWatch {releaseUpdate.release.version}</span>
-            <AppLink href={releaseUpdate.release.url} target="_blank" rel="noreferrer">
-              Что нового и скачать <Icon name="external" size={14} />
-            </AppLink>
-            <button
-              class="release-update-close"
-              aria-label="Скрыть уведомление до следующего запуска"
-              onClick={releaseUpdate.dismiss}
-            >
-              <Icon name="close" size={16} />
-            </button>
-          </div>
-        )}
         <main id="main" class="media-scroll" tabIndex={-1}>
           <div class="media-scroll-content">
             {retainedHome.current && (
               <div class="route-panel" hidden={route !== '/'}>
-                <Home active={route === '/'} />
+                <Home
+                  active={route === '/'}
+                  liveWatch={
+                    route === '/' && pip.active && !nativeWatchPath && playerPath
+                      ? { path: playerPath, media: watchMedia }
+                      : undefined
+                  }
+                />
               </div>
             )}
             {retainedCatalog.current !== undefined && (
@@ -166,12 +168,27 @@ export const App: FC = () => {
                 <Search query={retainedSearch.current} active={route === '/search'} />
               </div>
             )}
-            <RoutePage
-              route={route}
-              query={query}
-              returnTo={browseReturn.current}
-              installation={installation}
-            />
+            {!nativeWatchPath && (
+              <RoutePage
+                route={route}
+                query={query}
+                returnTo={browseReturn.current}
+                installation={installation}
+              />
+            )}
+            {playerRoute && (
+              <div class="route-panel" hidden={!nativeWatchPath}>
+                <Detail
+                  key={playerRoute}
+                  id={playerRoute.split('/')[2]}
+                  query={playerQuery}
+                  returnTo={browseReturn.current}
+                  background={!nativeWatchPath}
+                  watchMedia={watchMedia}
+                  pip={pip}
+                />
+              </div>
+            )}
           </div>
         </main>
       </div>

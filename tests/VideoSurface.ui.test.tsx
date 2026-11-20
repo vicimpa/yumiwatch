@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
+import { chooseOption } from './dropdown-actions';
 import { useRef } from 'preact/hooks';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/preact';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/preact';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AUTO_ACTION_DELAY_MS } from '~/components/AutoActionCountdown';
 import {
@@ -10,8 +11,16 @@ import {
   VideoSurface,
 } from '~/components/VideoSurface';
 import { CONTROLS_IDLE_MS } from '~/components/VideoControls';
+import type { PictureInPictureControls } from '~/lib/native-playback';
+import { playbackSettings } from '~/lib/playback-settings';
+import type { Stream } from '~/lib/streams';
 
 function Harness({
+  url = 'https://cdn.example/test.mp4',
+  quality = 360,
+  poster = '',
+  loadingImage,
+  previewStream,
   failure = () => {},
   autoOpening = false,
   autoEnding = false,
@@ -20,7 +29,14 @@ function Harness({
   ended,
   skips = {},
   resume,
+  background,
+  pip,
 }: {
+  url?: string;
+  quality?: number;
+  poster?: string;
+  loadingImage?: string;
+  previewStream?: Stream;
   failure?: (playing: boolean) => void;
   autoOpening?: boolean;
   autoEnding?: boolean;
@@ -29,15 +45,20 @@ function Harness({
   ended?: () => void;
   skips?: { opening?: { time: number; length: number }; ending?: { time: number; length: number } };
   resume?: () => boolean;
+  background?: boolean;
+  pip?: PictureInPictureControls;
 }) {
   const media = useRef<HTMLVideoElement>(null);
 
   return (
     <VideoSurface
-      stream={{ quality: 360, type: 'mp4', url: 'https://cdn.example/test.mp4' }}
+      stream={{ quality, type: 'mp4', url }}
+      previewStream={previewStream}
       identity={1}
       start={0}
       autoplay={false}
+      background={background}
+      pip={pip}
       media={media}
       onUpdate={() => {}}
       onEnded={ended}
@@ -47,7 +68,8 @@ function Harness({
       onResume={resume}
       retry={() => {}}
       title="Тест"
-      poster=""
+      poster={poster}
+      loadingImage={loadingImage}
       skips={skips}
       autoOpening={autoOpening}
       autoEnding={autoEnding}
@@ -65,12 +87,367 @@ afterEach(() => {
   cleanup();
   vi.useRealTimers();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+  localStorage.removeItem('yumiwatch:playback-settings');
+  localStorage.removeItem('yumiwatch:interface-settings');
+  delete document.documentElement.dataset.desktop;
 });
 
 const advance = () =>
   act(() => {
     vi.advanceTimersByTime(STREAM_STALL_TIMEOUT_MS + STREAM_ERROR_DELAY_MS + 1);
   });
+
+it('shows only the selected preview while the video is loading', () => {
+  const { container } = render(
+    <Harness poster="https://static.yani.tv/poster.jpg" loadingImage="blob:watch-frame" />
+  );
+  expect(container.querySelector('video')?.hasAttribute('poster')).toBe(false);
+  const images = container.querySelectorAll('.playback-preview img');
+  expect(images).toHaveLength(1);
+  expect(images[0].getAttribute('src')).toBe('blob:watch-frame');
+});
+
+it('keeps the device awake while playing or buffering in PiP and releases on pause', async () => {
+  vi.useRealTimers();
+  const invoke = vi.fn().mockResolvedValue(undefined);
+  vi.stubGlobal('isTauri', true);
+  vi.stubGlobal('__TAURI_INTERNALS__', { invoke });
+  vi.spyOn(HTMLMediaElement.prototype, 'readyState', 'get').mockReturnValue(4);
+  const { container, rerender } = render(<Harness />);
+  const video = container.querySelector('video')!;
+  const paused = vi.spyOn(video, 'paused', 'get').mockReturnValue(false);
+  const powerRequests = () =>
+    invoke.mock.calls.filter(([command]) => command === 'set_playback_awake');
+
+  await act(async () => {
+    fireEvent.loadedMetadata(video);
+    fireEvent.playing(video);
+  });
+  await waitFor(() =>
+    expect(powerRequests()).toEqual([['set_playback_awake', { playing: true }, undefined]])
+  );
+  await act(async () => {
+    rerender(<Harness background pip={{ active: true, pending: false, error: '', toggle() {} }} />);
+    fireEvent.waiting(video);
+  });
+  expect(powerRequests()).toHaveLength(1);
+  paused.mockReturnValue(true);
+  await act(async () => {
+    fireEvent.pause(video);
+  });
+  await waitFor(() =>
+    expect(powerRequests()).toEqual([
+      ['set_playback_awake', { playing: true }, undefined],
+      ['set_playback_awake', { playing: false }, undefined],
+    ])
+  );
+});
+
+it('runs the macOS controls through the native surface without mounting HTML video', async () => {
+  const snapshot = {
+    ready: true,
+    seeking: false,
+    buffering: false,
+    ended: false,
+    failure: false,
+    position: 9,
+    duration: 90,
+    buffered: 24,
+  };
+  const invoke = vi.fn(async (command, args) => {
+    if (command === 'native_video' && args.request.action === 'poll') return { ...snapshot };
+    return null;
+  });
+  vi.stubGlobal('isTauri', true);
+  vi.stubGlobal('__TAURI_INTERNALS__', { invoke });
+  document.documentElement.dataset.desktop = 'macos';
+  localStorage.setItem(
+    'yumiwatch:playback-settings',
+    JSON.stringify({ upscale: 'fsr', upscaleSharpen: true })
+  );
+
+  const preview = { quality: 144, url: 'https://cdn.example/low.m3u8', type: 'hls' } as const;
+  const { container, unmount } = render(<Harness previewStream={preview} />);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(100);
+  });
+  expect(container.querySelector('video')).toBeNull();
+  const surface = container.querySelector('.native-stream-ready');
+  expect(surface).not.toBeNull();
+  expect(invoke).toHaveBeenCalledWith(
+    'native_video',
+    {
+      request: expect.objectContaining({
+        action: 'open',
+        kind: 'mp4',
+        preview: { url: preview.url, kind: 'hls' },
+        upscale: 'fsr',
+        sharpen: 'moderate',
+      }),
+    },
+    undefined
+  );
+  expect(invoke).toHaveBeenCalledWith(
+    'native_video',
+    { request: expect.objectContaining({ action: 'poll', active: true }) },
+    undefined
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Настройки плеера' }));
+  const upscale = screen.getByRole<HTMLButtonElement>('combobox', { name: 'Апскейл видео' });
+  const speed = screen.getByRole('combobox', { name: 'Скорость воспроизведения' });
+  const sharpen = screen.getByRole<HTMLButtonElement>('combobox', { name: 'Резкость контуров' });
+  expect(upscale.closest('label')?.previousElementSibling).toBe(speed.closest('label'));
+  expect(upscale.value).toBe('fsr');
+  expect(sharpen.value).toBe('moderate');
+  chooseOption(sharpen, 'Сильно');
+  expect(playbackSettings().upscaleSharpness).toBe('strong');
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(100);
+  });
+  expect(invoke).toHaveBeenCalledWith(
+    'native_video',
+    { request: expect.objectContaining({ action: 'poll', upscale: 'fsr', sharpen: 'strong' }) },
+    undefined
+  );
+  chooseOption(upscale, 'Стандартный');
+  expect(playbackSettings().upscale).toBe('default');
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(100);
+  });
+  expect(invoke).toHaveBeenCalledWith(
+    'native_video',
+    { request: expect.objectContaining({ action: 'poll', upscale: 'default', sharpen: 'strong' }) },
+    undefined
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Закрыть настройки' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Воспроизвести' }));
+  fireEvent.input(screen.getByRole('slider', { name: 'Позиция воспроизведения' }), {
+    target: { value: '24' },
+  });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(100);
+  });
+  expect(invoke).toHaveBeenCalledWith(
+    'native_video',
+    {
+      request: expect.objectContaining({ action: 'poll', controls: { pause: false, seconds: 24 } }),
+    },
+    undefined
+  );
+  expect(
+    invoke.mock.calls.filter(
+      ([command, args]) => command === 'native_video' && args.request.action === 'open'
+    )
+  ).toHaveLength(1);
+  unmount();
+  expect(invoke).toHaveBeenCalledWith(
+    'native_video',
+    { request: expect.objectContaining({ action: 'close' }) },
+    undefined
+  );
+});
+
+it('updates every control after a new URL replaces the native player at the same quality', async () => {
+  const sources = new Map<number, string>();
+  const paused = new Map<number, boolean>();
+  const invoke = vi.fn(async (command, { request }) => {
+    if (command !== 'native_video') return null;
+    if (request.action === 'open') sources.set(request.id, request.url);
+    if (request.action !== 'poll') return null;
+    if (request.controls.pause !== undefined) paused.set(request.id, request.controls.pause);
+
+    const replacement = sources.get(request.id)?.includes('replacement');
+
+    return {
+      ready: true,
+      seeking: false,
+      buffering: false,
+      ended: false,
+      failure: false,
+      paused: paused.get(request.id) ?? true,
+      position: 9,
+      duration: replacement ? 180 : 90,
+      buffered: 24,
+    };
+  });
+  vi.stubGlobal('isTauri', true);
+  vi.stubGlobal('__TAURI_INTERNALS__', { invoke });
+  document.documentElement.dataset.desktop = 'macos';
+
+  const { rerender } = render(<Harness />);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(100);
+  });
+  expect(screen.getByRole('slider', { name: 'Позиция воспроизведения' }).getAttribute('max')).toBe(
+    '90'
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Воспроизвести' }));
+  fireEvent.input(screen.getByRole('slider', { name: 'Громкость' }), { target: { value: '0.4' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Выключить звук' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Настройки плеера' }));
+  chooseOption(screen.getByRole('combobox', { name: 'Скорость воспроизведения' }), '1.5×');
+
+  rerender(<Harness url="https://cdn.example/replacement.mp4" />);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(200);
+  });
+  expect(screen.getByRole('slider', { name: 'Позиция воспроизведения' }).getAttribute('max')).toBe(
+    '180'
+  );
+  expect(screen.getByRole('button', { name: 'Пауза' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Включить звук' })).toBeTruthy();
+  expect(
+    (screen.getByRole('combobox', { name: 'Скорость воспроизведения' }) as HTMLButtonElement).value
+  ).toBe('1.5');
+  const replacement = [...sources].find(([, url]) => url.includes('replacement'))?.[0];
+  expect(replacement).toBeDefined();
+  expect(invoke).toHaveBeenCalledWith(
+    'native_video',
+    { request: expect.objectContaining({ action: 'open', id: replacement, start: 9 }) },
+    undefined
+  );
+  expect(invoke).toHaveBeenCalledWith(
+    'native_video',
+    {
+      request: expect.objectContaining({
+        action: 'poll',
+        id: replacement,
+        controls: expect.objectContaining({ volume: 0.4, speed: 1.5 }),
+      }),
+    },
+    undefined
+  );
+});
+
+it('keeps the prepared native layer transparent when a new quality becomes active', async () => {
+  const sources = new Map<number, string>();
+  const playing = new Map<number, boolean>();
+  let aligned = false;
+  const invoke = vi.fn(async (command, { request }) => {
+    if (command !== 'native_video') return null;
+    if (request.action === 'open') sources.set(request.id, request.url);
+    if (request.action !== 'poll') return null;
+    if (request.controls.pause !== undefined) playing.set(request.id, !request.controls.pause);
+    const replacement = sources.get(request.id)?.endsWith('/720.mp4');
+    return {
+      ready: true,
+      seeking: !!replacement && !aligned,
+      buffering: false,
+      ended: false,
+      failure: false,
+      paused: !playing.get(request.id),
+      position: !replacement || aligned ? 9 : 6,
+      duration: 90,
+      buffered: 24,
+    };
+  });
+  vi.stubGlobal('isTauri', true);
+  vi.stubGlobal('__TAURI_INTERNALS__', { invoke });
+  document.documentElement.dataset.desktop = 'macos';
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(
+    new DOMRect(0, 0, 640, 360)
+  );
+
+  const { container, rerender } = render(<Harness />);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(100);
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Воспроизвести' }));
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(100);
+  });
+  const original = container.querySelector('.native-stream-layer.is-active');
+  expect(original?.classList.contains('native-stream-ready')).toBe(true);
+
+  rerender(<Harness url="https://cdn.example/720.mp4" quality={720} />);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(200);
+  });
+  const prepared = container.querySelector('.native-stream-layer.is-standby');
+  expect(prepared?.classList.contains('native-stream-ready')).toBe(true);
+  expect(container.querySelector('.native-stream-layer.is-active')).toBe(original);
+
+  aligned = true;
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(240);
+  });
+  expect(prepared).toBe(container.querySelector('.native-stream-layer.is-active'));
+  expect(prepared?.classList.contains('native-stream-ready')).toBe(true);
+  expect(original?.isConnected).toBe(false);
+  expect(screen.getByRole('button', { name: 'Пауза' })).toBeTruthy();
+  const replacement = [...sources].find(([, url]) => url.endsWith('/720.mp4'))?.[0];
+  expect(invoke).toHaveBeenCalledWith(
+    'native_video',
+    {
+      request: expect.objectContaining({
+        action: 'poll',
+        id: replacement,
+        active: true,
+        visible: true,
+      }),
+    },
+    undefined
+  );
+});
+
+it('keeps a newer Play request while a poll is in flight and then follows the native pause state', async () => {
+  const snapshot = {
+    ready: true,
+    seeking: false,
+    buffering: false,
+    ended: false,
+    failure: false,
+    paused: true,
+    position: 9,
+    duration: 90,
+    buffered: 24,
+  };
+  let finishPoll: (value: typeof snapshot) => void = () => {};
+  let block = false;
+  const invoke = vi.fn(async (command, { request }) => {
+    if (command !== 'native_video' || request.action !== 'poll') return null;
+    if (block) {
+      return new Promise<typeof snapshot>(resolve => {
+        finishPoll = resolve;
+      });
+    }
+    if (request.controls.pause !== undefined) {
+      snapshot.paused = request.controls.pause;
+      return { ...snapshot, paused: null };
+    }
+
+    return { ...snapshot };
+  });
+  vi.stubGlobal('isTauri', true);
+  vi.stubGlobal('__TAURI_INTERNALS__', { invoke });
+  document.documentElement.dataset.desktop = 'macos';
+
+  render(<Harness />);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(100);
+  });
+  block = true;
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(80);
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Воспроизвести' }));
+  await act(async () => {
+    block = false;
+    finishPoll({ ...snapshot });
+  });
+  expect(screen.getByRole('button', { name: 'Пауза' })).toBeTruthy();
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(80);
+  });
+  expect(snapshot.paused).toBe(false);
+  expect(screen.getByRole('button', { name: 'Пауза' })).toBeTruthy();
+  snapshot.paused = true;
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(80);
+  });
+  expect(screen.getByRole('button', { name: 'Воспроизвести' })).toBeTruthy();
+});
 
 describe('unresponsive media sources', () => {
   it('renews an opted-in source on play after a long pause, without renewing during the pause', () => {

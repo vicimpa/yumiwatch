@@ -176,9 +176,9 @@ html[data-interface-style='contrast']
   outline: 3px solid #fff;
   outline-offset: 2px;
 }
-.media-scroll:focus,
-.video-controls:focus {
-  outline: none;
+/* Focus can be parked on a container or a full-area button without outlining the viewport. */
+:root :is(.media-scroll, .video-controls, .video-hit-area, .sidebar-backdrop, .mobile-sheet):focus {
+  outline: none !important;
 }
 html[data-screen='watch'][data-player-chrome='hidden'],
 html[data-screen='watch'][data-player-chrome='hidden'] body,

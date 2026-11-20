@@ -1,4 +1,4 @@
-import type { FunctionalComponent as FC, JSX } from 'preact';
+import type { FunctionalComponent as FC } from 'preact';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 
 import { animeList, peekAnimeList } from '~/lib/api';
@@ -16,10 +16,10 @@ import {
   Button,
   ButtonLink,
   ChoiceTabs,
+  Dropdown,
   Empty,
   ErrorState,
   Icon,
-  Select,
   Skeleton,
   VirtualGrid,
 } from '~/ui';
@@ -220,10 +220,7 @@ export const Catalog: FC<TCatalogProps> = ({ query, active = true }) => {
     writeJSON('yumiwatch:catalog-layout', next);
   }, [layout]);
 
-  const changeSort = useCallback(
-    (event: JSX.TargetedEvent<HTMLSelectElement>) => change('sort', event.currentTarget.value),
-    [change]
-  );
+  const changeSort = useCallback((value: string) => change('sort', value), [change]);
 
   const animeKey = useCallback((anime: Anime) => anime.anime_id, []);
 
@@ -302,16 +299,21 @@ export const Catalog: FC<TCatalogProps> = ({ query, active = true }) => {
           </Button>
           <label class="sort-label">
             <span>Сортировка</span>
-            <Select aria-label="Сортировка" value={filters.sort} onChange={changeSort}>
-              <option value="views">По популярности</option>
-              <option value="top">Топ YummyAnime</option>
-              <option value="rating">По рейтингу</option>
-              <option value="rating_counters">По числу оценок</option>
-              <option value="year">По году</option>
-              <option value="title">По алфавиту</option>
-              <option value="id">Недавно добавлены</option>
-              <option value="random">Случайно</option>
-            </Select>
+            <Dropdown
+              aria-label="Сортировка"
+              value={filters.sort}
+              onChange={changeSort}
+              options={[
+                { value: 'views', label: 'По популярности' },
+                { value: 'top', label: 'Топ YummyAnime' },
+                { value: 'rating', label: 'По рейтингу' },
+                { value: 'rating_counters', label: 'По числу оценок' },
+                { value: 'year', label: 'По году' },
+                { value: 'title', label: 'По алфавиту' },
+                { value: 'id', label: 'Недавно добавлены' },
+                { value: 'random', label: 'Случайно' },
+              ]}
+            />
           </label>
         </div>
       </div>

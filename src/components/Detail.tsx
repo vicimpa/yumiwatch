@@ -1,11 +1,16 @@
 import { animeSiteUrl } from '~/lib/content-links';
 import { AppLink } from '~/ui/AppLink';
-import type { FunctionalComponent as FC } from 'preact';
+import type { FunctionalComponent as FC, RefObject } from 'preact';
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 
 import { animeDetail, animeVideos, peekAnimeDetail, peekAnimeVideos } from '~/lib/api';
 import { exitPlayerFullscreen } from '~/lib/desktop';
 import { useLibrary, useResource, useSession } from '~/lib/hooks';
+import type { PlaybackMedia } from '~/lib/playback-media';
+import {
+  setPictureInPictureUnavailable,
+  type PictureInPictureControls,
+} from '~/lib/native-playback';
 import { readPlaybackRecovery } from '~/lib/playback-recovery';
 import { formatTime, latestWatchEntry } from '~/lib/player';
 import type { WatchEntry } from '~/lib/types';
@@ -16,6 +21,7 @@ import { Comments } from './Comments';
 import { FavoriteButton } from './FavoriteButton';
 import { AnimeListButton } from './Library';
 import { Player } from './Player';
+import { PictureInPictureButton } from './PictureInPictureButton';
 import { type MediaPanel } from './Player.types';
 import { Poster } from './Poster';
 import { Button, CachedNotice, ErrorState, Icon, Sidebar } from '~/ui';
@@ -24,9 +30,19 @@ export type TDetailProps = {
   id: string;
   query?: string;
   returnTo?: string;
+  background?: boolean;
+  watchMedia?: RefObject<PlaybackMedia>;
+  pip?: PictureInPictureControls;
 };
 
-export const Detail: FC<TDetailProps> = ({ id, query = '', returnTo = '/' }) => {
+export const Detail: FC<TDetailProps> = ({
+  id,
+  query = '',
+  returnTo = '/',
+  background = false,
+  watchMedia,
+  pip,
+}) => {
   const params = new URLSearchParams(query);
   const library = useLibrary(),
     session = useSession();
@@ -52,6 +68,11 @@ export const Detail: FC<TDetailProps> = ({ id, query = '', returnTo = '/' }) => 
   const [panel, setPanel] = useState<MediaPanel>(() =>
     params.get('view') === 'comments' || params.get('panel') === 'comments' ? 'comments' : null
   );
+  const loadingPlayer = watching && (resource.loading || !!resource.error || !anime);
+  useEffect(() => {
+    if (pip?.active && loadingPlayer)
+      void setPictureInPictureUnavailable(!!resource.error).catch(() => {});
+  }, [pip?.active, loadingPlayer, !!resource.error]);
 
   useAnimeDiscordContext(
     anime,
@@ -65,8 +86,9 @@ export const Detail: FC<TDetailProps> = ({ id, query = '', returnTo = '/' }) => 
   );
 
   useEffect(() => {
-    if (params.get('view') === 'comments') setPanel('comments');
-  }, [query]);
+    if (background) setPanel(null);
+    else if (params.get('view') === 'comments') setPanel('comments');
+  }, [query, background]);
 
   const entries = [
     anime && latestWatchEntry(anime, videos.value?.data || []),
@@ -90,6 +112,7 @@ export const Detail: FC<TDetailProps> = ({ id, query = '', returnTo = '/' }) => 
   }, [id]);
 
   useEffect(() => {
+    if (background) return;
     const keys = (event: KeyboardEvent) => {
       if (
         event.defaultPrevented ||
@@ -123,7 +146,7 @@ export const Detail: FC<TDetailProps> = ({ id, query = '', returnTo = '/' }) => 
     window.addEventListener('keydown', keys);
 
     return () => window.removeEventListener('keydown', keys);
-  }, [watching, id]);
+  }, [watching, id, background]);
 
   const shareAnime = useCallback(async () => {
     if (!anime) return;
@@ -164,6 +187,7 @@ export const Detail: FC<TDetailProps> = ({ id, query = '', returnTo = '/' }) => 
 
   return (
     <section class={`anime-detail-screen ${watching ? 'is-watching' : 'is-about'}`}>
+      {loadingPlayer && !background && pip && <PictureInPictureButton pip={pip} floating />}
       <AppLink
         draggable={false}
         class={watching ? 'watch-state-back' : 'back-link'}
@@ -270,6 +294,9 @@ export const Detail: FC<TDetailProps> = ({ id, query = '', returnTo = '/' }) => 
                     onComments={openComments}
                     fullscreenContainer={room}
                     onCheckpoint={checkpointPlayback}
+                    background={background}
+                    watchMedia={watchMedia}
+                    pip={pip}
                   />
                 ) : (
                   <AnimeAbout
@@ -283,7 +310,7 @@ export const Detail: FC<TDetailProps> = ({ id, query = '', returnTo = '/' }) => 
                 )}
               </div>
               <Sidebar
-                open={panel === 'comments'}
+                open={!background && panel === 'comments'}
                 title="Комментарии"
                 subtitle={anime.title}
                 close={closePanel}

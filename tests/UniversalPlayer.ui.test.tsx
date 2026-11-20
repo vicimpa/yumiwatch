@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { chooseOption } from './dropdown-actions';
 import { useDiscordPresence } from '~/hooks/useDiscordPresence';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
@@ -287,7 +288,7 @@ describe('our player mode', () => {
     expect(container.querySelector('video')!.currentTime).toBe(321);
     expect(container.querySelector('iframe')).toBeNull();
   });
-  it('tries the same Kodik video as MP4 before discarding its provider and keeps the saved position', async () => {
+  it('tries Kodik MP4 when it is the only fallback and keeps the saved position', async () => {
     const source = video('1');
     vi.mocked(resolveStream).mockClear();
     vi.mocked(resolveStream).mockResolvedValue({
@@ -339,6 +340,170 @@ describe('our player mode', () => {
     mediaError(media);
     await screen.findByRole('button', { name: 'Повторить загрузку' }, { timeout: 3000 });
     expect(resolveStream).toHaveBeenCalledOnce();
+  });
+  it('tries another provider before the Kodik MP4 fallback and retains the fallback after an error', async () => {
+    const kodik = video('1');
+    const reserve = video('1', 'AniLibria', 4);
+    type Resolution = Awaited<ReturnType<typeof resolveStream>>;
+    let resolveReserve!: (result: Resolution) => void;
+    const pending = new Promise<Resolution>(resolve => {
+      resolveReserve = resolve;
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response(JSON.stringify({ response: [kodik, reserve] })))
+    );
+    vi.mocked(resolveStream)
+      .mockReset()
+      .mockResolvedValueOnce({
+        provider: 'Kodik',
+        videoId: kodik.video_id,
+        duration: 1400,
+        streams: [
+          {
+            quality: 360,
+            type: 'hls',
+            url: 'https://cdn.example/kodik.m3u8',
+            fallback: { type: 'mp4', url: 'https://cdn.example/kodik.mp4' },
+          },
+        ],
+      })
+      .mockReturnValueOnce(pending);
+    const { container } = render(<Player anime={anime} />);
+    await waitFor(() =>
+      expect(container.querySelector('.video-stream-meta')?.textContent).toContain('Kodik')
+    );
+    mediaError(container.querySelector('video')!);
+    await waitFor(() =>
+      expect(useDiscordPresence).toHaveBeenLastCalledWith(
+        anime,
+        expect.objectContaining({ number: '1' }),
+        expect.objectContaining({ playing: false, reason: 'sourcechange' })
+      )
+    );
+    resolveReserve({
+      provider: 'CVH',
+      videoId: reserve.video_id,
+      duration: 1400,
+      streams: [{ quality: 360, type: 'mp4', url: 'https://cdn.example/cvh.mp4' }],
+    });
+    await waitFor(() =>
+      expect(container.querySelector('video')?.getAttribute('src')).toBe(
+        'https://cdn.example/cvh.mp4'
+      )
+    );
+    const cvh = container.querySelector('video')!;
+    Object.defineProperty(cvh, 'duration', { value: 1400, configurable: true });
+    fireEvent.loadedMetadata(cvh);
+    cvh.currentTime = 321;
+    fireEvent.timeUpdate(cvh);
+    mediaError(cvh);
+    await waitFor(() =>
+      expect(container.querySelector('video')?.getAttribute('src')).toBe(
+        'https://cdn.example/kodik.mp4'
+      )
+    );
+    const mp4 = container.querySelector('video')!;
+    Object.defineProperty(mp4, 'duration', { value: 1400, configurable: true });
+    fireEvent.loadedMetadata(mp4);
+    expect(mp4.currentTime).toBe(321);
+    expect(
+      vi.mocked(resolveStream).mock.calls.map(([videos]) => videos.map(item => item.video_id))
+    ).toEqual([[kodik.video_id, reserve.video_id], [reserve.video_id]]);
+  });
+
+  it('lists qualities across sources and falls back within the manually selected stream', async () => {
+    const kodik = { ...video('1'), iframe_url: 'https://kodikplayer.com/video/1' };
+    const cvh = {
+      ...video('1', 'AniLibria', 4),
+      iframe_url: 'https://ru.yummyani.me/iframeCVH.html?anime_id=10531',
+    };
+    vi.stubGlobal('isTauri', true);
+    vi.stubGlobal('__TAURI_INTERNALS__', {
+      invoke: vi.fn(async (command, args) => {
+        if (command === 'inspect_stream_qualities') return [1080, 720, 360, 480, 360];
+        if (command !== 'yummy_request') return null;
+        const response = args.request.path.includes('/videos') ? [kodik, cvh] : anime;
+        return { status: 200, body: JSON.stringify({ response }) };
+      }),
+    });
+    vi.mocked(resolveStream)
+      .mockReset()
+      .mockImplementation(async (videos, _signal, options) =>
+        videos.length > 1 && options?.quality !== 720
+          ? {
+              provider: 'CVH',
+              videoId: cvh.video_id,
+              duration: 1400,
+              streams: [360, 1080].map(quality => ({
+                quality,
+                type: 'mp4',
+                url: `https://cdn.example/cvh-${quality}.mp4`,
+              })),
+            }
+          : {
+              provider: 'Kodik',
+              videoId: kodik.video_id,
+              duration: 1400,
+              streams: [480, 720].map(quality => ({
+                quality,
+                type: 'mp4',
+                url: `https://cdn.example/kodik-${quality}.mp4`,
+              })),
+            }
+      );
+    const { container } = render(<Player anime={anime} />);
+    const stream = (name: string) =>
+      waitFor(() =>
+        expect(container.querySelector('video')?.getAttribute('src')).toBe(
+          `https://cdn.example/${name}.mp4`
+        )
+      );
+    const openSettings = () =>
+      fireEvent.click(screen.getByRole('button', { name: 'Настройки плеера' }));
+    const quality = () =>
+      screen.getByRole<HTMLButtonElement>('combobox', { name: 'Качество видео' });
+    const source = () =>
+      screen.getByRole<HTMLButtonElement>('combobox', { name: 'Источник потока' });
+
+    await stream('cvh-360');
+    openSettings();
+    expect(source().textContent).toBe('Авто');
+    fireEvent.click(quality());
+    await waitFor(() =>
+      expect(screen.getAllByRole('option').map(option => option.getAttribute('value'))).toEqual([
+        'auto',
+        '360',
+        '480',
+        '720',
+        '1080',
+      ])
+    );
+    fireEvent.click(screen.getByRole('option', { name: '720p' }));
+    await stream('kodik-720');
+    expect(vi.mocked(resolveStream).mock.calls.at(-1)?.[2]?.quality).toBe(720);
+
+    openSettings();
+    chooseOption(quality(), '1080p');
+    await stream('cvh-1080');
+    openSettings();
+    chooseOption(source(), 'Kodik · MP4');
+    await stream('kodik-720');
+    expect(vi.mocked(resolveStream).mock.calls.at(-1)?.[0]).toEqual([kodik]);
+    expect(vi.mocked(resolveStream).mock.calls.at(-1)?.[2]?.quality).toBeUndefined();
+    openSettings();
+    expect(quality().value).toBe('1080');
+    chooseOption(quality(), '360p');
+    expect(await screen.findByText(/В выбранном потоке нет 360p или ниже/)).toBeTruthy();
+    chooseOption(quality(), '1080p');
+    await stream('kodik-720');
+
+    mediaError(container.querySelector('video')!);
+    await screen.findByRole('button', { name: 'Повторить загрузку' }, { timeout: 3000 });
+    expect(resolveStream).toHaveBeenCalledTimes(4);
+    expect(source().textContent).toBe('Kodik · MP4');
+    chooseOption(source(), 'Авто');
+    await stream('cvh-1080');
   });
   it('does not rewind on repeated decoder metadata during accelerated playback', async () => {
     const { container } = render(
@@ -583,9 +748,7 @@ describe('our player mode', () => {
     fireEvent.click(screen.getByRole('button', { name: /Player 4/ }));
     await waitFor(() => expect(container.querySelector('iframe')?.src).toContain('/4/2'));
     expect(screen.queryByRole('checkbox', { name: 'Автопропуск опенинга' })).toBeNull();
-    fireEvent.change(screen.getByRole('combobox', { name: 'Плеер' }), {
-      target: { value: 'universal' },
-    });
+    chooseOption(screen.getByRole('combobox', { name: 'Плеер' }), 'Наш плеер');
     await waitFor(() =>
       expect(container.querySelector('.watch-now')?.textContent).toContain('Серия 2')
     );
@@ -672,9 +835,7 @@ describe('our player mode', () => {
     live.muted = true;
     live.playbackRate = 1.5;
     fireEvent.click(screen.getByRole('button', { name: 'Настройки плеера' }));
-    fireEvent.change(screen.getByRole('combobox', { name: 'Качество видео' }), {
-      target: { value: '720' },
-    });
+    chooseOption(screen.getByRole('combobox', { name: 'Качество видео' }), '720p');
     await waitFor(() =>
       expect(
         container.querySelector<HTMLVideoElement>('video[data-active=false]')?.getAttribute('src')
@@ -726,21 +887,21 @@ describe('our player mode', () => {
 
     const quality = screen.getByRole('combobox', { name: 'Качество видео' });
 
-    fireEvent.change(quality, { target: { value: '720' } });
+    chooseOption(quality, '720p');
     await waitFor(() =>
       expect(container.querySelector<HTMLVideoElement>('video[data-active=false]')).not.toBeNull()
     );
     mediaError(container.querySelector<HTMLVideoElement>('video[data-active=false]')!);
-    await waitFor(() => expect((quality as HTMLSelectElement).value).toBe('360'));
+    await waitFor(() => expect((quality as HTMLButtonElement).value).toBe('360'));
     expect(container.querySelector<HTMLVideoElement>('video[data-active=true]')).toBe(live);
     expect(container.querySelector('.playback-loader.is-error')).toBeNull();
     expect(pause).not.toHaveBeenCalled();
-    fireEvent.change(quality, { target: { value: '720' } });
+    chooseOption(quality, '720p');
     await waitFor(() => expect(container.querySelectorAll('video')).toHaveLength(2));
 
     const obsolete = container.querySelector<HTMLVideoElement>('video[data-active=false]')!;
 
-    fireEvent.change(quality, { target: { value: '360' } });
+    chooseOption(quality, '360p');
     fireEvent.canPlay(obsolete);
     expect(container.querySelector<HTMLVideoElement>('video[data-active=true]')).toBe(live);
     expect(container.querySelectorAll('video')).toHaveLength(1);
@@ -766,9 +927,7 @@ describe('our player mode', () => {
     const live = container.querySelector('video');
 
     fireEvent.click(screen.getByRole('button', { name: 'Настройки плеера' }));
-    fireEvent.change(screen.getByRole('combobox', { name: 'Качество видео' }), {
-      target: { value: '720' },
-    });
+    chooseOption(screen.getByRole('combobox', { name: 'Качество видео' }), '720p');
     await waitFor(() => expect(container.querySelectorAll('video')).toHaveLength(2));
     expect(container.querySelector('video[data-active=true]')).toBe(live);
   });
@@ -784,9 +943,7 @@ describe('our player mode', () => {
     try {
       vi.useFakeTimers();
       fireEvent.click(screen.getByRole('button', { name: 'Настройки плеера' }));
-      fireEvent.change(screen.getByRole('combobox', { name: 'Качество видео' }), {
-        target: { value: '720' },
-      });
+      chooseOption(screen.getByRole('combobox', { name: 'Качество видео' }), '720p');
       await act(async () => {});
       expect(container.querySelectorAll('video')).toHaveLength(2);
       await act(async () => {

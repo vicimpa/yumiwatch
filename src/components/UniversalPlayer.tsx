@@ -1,31 +1,66 @@
 import type { FunctionalComponent as FC, JSX } from 'preact';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 
+import type { PlaybackClosePositions, PlaybackMedia } from '~/lib/playback-media';
+import { setPictureInPictureUnavailable } from '~/lib/native-playback';
 import { mergeSkips } from '../../shared/skips.mjs';
 import { useDiscordPresence } from '~/hooks/useDiscordPresence';
 import { useAnimeDiscordContext } from '~/hooks/useAnimeDiscordContext';
 import { animeVideos, imageUrl, peekAnimeVideos } from '~/lib/api';
 import { probeAudioPlayback } from '~/lib/autoplay';
+import { isDesktop } from '~/lib/desktop';
 import { useResource, useSession } from '~/lib/hooks';
+import { mediaAtEnd } from '~/lib/media-state';
 import { selectedPlaybackRate, setPlaybackRate } from '~/lib/playback-rate';
 import {
   createPlaybackSession,
   type MediaUpdate,
   type PlaybackSnapshot,
 } from '~/lib/playback-session';
-import { PLAYBACK_FLUSH, savePlaybackSettings, usePlaybackSettings } from '~/lib/playback-settings';
+import {
+  PLAYBACK_FLUSH,
+  PLAYBACK_SHUTDOWN,
+  savePlaybackSettings,
+  usePlaybackSettings,
+} from '~/lib/playback-settings';
 import { formatTime, groupKey, resumeVideo, videoPosition } from '~/lib/player';
 import { readJSON, writeJSON } from '~/lib/storage';
-import { resolveStream, selectStream, voiceKey, voiceVideos, type Stream } from '~/lib/streams';
+import {
+  inspectStreamQualities,
+  kodikMp4,
+  preferredStreamQuality,
+  resolveStream,
+  selectStream,
+  streamSourceFamily,
+  voiceKey,
+  voiceVideos,
+  type Stream,
+  type StreamResult,
+} from '~/lib/streams';
 import type { Video, WatchEntry } from '~/lib/types';
 
+import { useCachedImage } from '~/hooks/useCachedImage';
+import { useWatchFrame } from '~/hooks/useWatchFrame';
+import { watchFrameKey } from '~/lib/watch-frames';
+
 import { PlaybackLoader } from './PlaybackLoader';
-import { AutoSkipSettings } from './PlaybackSettings';
+import { PictureInPictureButton } from './PictureInPictureButton';
+import { AutoPictureInPictureSetting, AutoSkipSettings } from './PlaybackSettings';
 import type { TPlayerProps } from './Player.types';
 import { EpisodeOptions, SourceOptions, VoiceOptions } from './PlayerOptions';
 import { STREAM_ERROR_DELAY_MS, STREAM_RESUME_REFRESH_MS, VideoSurface } from './VideoSurface';
 import { WatchPicker } from './WatchPicker';
-import { Button, Empty, ErrorState, Icon, SearchField, Select, Sheet, Sidebar, Toggle } from '~/ui';
+import {
+  Button,
+  Dropdown,
+  Empty,
+  ErrorState,
+  Icon,
+  SearchField,
+  Sheet,
+  Sidebar,
+  Toggle,
+} from '~/ui';
 
 const snapshotFields = [
   'videoId',
@@ -39,6 +74,14 @@ const snapshotFields = [
 
 const EMPTY_VIDEOS: Video[] = [];
 const EMPTY_IDS: number[] = [];
+const EMPTY_RESERVES: StreamResult[] = [];
+
+type SourceChoice = {
+  value: string;
+  label: string;
+  videoId: number;
+  format?: 'hls' | 'mp4';
+};
 
 function sameSnapshot(previous: PlaybackSnapshot | undefined, next: PlaybackSnapshot) {
   return (
@@ -67,6 +110,9 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
   onPanelChange,
   onComments,
   fullscreenContainer,
+  background = false,
+  watchMedia,
+  pip,
   preferredVoice,
   preferredEpisode,
   startPlaying,
@@ -101,27 +147,11 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
   const [query, setQuery] = useState('');
 
   useEffect(() => {
-    if (panel) setOverlay(null);
-  }, [panel]);
+    if (panel || background) setOverlay(null);
+  }, [panel, background]);
 
-  const episodesOpen = panel === undefined ? overlay === 'episodes' : panel === 'episodes';
-
-  useAnimeDiscordContext(
-    anime,
-    overlay === 'voice'
-      ? 'Выбирает озвучку'
-      : overlay === 'player'
-        ? 'Выбирает плеер'
-        : episodesOpen
-          ? 'Выбирает серию'
-          : panel === 'comments'
-            ? 'Читает комментарии'
-            : resource.loading && !all.length
-              ? 'Смотрит · Загрузка'
-              : undefined,
-    query,
-    200
-  );
+  const episodesOpen =
+    !background && (panel === undefined ? overlay === 'episodes' : panel === 'episodes');
 
   const openEpisodes = useCallback(() => {
     setQuery('');
@@ -153,7 +183,8 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
   }, [anime.anime_id, session?.token]);
 
   const [playback, setPlayback] = useState<PlaybackSnapshot>();
-  const media = useRef<HTMLVideoElement>(null);
+  const localMedia = useRef<PlaybackMedia>(null);
+  const media = watchMedia || localMedia;
   const fullscreenFrame = useRef<HTMLDivElement>(null);
   const currentSession = useRef<ReturnType<typeof createPlaybackSession>>();
   const checkpoints = useRef(new Map<number, WatchEntry>());
@@ -200,21 +231,53 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
       ),
     [all, current?.number, voice]
   );
-  const signature = useMemo(() => candidates.map(video => video.video_id).join(','), [candidates]);
-  const sourceScope = signature;
-  const [fallbackSources, setFallbackSources] = useState<{ scope: string; ids: number[] }>({
-    scope: '',
-    ids: [],
-  });
+  const sourceScope = useMemo(
+    () => candidates.map(video => video.video_id).join(','),
+    [candidates]
+  );
+  const desktop = isDesktop();
+  const sourceChoices = useMemo(
+    () =>
+      candidates.flatMap((video): SourceChoice[] => {
+        const provider = streamSourceFamily(video.iframe_url);
+        const videoId = video.video_id;
+        if (!provider || (!desktop && provider !== 'CVH')) return [];
+        if (provider === 'Kodik')
+          return [
+            { value: `${videoId}:hls`, label: 'Kodik · HLS', videoId, format: 'hls' },
+            { value: `${videoId}:mp4`, label: 'Kodik · MP4', videoId, format: 'mp4' },
+          ];
+        return [{ value: String(videoId), label: provider, videoId }];
+      }),
+    [candidates, desktop]
+  );
+  const inventory = useResource(
+    async signal => ({
+      data: await inspectStreamQualities(candidates, signal),
+      cached: false,
+      savedAt: Date.now(),
+    }),
+    [candidates]
+  );
+  const [sourceChoice, setSourceChoice] = useState<{ scope: string; value: string }>();
+  const manualSource =
+    sourceChoice?.scope === sourceScope
+      ? sourceChoices.find(choice => choice.value === sourceChoice.value)
+      : undefined;
   const [failedSources, setFailedSources] = useState<{
     scope: string;
     ids: number[];
-    providers?: string[];
-  }>({ scope: '', ids: [] });
-  const excluded = failedSources.scope === sourceScope ? failedSources.ids : EMPTY_IDS;
+    kodikReserves: StreamResult[];
+  }>({ scope: '', ids: EMPTY_IDS, kodikReserves: EMPTY_RESERVES });
+  const failed = !manualSource && failedSources.scope === sourceScope ? failedSources : undefined;
+  const excluded = failed?.ids ?? EMPTY_IDS;
+  const kodikReserves = failed?.kodikReserves ?? EMPTY_RESERVES;
   const available = useMemo(
-    () => candidates.filter(video => !excluded.includes(video.video_id)),
-    [candidates, excluded]
+    () =>
+      candidates.filter(video =>
+        manualSource ? video.video_id === manualSource.videoId : !excluded.includes(video.video_id)
+      ),
+    [candidates, excluded, manualSource]
   );
   const availableSignature = useMemo(
     () => available.map(video => video.video_id).join(','),
@@ -229,31 +292,68 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
     const preferred = resumeVideo(candidates, recent || history);
 
     return preferred?.video_id;
-  }, [signature]);
+  }, [sourceScope]);
   const [refreshRequest, setRefreshRequest] = useState<{
     scope: string;
     videoId?: number;
     revision: number;
   }>({ scope: '', revision: 0 });
+  const [qualityRevision, setQualityRevision] = useState(0);
+  const targetQuality = preferredStreamQuality(settings.quality);
   const resolvingId =
-    refreshRequest.scope === sourceScope &&
+    manualSource?.videoId ??
+    (refreshRequest.scope === sourceScope &&
     available.some(video => video.video_id === refreshRequest.videoId)
       ? refreshRequest.videoId
-      : preferredId;
-  const streams = useResource(
-    signal =>
-      current
-        ? resolveStream(available, signal, { preferredVideoId: resolvingId }).then(data => ({
-            data,
-            cached: false,
-            savedAt: Date.now(),
-          }))
-        : Promise.resolve({ data: undefined, cached: false, savedAt: 0 }),
-    [availableSignature, resolvingId, refreshRequest.revision]
+      : preferredId);
+  const streams = useResource<StreamResult | undefined>(
+    async signal => {
+      if (!current) return { data: undefined, cached: false, savedAt: 0 };
+      const reserveStream = kodikReserves.length
+        ? selectStream(
+            kodikReserves.flatMap(source => source.streams),
+            settings.quality
+          )
+        : undefined;
+      const reserve =
+        reserveStream && kodikReserves.find(source => source.streams.includes(reserveStream));
+      let data: StreamResult | undefined;
+      if (available.length) {
+        try {
+          data = await resolveStream(available, signal, {
+            preferredVideoId: resolvingId,
+            ...(!manualSource && sourceChoices.length && { quality: targetQuality }),
+          });
+        } catch (error) {
+          if (!reserve || signal.aborted || navigator.onLine === false) throw error;
+        }
+      }
+      if (data && manualSource?.format) {
+        const selectedFormat =
+          manualSource.format === 'mp4'
+            ? kodikMp4(data)?.streams
+            : data.streams.filter(stream => stream.type === 'hls');
+        if (!selectedFormat?.length)
+          throw new Error(`Поток Kodik · ${manualSource.format.toUpperCase()} недоступен.`);
+        data = { ...data, streams: selectedFormat };
+      }
+      return { data: data ?? reserve, cached: false, savedAt: Date.now() };
+    },
+    [
+      availableSignature,
+      resolvingId,
+      manualSource?.value,
+      refreshRequest.revision,
+      qualityRevision,
+      kodikReserves,
+    ]
   );
+  const resolved = streams.value?.data;
   const result =
-    streams.value?.data && available.some(video => video.video_id === streams.value!.data!.videoId)
-      ? streams.value.data
+    resolved &&
+    (available.some(video => video.video_id === resolved.videoId) ||
+      kodikReserves.includes(resolved))
+      ? resolved
       : undefined;
   const [settledFailure, setSettledFailure] = useState('');
   const failureKey = streams.error ? `${sourceScope}:${availableSignature}:${streams.error}` : '';
@@ -272,25 +372,48 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
     all.find(video => video.video_id === result?.videoId) ||
     candidates.find(video => video.video_id === currentSession.current?.snapshot().videoId) ||
     current;
-  const selected = useMemo(() => {
-    if (!result) return;
+  const { selected, previewStream, variants } = useMemo(() => {
+    if (!result) return {};
 
-    const stream = selectStream(result.streams, settings.quality);
-    const fallback =
-      fallbackSources.scope === sourceScope && fallbackSources.ids.includes(result.videoId);
-
-    return fallback && stream.fallback
-      ? { ...stream, ...stream.fallback, fallback: undefined }
-      : stream;
-  }, [result, settings.quality, fallbackSources, sourceScope]);
-  const poster = useMemo(
+    const regular =
+      result.provider === 'Kodik'
+        ? result.streams.filter(stream => stream.type !== 'mp4')
+        : result.streams;
+    const onlyMp4Matches =
+      !regular.some(stream => stream.quality === targetQuality) &&
+      result.streams.some(stream => stream.quality === targetQuality && stream.type === 'mp4');
+    const variants = regular.length && !onlyMp4Matches ? regular : result.streams;
+    if (manualSource && !variants.some(stream => stream.quality <= targetQuality))
+      return { variants };
+    const stream = selectStream(variants, settings.quality);
+    const lowest = variants.reduce(
+      (current, variant) => (variant.quality < current.quality ? variant : current),
+      stream
+    );
+    return { selected: stream, previewStream: lowest, variants };
+  }, [result, settings.quality, targetQuality, manualSource]);
+  const qualityUnavailable = !!(manualSource && result && !selected);
+  const qualities = useMemo(
     () =>
-      imageUrl(
-        anime.random_screenshots?.find(frame => frame.episode === current?.number)?.sizes.small ||
-          anime.poster?.medium
-      ),
-    [anime.random_screenshots, anime.poster?.medium, current?.number]
+      [
+        ...new Set([
+          ...(inventory.value?.data ?? []),
+          ...(result?.streams.map(stream => stream.quality) ?? []),
+        ]),
+      ].sort((a, b) => a - b),
+    [inventory.value, result]
   );
+  const previewEpisode = current?.number || episode || preferredEpisode || history?.episode;
+  const poster = imageUrl(
+    anime.random_screenshots?.find(frame => frame.episode === previewEpisode)?.sizes.small ||
+      (history?.episode === previewEpisode ? history?.preview : undefined) ||
+      anime.poster?.medium ||
+      anime.poster?.big
+  );
+  const frameKey = watchFrameKey(anime.anime_id, previewEpisode, session?.user.id);
+  const savedFrame = useWatchFrame(frameKey);
+  const fallbackImage = useCachedImage(poster);
+  const loadingImage = savedFrame || fallbackImage;
   const skipMarkers = useMemo(
     () => mergeSkips(active?.skips, result?.skips),
     [active?.skips, result?.skips]
@@ -342,13 +465,53 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
 
   const snapshot = playback?.videoId === active?.video_id ? playback : watch?.snapshot();
 
-  useDiscordPresence(anime, active, snapshot);
+  useDiscordPresence(
+    anime,
+    active,
+    !result && snapshot
+      ? { ...snapshot, playing: false, reason: streams.error ? 'error' : 'sourcechange' }
+      : snapshot
+  );
+  useAnimeDiscordContext(
+    anime,
+    overlay === 'voice'
+      ? 'Выбирает озвучку'
+      : overlay === 'player'
+        ? 'Выбирает плеер'
+        : episodesOpen
+          ? 'Выбирает серию'
+          : panel === 'comments'
+            ? 'Читает комментарии'
+            : !active && !resource.error && (resource.loading || all.length > 0)
+              ? 'Смотрит · Загрузка'
+              : undefined,
+    query,
+    200
+  );
 
   const position = snapshot?.position || 0,
     duration = snapshot?.duration || result?.duration || 0;
 
   useLayoutEffect(() => {
     const flush = () => currentSession.current?.flush();
+
+    const saveBeforeClose = (event: Event) => {
+      const video = media.current;
+      const watch = currentSession.current;
+      if (!watch || !video || video.readyState < 2 || video.error) {
+        flush();
+        return;
+      }
+      video.prepareToClose?.((event as CustomEvent<PlaybackClosePositions>).detail);
+      watch.update({
+        reason: 'dispose',
+        position: video.currentTime,
+        duration: video.duration,
+        playing: false,
+        seeking: video.seeking,
+        playbackRate: video.playbackRate,
+      });
+    };
 
     const hidden = () => {
       if (document.visibilityState === 'hidden') flush();
@@ -358,6 +521,7 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
 
     window.addEventListener('pagehide', flush);
     window.addEventListener(PLAYBACK_FLUSH, flush);
+    window.addEventListener(PLAYBACK_SHUTDOWN, saveBeforeClose);
     document.addEventListener('visibilitychange', hidden);
 
     return () => {
@@ -365,9 +529,10 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
       flush();
       window.removeEventListener('pagehide', flush);
       window.removeEventListener(PLAYBACK_FLUSH, flush);
+      window.removeEventListener(PLAYBACK_SHUTDOWN, saveBeforeClose);
       document.removeEventListener('visibilitychange', hidden);
     };
-  }, []);
+  }, [media]);
 
   const choose = useCallback(
     (number: string, nextVoice = voice) => {
@@ -375,8 +540,8 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
       autoplay.current = true;
       recoveryAutoplay.current = undefined;
       recoveryMedia.current = undefined;
-      setFailedSources({ scope: '', ids: [] });
-      setFallbackSources({ scope: '', ids: [] });
+      setFailedSources({ scope: '', ids: EMPTY_IDS, kodikReserves: EMPTY_RESERVES });
+      setSourceChoice(undefined);
       setEpisode(number);
       setVoice(nextVoice);
       setOverlay(null);
@@ -385,18 +550,11 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
     [voice, watch, panel, onPanelChange]
   );
 
-  const retrySources = streams.retry;
-  const retryStream = useCallback(() => {
-    setFailedSources({ scope: sourceScope, ids: [] });
-    setFallbackSources({ scope: '', ids: [] });
-    retrySources();
-  }, [sourceScope, retrySources]);
-
   const prepareRecovery = useCallback(
     (playing: boolean) => {
       recoveryAutoplay.current = playing;
       if (media.current)
-        recoveryMedia.current = {
+        recoveryMedia.current ??= {
           muted: media.current.muted,
           volume: media.current.volume,
           rate: selectedPlaybackRate(media.current),
@@ -405,6 +563,15 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
     },
     [watch]
   );
+
+  const retrySources = streams.retry;
+  const retryStream = useCallback(() => {
+    const video = media.current;
+    if (video && video.readyState >= 2 && !video.error)
+      prepareRecovery(!video.paused && !mediaAtEnd(video));
+    setFailedSources({ scope: sourceScope, ids: EMPTY_IDS, kodikReserves: EMPTY_RESERVES });
+    retrySources();
+  }, [sourceScope, retrySources, prepareRecovery]);
 
   const refreshStream = useCallback(
     (playing: boolean) => {
@@ -435,28 +602,35 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
       )
         return refreshStream(playing);
       prepareRecovery(playing);
-      if (navigator.onLine === false || !result) return false;
-      if (selected?.fallback) {
-        setFallbackSources(previous => ({
+      if (navigator.onLine === false || !result || manualSource) return false;
+
+      if (kodikReserves.includes(result)) {
+        if (kodikReserves.length < 2) return false;
+        setFailedSources(previous => ({
           scope: sourceScope,
-          ids: [...(previous.scope === sourceScope ? previous.ids : []), result.videoId],
+          ids: candidates.map(video => video.video_id),
+          kodikReserves: previous.kodikReserves.filter(reserve => reserve !== result),
         }));
 
         return true;
       }
-      if (!available.some(video => video.video_id !== result.videoId)) return false;
+      const reserve = selected?.type !== 'mp4' ? kodikMp4(result) : undefined;
+      if (
+        !reserve &&
+        !kodikReserves.length &&
+        !available.some(video => video.video_id !== result.videoId)
+      )
+        return false;
       setFailedSources(previous => {
-        const ids = previous.scope === sourceScope ? previous.ids : [];
+        const ids = previous.scope === sourceScope ? previous.ids : EMPTY_IDS;
+        const reserves = previous.scope === sourceScope ? previous.kodikReserves : EMPTY_RESERVES;
 
         return ids.includes(result.videoId)
           ? previous
           : {
               scope: sourceScope,
               ids: [...ids, result.videoId],
-              providers: [
-                ...(previous.scope === sourceScope ? previous.providers || [] : []),
-                result.provider,
-              ],
+              kodikReserves: reserve ? [...reserves, reserve] : reserves,
             };
       });
 
@@ -467,8 +641,11 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
       refreshStream,
       result,
       streams.value?.savedAt,
-      selected,
+      selected?.type,
       available,
+      candidates,
+      kodikReserves,
+      manualSource,
       sourceScope,
     ]
   );
@@ -486,11 +663,35 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
     [active, onSelectPlayer, current, position, duration]
   );
 
-  const changeQuality = useCallback(
-    (event: JSX.TargetedEvent<HTMLSelectElement>) =>
-      savePlaybackSettings({ quality: event.currentTarget.value }),
-    []
-  );
+  const changeQuality = (quality: string) => {
+    const target = preferredStreamQuality(quality);
+    const canKeepSource =
+      variants?.some(stream => stream.quality === target) &&
+      (result?.provider !== 'Kodik' ||
+        variants.some(stream => stream.quality === target && stream.type !== 'mp4'));
+    const resolveAgain = !manualSource && sourceChoices.length > 0 && !canKeepSource;
+    const noLowerQuality =
+      manualSource && variants && !variants.some(stream => stream.quality <= target);
+    if (resolveAgain || noLowerQuality) {
+      const video = media.current;
+      if (video && video.readyState >= 2 && !video.error)
+        prepareRecovery(!video.paused && !mediaAtEnd(video));
+    }
+    if (resolveAgain) {
+      setFailedSources({ scope: sourceScope, ids: EMPTY_IDS, kodikReserves: EMPTY_RESERVES });
+      setQualityRevision(revision => revision + 1);
+    }
+    savePlaybackSettings({ quality });
+  };
+
+  const changeSource = (value: string) => {
+    if (value && !sourceChoices.some(choice => choice.value === value)) return;
+    const video = media.current;
+    if (video && video.readyState >= 2 && !video.error)
+      prepareRecovery(!video.paused && !mediaAtEnd(video));
+    setFailedSources({ scope: sourceScope, ids: EMPTY_IDS, kodikReserves: EMPTY_RESERVES });
+    setSourceChoice(value ? { scope: sourceScope, value } : undefined);
+  };
 
   const retrySync = useCallback(() => watch?.flush(), [watch]);
 
@@ -549,29 +750,54 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
   const closeOverlay = useCallback(() => setOverlay(null), []);
 
   const qualityPicker = (
-    <label class="video-setting-field">
+    <label class="video-setting-field video-quality-choice">
       <span>Качество</span>
-      <Select
+      <Dropdown
         aria-label="Качество видео"
-        value={selected?.quality || settings.quality}
-        disabled={!result}
+        value={settings.quality}
+        disabled={!qualities.length}
         onChange={changeQuality}
-      >
-        {result ? (
-          result.streams.map(stream => (
-            <option key={stream.quality} value={stream.quality}>
-              {stream.quality}p
-            </option>
-          ))
-        ) : (
-          <option value={settings.quality}>
-            {settings.quality === 'auto' ? 'Авто' : `${settings.quality}p`}
-          </option>
-        )}
-      </Select>
+        options={[
+          { value: 'auto', label: 'Авто · до 480p' },
+          ...qualities.map(quality => ({ value: String(quality), label: `${quality}p` })),
+          ...(settings.quality !== 'auto' && !qualities.includes(targetQuality)
+            ? [
+                {
+                  value: settings.quality,
+                  label: `${settings.quality}p · недоступно`,
+                  disabled: true,
+                },
+              ]
+            : []),
+        ]}
+      />
     </label>
   );
-  const playerSettings = <AutoSkipSettings />;
+  const sourcePicker = !background && sourceChoices.length > 0 && (
+    <label class="video-source-choice">
+      <span>Источник потока</span>
+      <Dropdown
+        aria-label="Источник потока"
+        value={manualSource?.value ?? ''}
+        onChange={changeSource}
+        options={[
+          { value: '', label: 'Авто' },
+          ...sourceChoices.map(choice => ({
+            value: choice.value,
+            label: sourceChoices.some(other => other.label === choice.label && other !== choice)
+              ? `${choice.label} · ${choice.videoId}`
+              : choice.label,
+          })),
+        ]}
+      />
+    </label>
+  );
+  const playerSettings = (
+    <>
+      <AutoSkipSettings />
+      <AutoPictureInPictureSetting />
+    </>
+  );
   const streamInfo = result && selected && (
     <span class="video-stream-meta">
       {result.provider} · {snapshot?.quality || selected.quality}p · {selected.type.toUpperCase()}
@@ -594,12 +820,62 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
       <button onClick={retrySync}>Сохранено локально · повторить синхронизацию</button>
     ) : null;
 
-  if (session && !session.verified)
-    return <p class="account-loading">Проверяем аккаунт для восстановления просмотра…</p>;
-  if (resource.loading || (all.length > 0 && !current))
-    return <div class="player-skeleton skeleton" role="status" aria-label="Загрузка серий" />;
-  if (resource.error) return <ErrorState error={resource.error} retry={resource.retry} />;
-  if (!all.length) return <Empty title="Серии пока не появились">Попробуй вернуться позже.</Empty>;
+  const checkingAccount = !!session && !session.verified;
+  const loadingEpisodes = resource.loading || (all.length > 0 && !current);
+  const hasSurface = !!(
+    selected &&
+    current &&
+    watch &&
+    !checkingAccount &&
+    !loadingEpisodes &&
+    !resource.error &&
+    all.length
+  );
+  const unavailable =
+    !!resource.error ||
+    showStreamError ||
+    qualityUnavailable ||
+    (!checkingAccount && !loadingEpisodes && !all.length);
+  useEffect(() => {
+    if (pip?.active && !hasSurface)
+      void setPictureInPictureUnavailable(unavailable).catch(() => {});
+  }, [pip?.active, hasSurface, unavailable]);
+  const pipButton = pip && !background && <PictureInPictureButton pip={pip} floating />;
+
+  if (checkingAccount)
+    return (
+      <>
+        <p class="account-loading">Проверяем аккаунт для восстановления просмотра…</p>
+        {pipButton}
+      </>
+    );
+  if (loadingEpisodes)
+    return (
+      <>
+        {loadingImage ? (
+          <div class="player-frame player-skeleton">
+            <PlaybackLoader label="Загружаем серии…" preview={loadingImage} />
+          </div>
+        ) : (
+          <div class="player-skeleton skeleton" role="status" aria-label="Загрузка серий" />
+        )}
+        {pipButton}
+      </>
+    );
+  if (resource.error)
+    return (
+      <>
+        <ErrorState error={resource.error} retry={resource.retry} />
+        {pipButton}
+      </>
+    );
+  if (!all.length)
+    return (
+      <>
+        <Empty title="Серии пока не появились">Попробуй вернуться позже.</Empty>
+        {pipButton}
+      </>
+    );
 
   return (
     <section
@@ -626,14 +902,19 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
               key={active.video_id}
               fullscreenFrame={fullscreenContainer || fullscreenFrame}
               stream={selected}
+              previewStream={previewStream}
               provider={result?.provider}
               caption={result?.caption}
               identity={active.video_id}
               start={watch.snapshot().position}
               autoplay={recoveryAutoplay.current ?? (autoplay.current || resumeAutoplay)}
               media={media}
+              background={background}
+              pip={pip}
               title={`${anime.title} — серия ${current.number}`}
               poster={poster}
+              loadingImage={loadingImage}
+              frameKey={frameKey}
               skips={skipMarkers}
               autoOpening={settings.autoSkipOpening}
               autoEnding={settings.autoSkipEnding}
@@ -650,6 +931,7 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
               onComments={onComments}
               settings={playerSettings}
               quality={qualityPicker}
+              sourcePicker={sourcePicker}
               streamInfo={streamInfo}
               syncStatus={syncStatus}
               previous={index > 0 ? previousEpisode : undefined}
@@ -658,24 +940,31 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
           ) : (
             <div class="player-frame native-placeholder">
               <PlaybackLoader
-                failed={showStreamError}
+                preview={loadingImage}
+                failed={showStreamError || qualityUnavailable}
                 label={
-                  showStreamError
-                    ? 'Не удалось загрузить видео'
-                    : excluded.length
-                      ? 'Пробуем другой источник…'
-                      : 'Подбираем видеопоток…'
+                  qualityUnavailable
+                    ? 'Качество недоступно'
+                    : showStreamError
+                      ? 'Не удалось загрузить видео'
+                      : excluded.length
+                        ? 'Пробуем другой источник…'
+                        : 'Подбираем видеопоток…'
                 }
                 detail={
-                  showStreamError
-                    ? excluded.length
-                      ? `Резервные источники недоступны. ${streams.error}`
-                      : streams.error
-                    : excluded.length
-                      ? 'Серия, озвучка и позиция сохраняются'
-                      : undefined
+                  qualityUnavailable
+                    ? `В выбранном потоке нет ${targetQuality}p или ниже. Выбери другое качество или источник.`
+                    : showStreamError
+                      ? excluded.length
+                        ? `Резервные источники недоступны. ${streams.error}`
+                        : streams.error
+                      : excluded.length
+                        ? 'Серия, озвучка и позиция сохраняются'
+                        : undefined
                 }
               >
+                {!background && qualities.length > 0 && qualityPicker}
+                {sourcePicker}
                 {showStreamError && (
                   <>
                     <Button onClick={retryStream} variant="primary">
@@ -695,6 +984,7 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
               </PlaybackLoader>
             </div>
           )}
+          {!hasSurface && pipButton}
           {!selected && onBack && (
             <button class="native-state-back" onClick={onBack}>
               <Icon name="back" size={21} />
@@ -782,7 +1072,7 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
         />
       </Sidebar>
       <Sidebar
-        open={immersive && overlay === 'voice'}
+        open={!background && immersive && overlay === 'voice'}
         title="Озвучка"
         subtitle={anime.title}
         close={closeOverlay}

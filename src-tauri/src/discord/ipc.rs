@@ -295,7 +295,9 @@ mod tests {
 
         let (first, mut first_server) = pair();
         let (second, mut second_server) = pair();
-        let mut connections = VecDeque::from([Err("not running".into()), Ok(first), Ok(second)]);
+        let (third, mut third_server) = pair();
+        let mut connections =
+            VecDeque::from([Err("not running".into()), Ok(first), Ok(second), Ok(third)]);
         let attempts = Arc::new(AtomicUsize::new(0));
         let opened = attempts.clone();
         let (sender, receiver) = watch::channel(None);
@@ -358,6 +360,17 @@ mod tests {
             .write_frame(1, &json!({ "cmd": "SET_ACTIVITY" }))
             .await
             .unwrap();
+        sender.send_replace(update());
+        let (_, resumed) = timeout(Duration::from_millis(1), third_server.read_frame())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(resumed["args"]["activity"]["details"], "Монолог фармацевта");
+        third_server
+            .write_frame(1, &json!({ "cmd": "SET_ACTIVITY" }))
+            .await
+            .unwrap();
+        drop(third_server);
         drop(sender);
         worker.await.unwrap();
     }

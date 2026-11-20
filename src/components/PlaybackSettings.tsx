@@ -1,13 +1,67 @@
 import type { FunctionalComponent as FC, JSX } from 'preact';
 import { useCallback } from 'preact/hooks';
 
+import { usesNativePlayback } from '~/lib/native-playback';
 import {
   PLAYBACK_QUALITIES,
+  PLAYBACK_UPSCALERS,
+  UPSCALE_SHARPNESS,
   savePlaybackSettings,
   usePlaybackSettings,
 } from '~/lib/playback-settings';
 
 import { Dropdown, Field, Icon, SettingsCard, Toggle } from '~/ui';
+
+const saveUpscale = (value: string) => {
+  const mode = PLAYBACK_UPSCALERS.find(option => option.value === value);
+  if (mode) savePlaybackSettings({ upscale: mode.value });
+};
+
+export const VideoUpscaleSetting: FC = () => {
+  const { upscale, upscaleSharpness } = usePlaybackSettings();
+
+  return (
+    <>
+      <label class="video-setting-field video-upscale-setting">
+        <span>Апскейл</span>
+        <Dropdown
+          aria-label="Апскейл видео"
+          value={upscale}
+          onChange={saveUpscale}
+          options={PLAYBACK_UPSCALERS}
+        />
+      </label>
+      <label class="video-setting-field video-upscale-setting">
+        <span>Резкость контуров</span>
+        <Dropdown
+          aria-label="Резкость контуров"
+          value={upscaleSharpness}
+          onChange={value => {
+            const level = UPSCALE_SHARPNESS.find(option => option.value === value);
+            if (level) savePlaybackSettings({ upscaleSharpness: level.value });
+          }}
+          options={UPSCALE_SHARPNESS}
+        />
+      </label>
+    </>
+  );
+};
+
+export const AutoPictureInPictureSetting: FC = () => {
+  const settings = usePlaybackSettings();
+  if (!usesNativePlayback()) return null;
+
+  return (
+    <Toggle
+      checked={settings.autoPictureInPicture}
+      onChange={event =>
+        savePlaybackSettings({ autoPictureInPicture: event.currentTarget.checked })
+      }
+    >
+      Картинка в картинке при выходе из плеера
+    </Toggle>
+  );
+};
 
 export const AutoSkipSettings: FC = () => {
   const settings = usePlaybackSettings();
@@ -39,6 +93,9 @@ export const AutoSkipSettings: FC = () => {
 
 export const PlaybackSettingsCard: FC = () => {
   const settings = usePlaybackSettings();
+  const qualities = [...new Set([...PLAYBACK_QUALITIES, settings.quality])]
+    .filter(value => value !== 'auto')
+    .sort((a, b) => Number(a) - Number(b));
 
   const changeQuality = useCallback(
     (value: string) => savePlaybackSettings({ quality: value }),
@@ -56,7 +113,7 @@ export const PlaybackSettingsCard: FC = () => {
           aria-label="Предпочитаемое качество"
           value={settings.quality}
           onChange={changeQuality}
-          options={PLAYBACK_QUALITIES.map(value => ({
+          options={[...qualities, 'auto'].map(value => ({
             value,
             label:
               value === 'auto'
@@ -65,6 +122,17 @@ export const PlaybackSettingsCard: FC = () => {
           }))}
         />
       </Field>
+      {usesNativePlayback() && (
+        <Field class="settings-choice" label="Апскейл видео">
+          <Dropdown
+            aria-label="Апскейл видео"
+            value={settings.upscale}
+            onChange={saveUpscale}
+            options={[...PLAYBACK_UPSCALERS]}
+          />
+        </Field>
+      )}
+      <AutoPictureInPictureSetting />
     </SettingsCard>
   );
 };

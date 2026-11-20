@@ -40,6 +40,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
   if (original) Object.defineProperty(document, 'startViewTransition', original);
   else Reflect.deleteProperty(document, 'startViewTransition');
+  delete document.documentElement.dataset.desktop;
   delete document.documentElement.dataset.pageDirection;
 });
 
@@ -131,14 +132,24 @@ describe('page slides', () => {
     act(() => updates[0]());
     expect(screen.getByText('/settings')).toBeTruthy();
   });
-  it('slides in the screen when the browser has no View Transitions support', async () => {
-    const { container } = render(<Screen />);
-    const animate = vi.fn().mockReturnValue({ cancel: vi.fn(), finished: Promise.resolve() });
+  it.each(['without View Transitions support', 'on Linux desktop'])(
+    'slides in the screen %s',
+    async environment => {
+      const start = vi.fn();
+      if (environment === 'on Linux desktop') {
+        document.documentElement.dataset.desktop = 'linux';
+        document.startViewTransition = start;
+      }
 
-    container.querySelector('main')!.animate = animate;
-    navigate('/search');
-    await waitFor(() => expect(animate).toHaveBeenCalledOnce());
-    expect(animate.mock.calls[0][0][0].transform).toBe('translateY(18px)');
-    expect(screen.getByText('/search')).toBeTruthy();
-  });
+      const { container } = render(<Screen />);
+      const animate = vi.fn().mockReturnValue({ cancel: vi.fn(), finished: Promise.resolve() });
+
+      container.querySelector('main')!.animate = animate;
+      navigate('/search');
+      expect(screen.getByText('/search')).toBeTruthy();
+      expect(start).not.toHaveBeenCalled();
+      await waitFor(() => expect(animate).toHaveBeenCalledOnce());
+      expect(animate.mock.calls[0][0][0].transform).toBe('translateY(18px)');
+    }
+  );
 });

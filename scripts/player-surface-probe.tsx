@@ -5,6 +5,7 @@ import { useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { VideoSurface } from '~/components/VideoSurface';
 import type { Stream, StreamCaption } from '~/lib/streams';
 import type { MediaUpdate } from '~/lib/playback-session';
+import { Dropdown } from '~/ui/Dropdown';
 
 declare global {
   interface Window {
@@ -88,19 +89,16 @@ function Probe() {
       quality={
         <label>
           Качество
-          <select
+          <Dropdown
             aria-label="Качество видео"
-            value={stream.quality}
-            onChange={event => {
-              const next = init.streams.find(s => s.quality === Number(event.currentTarget.value));
+            value={String(stream.quality)}
+            onChange={value => {
+              const next = init.streams.find(s => s.quality === Number(value));
 
               if (next) setStream(next);
             }}
-          >
-            {init.streams.map(s => (
-              <option value={s.quality}>{s.quality}p</option>
-            ))}
-          </select>
+            options={init.streams.map(s => ({ value: String(s.quality), label: `${s.quality}p` }))}
+          />
         </label>
       }
       streamInfo={

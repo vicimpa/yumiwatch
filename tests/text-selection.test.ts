@@ -64,7 +64,7 @@ describe('application text selection', () => {
     document.dispatchEvent(new Event('selectionchange'));
     expect(getSelection()!.toString()).toBe('Текст панели');
   });
-  it('blocks Select All on application chrome while leaving input selection native', () => {
+  it('blocks Select All on application chrome and selects editable text explicitly', () => {
     release = installSelectionPolicy();
     document.body.innerHTML =
       '<main id="main"><button>Кнопка</button><textarea>Сообщение</textarea><input type="range"></main>';
@@ -83,8 +83,12 @@ describe('application text selection', () => {
       bubbles: true,
       cancelable: true,
     });
-    document.querySelector('textarea')!.dispatchEvent(field);
-    expect(field.defaultPrevented).toBe(false);
+    const textarea = document.querySelector('textarea')!;
+
+    textarea.dispatchEvent(field);
+    expect(field.defaultPrevented).toBe(true);
+    expect(textarea.selectionStart).toBe(0);
+    expect(textarea.selectionEnd).toBe('Сообщение'.length);
     const range = new KeyboardEvent('keydown', {
       key: 'a',
       ctrlKey: true,
@@ -93,6 +97,25 @@ describe('application text selection', () => {
     });
     document.querySelector('input')!.dispatchEvent(range);
     expect(range.defaultPrevented).toBe(true);
+  });
+  it('selects a search field with Cmd+A, including on a Russian layout', () => {
+    release = installSelectionPolicy();
+    document.body.innerHTML = '<input type="search" value="Безжалостная леди">';
+    const input = document.querySelector('input')!;
+
+    input.focus();
+    const event = new KeyboardEvent('keydown', {
+      key: 'ф',
+      code: 'KeyA',
+      metaKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+
+    input.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(true);
+    expect(input.selectionStart).toBe(0);
+    expect(input.selectionEnd).toBe(input.value.length);
   });
   it('clears a document-wide selection without interfering with copying message text', () => {
     release = installSelectionPolicy();

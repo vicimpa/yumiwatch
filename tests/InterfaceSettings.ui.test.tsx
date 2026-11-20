@@ -107,7 +107,7 @@ describe('media center preferences and sound', () => {
     cleanup();
     expect(close).toHaveBeenCalledOnce();
   });
-  it('uses Escape for back only when no panel, field or fullscreen is active', () => {
+  it('uses Escape for back only when no panel or field consumes it', () => {
     const back = vi.fn();
 
     render(
@@ -126,6 +126,31 @@ describe('media center preferences and sound', () => {
     expect(back).not.toHaveBeenCalled();
     fireEvent.keyDown(document.body, { key: 'Escape' });
     expect(back).toHaveBeenCalledOnce();
+  });
+  it.each([
+    ['fullscreenElement', 'exitFullscreen'],
+    ['webkitFullscreenElement', 'webkitExitFullscreen'],
+  ])('exits browser fullscreen before navigating back (%s)', (elementKey, exitKey) => {
+    let fullscreen: Element | null = document.body;
+    const exit = vi.fn(() => {
+      fullscreen = null;
+    });
+    const back = vi.fn();
+    Object.defineProperty(document, elementKey, { configurable: true, get: () => fullscreen });
+    Object.defineProperty(document, exitKey, { configurable: true, value: exit });
+    try {
+      render(<InterfaceEffects onBack={back} watching />);
+      fireEvent.keyDown(document.body, { key: 'Escape' });
+      expect(exit).toHaveBeenCalledOnce();
+      expect(back).not.toHaveBeenCalled();
+      fireEvent.keyDown(document.body, { key: 'Escape', repeat: true });
+      expect(back).not.toHaveBeenCalled();
+      fireEvent.keyDown(document.body, { key: 'Escape' });
+      expect(back).toHaveBeenCalledOnce();
+    } finally {
+      Reflect.deleteProperty(document, elementKey);
+      Reflect.deleteProperty(document, exitKey);
+    }
   });
   it('keeps the video surface silent while retaining sounds on player buttons', () => {
     const start = vi.fn();

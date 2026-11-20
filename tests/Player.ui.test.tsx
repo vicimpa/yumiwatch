@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { chooseOption } from './dropdown-actions';
 import { useDiscordPresence } from '~/hooks/useDiscordPresence';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/preact';
@@ -88,9 +89,7 @@ describe('mobile watch flow', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: /Все серии/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Серия 2' }));
-    fireEvent.change(screen.getByRole('combobox', { name: 'Озвучка' }), {
-      target: { value: 'AniDub' },
-    });
+    chooseOption(screen.getByRole('combobox', { name: 'Озвучка' }), 'AniDub');
     await waitFor(() => expect(container.querySelector('iframe')?.src).toContain('/AniDub/1/2'));
     expect(screen.getByRole('combobox', { name: 'Плеер' })).toBeTruthy();
   });

@@ -1,79 +1,103 @@
 import type { FunctionalComponent as FC, JSX } from 'preact';
 import { createPortal } from 'preact/compat';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { browserFullscreenElement } from '~/lib/desktop';
 import { Icon } from './Icon';
 import './Dropdown.css';
 
 type Props = {
   value: string;
-  options: { value: string; label: string }[];
+  options: readonly { value: string; label: string; disabled?: boolean }[];
   onChange: (value: string) => void;
   'aria-label': string;
   'aria-describedby'?: string;
   'aria-invalid'?: JSX.AriaAttributes['aria-invalid'];
+  'aria-required'?: JSX.AriaAttributes['aria-required'];
+  id?: string;
   disabled?: boolean;
 };
 
-export const Dropdown: FC<Props> = ({ value, options, onChange, ...props }) => {
+export const Dropdown: FC<Props> = ({ value, options, onChange, disabled, ...props }) => {
   const id = useId();
+  const buttonId = props.id || `${id}-trigger`;
   const trigger = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
-  const selected = Math.max(
-    0,
-    options.findIndex(option => option.value === value)
-  );
-  const [open, setOpen] = useState(false);
-  const [active, setActive] = useState(selected);
+  const selected = options.findIndex(option => option.value === value);
+  const enabled = options.flatMap((option, index) => (option.disabled ? [] : [index]));
+  const initial = enabled.includes(selected) ? selected : enabled[0];
+  const [expanded, setExpanded] = useState(false);
+  const [highlighted, setHighlighted] = useState(0);
+  const open = expanded && !disabled && enabled.length > 0;
+  const active = enabled.includes(highlighted) ? highlighted : initial;
+  const dialog = open ? trigger.current?.closest<HTMLDialogElement>('dialog[open]') : undefined;
   const [position, setPosition] = useState<JSX.CSSProperties>({});
   const choose = (index: number) => {
-    onChange(options[index].value);
-    setOpen(false);
-    trigger.current?.focus();
+    const option = options[index];
+    if (!option || option.disabled) return;
+    setExpanded(false);
+    trigger.current?.focus({ preventScroll: true });
+    if (option.value !== value) onChange(option.value);
   };
 
   useLayoutEffect(() => {
-    if (!open) return;
+    if (!open) {
+      if (expanded) setExpanded(false);
+      return;
+    }
     const place = () => {
-      const rect = trigger.current!.getBoundingClientRect();
-      const below = window.innerHeight - rect.bottom - 12;
-      const above = rect.top - 12;
+      const rect = trigger.current?.getBoundingClientRect();
+      if (!rect) return;
+      const bounds = dialog?.getBoundingClientRect();
+      const left = bounds?.width ? Math.max(8, bounds.left + 8) : 8;
+      const right = bounds?.width
+        ? Math.min(window.innerWidth - 8, bounds.right - 8)
+        : window.innerWidth - 8;
+      const below = (bounds?.height ? bounds.bottom : window.innerHeight) - rect.bottom - 12;
+      const above = rect.top - (bounds?.height ? bounds.top : 0) - 12;
       const upwards = below < 220 && above > below;
+      const width = Math.max(0, Math.min(Math.max(rect.width, 132), right - left));
       setPosition({
-        left: Math.max(8, Math.min(rect.left, window.innerWidth - rect.width - 8)),
-        width: Math.min(rect.width, window.innerWidth - 16),
+        left: Math.max(left, Math.min(rect.left, right - width)),
+        width,
         maxHeight: Math.max(0, Math.min(280, upwards ? above : below)),
         ...(upwards ? { bottom: window.innerHeight - rect.top + 6 } : { top: rect.bottom + 6 }),
       });
     };
     const outside = (event: PointerEvent) => {
       const target = event.target as Node;
-      if (!trigger.current?.contains(target) && !menu.current?.contains(target)) setOpen(false);
+      if (!trigger.current?.contains(target) && !menu.current?.contains(target)) setExpanded(false);
     };
+    const fullscreenChange = () => setExpanded(false);
     place();
     window.addEventListener('resize', place);
     window.addEventListener('scroll', place, true);
     document.addEventListener('pointerdown', outside);
+    document.addEventListener('fullscreenchange', fullscreenChange);
+    document.addEventListener('webkitfullscreenchange', fullscreenChange);
     return () => {
       window.removeEventListener('resize', place);
       window.removeEventListener('scroll', place, true);
       document.removeEventListener('pointerdown', outside);
+      document.removeEventListener('fullscreenchange', fullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', fullscreenChange);
     };
-  }, [open]);
+  }, [open, expanded, dialog]);
 
   useEffect(() => {
     if (open) menu.current?.children[active]?.scrollIntoView?.({ block: 'nearest' });
   }, [open, active]);
 
   const keydown = (event: JSX.TargetedKeyboardEvent<HTMLButtonElement>) => {
+    if (disabled || !enabled.length || event.isComposing) return;
     if (event.key === 'Tab') {
-      setOpen(false);
+      setExpanded(false);
       return;
     }
-    if (event.key === 'Escape') {
+    if (event.key === 'Escape' || event.key === 'Backspace') {
       if (open) {
         event.preventDefault();
         event.stopPropagation();
-        setOpen(false);
+        setExpanded(false);
       }
       return;
     }
@@ -81,24 +105,28 @@ export const Dropdown: FC<Props> = ({ value, options, onChange, ...props }) => {
       event.preventDefault();
       event.stopPropagation();
       if (!open) {
-        setActive(event.key === 'Home' ? 0 : event.key === 'End' ? options.length - 1 : selected);
-        setOpen(true);
-      } else if (event.key === 'Enter' || event.key === ' ') choose(active);
-      else if (event.key === 'Home') setActive(0);
-      else if (event.key === 'End') setActive(options.length - 1);
-      else
-        setActive(
-          (active + (event.key === 'ArrowDown' ? 1 : -1) + options.length) % options.length
+        setHighlighted(
+          event.key === 'Home' ? enabled[0] : event.key === 'End' ? enabled.at(-1)! : initial
         );
+        setExpanded(true);
+      } else if (event.key === 'Enter' || event.key === ' ') choose(active);
+      else if (event.key === 'Home') setHighlighted(enabled[0]);
+      else if (event.key === 'End') setHighlighted(enabled.at(-1)!);
+      else {
+        const offset = event.key === 'ArrowDown' ? 1 : -1;
+        setHighlighted(
+          enabled[(enabled.indexOf(active) + offset + enabled.length) % enabled.length]
+        );
+      }
     } else if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
-      const match = options.findIndex(option =>
-        option.label.toLocaleLowerCase().startsWith(event.key.toLocaleLowerCase())
+      const match = enabled.find(index =>
+        options[index].label.toLocaleLowerCase().startsWith(event.key.toLocaleLowerCase())
       );
-      if (match >= 0) {
+      if (match !== undefined) {
         event.preventDefault();
         event.stopPropagation();
-        setActive(match);
-        setOpen(true);
+        setHighlighted(match);
+        setExpanded(true);
       }
     }
   };
@@ -107,7 +135,10 @@ export const Dropdown: FC<Props> = ({ value, options, onChange, ...props }) => {
     <>
       <button
         {...props}
+        id={buttonId}
         type="button"
+        value={value}
+        disabled={disabled || !enabled.length}
         class="settings-dropdown"
         role="combobox"
         aria-haspopup="listbox"
@@ -116,15 +147,16 @@ export const Dropdown: FC<Props> = ({ value, options, onChange, ...props }) => {
         aria-activedescendant={open ? `${id}-${active}` : undefined}
         ref={trigger}
         onClick={() => {
-          setActive(selected);
-          setOpen(!open);
+          trigger.current?.focus({ preventScroll: true });
+          setHighlighted(initial);
+          setExpanded(!open);
         }}
         onBlur={event => {
-          if (!menu.current?.contains(event.relatedTarget as Node)) setOpen(false);
+          if (!menu.current?.contains(event.relatedTarget as Node)) setExpanded(false);
         }}
         onKeyDown={keydown}
       >
-        <span>{options[selected]?.label}</span>
+        <span>{options[selected]?.label ?? options[0]?.label}</span>
         <Icon name="chevron" size={16} />
       </button>
       {open &&
@@ -133,7 +165,7 @@ export const Dropdown: FC<Props> = ({ value, options, onChange, ...props }) => {
             id={id}
             ref={menu}
             role="listbox"
-            aria-label={props['aria-label']}
+            aria-labelledby={buttonId}
             class="settings-dropdown-menu"
             style={position}
           >
@@ -144,10 +176,12 @@ export const Dropdown: FC<Props> = ({ value, options, onChange, ...props }) => {
                 id={`${id}-${index}`}
                 key={option.value}
                 tabIndex={-1}
+                value={option.value}
+                disabled={option.disabled}
                 aria-selected={option.value === value}
                 class={active === index ? 'is-active' : ''}
                 onPointerDown={event => event.preventDefault()}
-                onPointerMove={() => setActive(index)}
+                onPointerMove={() => !option.disabled && setHighlighted(index)}
                 onClick={() => choose(index)}
               >
                 <span>{option.label}</span>
@@ -155,7 +189,7 @@ export const Dropdown: FC<Props> = ({ value, options, onChange, ...props }) => {
               </button>
             ))}
           </div>,
-          document.body
+          dialog || browserFullscreenElement() || document.body
         )}
     </>
   );

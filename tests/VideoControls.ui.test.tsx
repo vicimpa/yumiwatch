@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
+import { chooseOption } from './dropdown-actions';
 import { useRef } from 'preact/hooks';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/preact';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CONTROLS_IDLE_MS, VideoControls } from '~/components/VideoControls';
+import { Dropdown } from '~/ui';
 
 function Harness({ failed = false }: { failed?: boolean }) {
   const media = useRef<HTMLVideoElement>(null),
@@ -21,9 +23,12 @@ function Harness({ failed = false }: { failed?: boolean }) {
         settings={
           <label>
             Качество
-            <select aria-label="Качество">
-              <option>720p</option>
-            </select>
+            <Dropdown
+              aria-label="Качество"
+              value="720"
+              options={[{ value: '720', label: '720p' }]}
+              onChange={() => {}}
+            />
           </label>
         }
         onVisibility={() => {}}
@@ -63,6 +68,8 @@ afterEach(() => {
   cleanup();
   vi.useRealTimers();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+  localStorage.removeItem('yumiwatch:playback-settings');
   delete document.documentElement.dataset.inputMode;
 });
 
@@ -72,6 +79,96 @@ const idle = () =>
   });
 
 describe('custom playback controls', () => {
+  it('keeps the controls visible under the pointer and starts a new idle interval on the video', () => {
+    const { controls, playing } = setup();
+    playing(false);
+    fireEvent.pointerMove(screen.getByRole('slider', { name: 'Позиция воспроизведения' }));
+    idle();
+    expect(controls.classList.contains('is-visible')).toBe(true);
+
+    fireEvent.pointerMove(controls.querySelector('.video-hit-area')!);
+    act(() => {
+      vi.advanceTimersByTime(CONTROLS_IDLE_MS - 1);
+    });
+    expect(controls.classList.contains('is-visible')).toBe(true);
+    act(() => {
+      vi.advanceTimersByTime(2);
+    });
+    expect(controls.classList.contains('is-hidden')).toBe(true);
+  });
+
+  it('loads thumbnails in order, displays only the current target, and reuses previous frames', async () => {
+    const { controls, video, playing } = setup();
+    playing(false);
+    const image = new Blob(['jpeg'], { type: 'image/jpeg' });
+    let finishFirst: (image: Blob) => void = () => {};
+    const previewFrame = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<Blob>(resolve => {
+            finishFirst = resolve;
+          })
+      )
+      .mockResolvedValueOnce(image)
+      .mockResolvedValueOnce(undefined);
+    Object.defineProperty(video, 'previewFrame', { value: previewFrame });
+    vi.stubGlobal(
+      'URL',
+      class extends URL {
+        static createObjectURL = vi
+          .fn()
+          .mockReturnValueOnce('blob:first')
+          .mockReturnValueOnce('blob:second');
+        static revokeObjectURL = vi.fn();
+      }
+    );
+    const timeline = controls.querySelector<HTMLElement>('.video-timeline')!;
+    vi.spyOn(timeline, 'getBoundingClientRect').mockReturnValue({
+      left: 100,
+      width: 200,
+    } as DOMRect);
+    const move = (clientX: number) =>
+      fireEvent(timeline, new MouseEvent('pointermove', { bubbles: true, clientX }));
+    const delay = () =>
+      act(async () => {
+        await vi.advanceTimersByTimeAsync(200);
+      });
+    const src = () => timeline.querySelector('img')?.getAttribute('src');
+    const spinner = () => timeline.querySelector('.video-timeline-loading .playback-spinner');
+
+    move(200);
+    expect(timeline.querySelector('.video-timeline-time')?.textContent).toBe('11:40');
+    expect(spinner()).not.toBeNull();
+    await delay();
+    expect(previewFrame).toHaveBeenCalledWith(700);
+
+    move(250);
+    await delay();
+    expect(previewFrame).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      finishFirst(image);
+      await vi.advanceTimersByTimeAsync(200);
+    });
+    expect(previewFrame).toHaveBeenLastCalledWith(1050);
+    expect(src()).toBe('blob:second');
+    expect(spinner()).toBeNull();
+    expect(video.currentTime).toBe(42);
+
+    move(200);
+    expect(src()).toBe('blob:first');
+    await delay();
+    expect(previewFrame).toHaveBeenCalledTimes(2);
+    move(275);
+    expect(spinner()).not.toBeNull();
+    await delay();
+    expect(src()).toBeUndefined();
+    expect(spinner()).toBeNull();
+    expect(timeline.querySelector('.video-timeline-time')?.textContent).toBe('20:25');
+    fireEvent.pointerLeave(timeline);
+    expect(timeline.querySelector('.video-timeline-preview')).toBeNull();
+  });
+
   it('does not pin controls after a pointer click even when the browser reports focus-visible', () => {
     const { controls, playing } = setup();
     playing(false);
@@ -128,9 +225,9 @@ describe('custom playback controls', () => {
 
     const speed = screen.getByRole('combobox', {
       name: 'Скорость воспроизведения',
-    }) as HTMLSelectElement;
+    }) as HTMLButtonElement;
 
-    fireEvent.change(speed, { target: { value: '2' } });
+    chooseOption(speed, '2×');
     expect(video.playbackRate).toBe(2);
     expect(video.defaultPlaybackRate).toBe(2);
     for (const rate of [0, 1, 2]) {
@@ -139,6 +236,12 @@ describe('custom playback controls', () => {
       fireEvent.timeUpdate(video);
       expect(speed.value).toBe('2');
     }
+    fireEvent.click(speed);
+    fireEvent.keyDown(speed, { key: 'Escape' });
+    expect(screen.queryByRole('listbox')).toBeNull();
+    expect(screen.getByRole('dialog', { name: 'Настройки плеера' })).toBeTruthy();
+    fireEvent.keyDown(speed, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'Настройки плеера' })).toBeNull();
   });
 
   it('waits for a single mouse click and cancels pending clicks when the player unmounts', () => {

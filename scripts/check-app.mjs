@@ -421,14 +421,20 @@ try {
       await page.waitForFunction(
         () => document.documentElement.dataset.desktopFullscreen === 'true'
       );
+      const fullscreenRoute = await page.evaluate(() => location.hash);
       await page.keyboard.press('Escape');
-      assert.equal(
-        await page.evaluate(() => document.documentElement.dataset.desktopFullscreen),
-        'true'
+      await page.waitForFunction(
+        () => document.documentElement.dataset.desktopFullscreen === 'false'
+      );
+      assert.equal(await page.evaluate(() => location.hash), fullscreenRoute);
+      await page.keyboard.press('f');
+      await page.waitForFunction(
+        () => document.documentElement.dataset.desktopFullscreen === 'true'
       );
       await nav('Все аниме');
       await page.locator('.anime-card:visible').first().waitFor();
-      await page.getByRole('combobox', { name: 'Сортировка' }).selectOption('top');
+      await page.getByRole('combobox', { name: 'Сортировка' }).click();
+      await page.getByRole('option', { name: 'Топ YummyAnime', exact: true }).click();
       await page.waitForFunction(() => location.hash.includes('sort=top'));
       await page.locator('.anime-card:visible').first().waitFor();
       await page.getByRole('button', { name: 'Фильтры', exact: true }).click();
@@ -681,16 +687,18 @@ try {
       await wake();
       await page.getByRole('button', { name: 'Настройки плеера', exact: true }).click();
 
+      const qualityPicker = page.getByRole('combobox', { name: 'Качество видео' });
+      await qualityPicker.click();
       const qualities = await page
-        .getByRole('combobox', { name: 'Качество видео' })
-        .locator('option')
-        .evaluateAll(items => items.map(e => Number(e.value)));
+        .getByRole('listbox', { name: 'Качество видео' })
+        .getByRole('option')
+        .evaluateAll(items => items.filter(item => !item.disabled).map(item => Number(item.value)));
       const quality = qualities.filter(q => q > 360 && q <= 720).at(-1);
 
       if (quality) {
         const height = await page.locator('video[data-active=true]').evaluate(v => v.videoHeight);
 
-        await page.getByRole('combobox', { name: 'Качество видео' }).selectOption(String(quality));
+        await page.getByRole('option', { name: `${quality}p`, exact: true }).click();
         await page.getByRole('button', { name: 'Закрыть настройки', exact: true }).click();
         await page.waitForFunction(
           height => {

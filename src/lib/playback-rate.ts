@@ -1,23 +1,24 @@
+import type { PlaybackMedia } from '~/lib/playback-media';
 // Keep the user's speed separate from Shaka's effective rate (0 while buffering)
 // and the temporary correction used by the muted quality-switch decoder.
 type RateEngine = { trickPlay: (rate: number, useTrickPlayTrack?: boolean) => void };
 
 const rates = new WeakMap<
-  HTMLMediaElement,
+  PlaybackMedia,
   { rate: number; temporary?: number; engine?: RateEngine }
 >();
 export const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 
 export const PLAYBACK_RATE_EVENT = 'yumiwatch:playback-rate';
 
-export function selectedPlaybackRate(video: HTMLMediaElement) {
+export function selectedPlaybackRate(video: PlaybackMedia) {
   return (
     rates.get(video)?.rate ??
     (video.playbackRate > 0 ? video.playbackRate : video.defaultPlaybackRate || 1)
   );
 }
 
-function apply(video: HTMLMediaElement) {
+function apply(video: PlaybackMedia) {
   const state = rates.get(video)!;
   const rate = state.temporary ?? state.rate;
 
@@ -25,7 +26,7 @@ function apply(video: HTMLMediaElement) {
   else if (video.playbackRate !== rate) video.playbackRate = rate;
 }
 
-export function setPlaybackRate(video: HTMLMediaElement, rate: number) {
+export function setPlaybackRate(video: PlaybackMedia, rate: number) {
   if (!Number.isFinite(rate) || rate < 0.5 || rate > 2) return;
 
   const state = rates.get(video) ?? { rate };
@@ -38,7 +39,7 @@ export function setPlaybackRate(video: HTMLMediaElement, rate: number) {
   video.dispatchEvent(new Event(PLAYBACK_RATE_EVENT));
 }
 
-export function setTemporaryPlaybackRate(video: HTMLMediaElement, rate: number) {
+export function setTemporaryPlaybackRate(video: PlaybackMedia, rate: number) {
   const state = rates.get(video) ?? { rate: selectedPlaybackRate(video) };
 
   if (state.temporary === rate) return;
@@ -47,7 +48,7 @@ export function setTemporaryPlaybackRate(video: HTMLMediaElement, rate: number) 
   apply(video);
 }
 
-export function bindPlaybackRate(video: HTMLMediaElement, engine?: RateEngine) {
+export function bindPlaybackRate(video: PlaybackMedia, engine?: RateEngine) {
   // Native playback needs no adapter until the user explicitly selects a rate.
   if (!engine && !rates.has(video)) return () => {};
 

@@ -1,35 +1,31 @@
 import { AppLink } from '~/ui/AppLink';
-import type { FunctionalComponent as FC } from 'preact';
+import type { FunctionalComponent as FC, RefObject } from 'preact';
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 
 import { CURRENT_SEASONS } from '~/data/catalog';
-import { animeList, imageUrl, peekAnimeList, plainText } from '~/lib/api';
+import { animeList, peekAnimeList, plainText } from '~/lib/api';
 import { animeSiteUrl } from '~/lib/content-links';
 import { navigateGallery } from '~/lib/gallery-navigation';
 import { useLibrary, useResource } from '~/lib/hooks';
 import { formatTime } from '~/lib/player';
-import type { Anime } from '~/lib/types';
+import type { PlaybackMedia } from '~/lib/playback-media';
+import type { Anime, WatchEntry } from '~/lib/types';
 import { cardMenuEvents } from '~/lib/card-context';
+import { usePictureInPictureCard } from '~/hooks/usePictureInPictureCard';
 import { removeContinue } from '~/lib/library';
 import { notify } from '~/lib/notifications';
 
+import { WatchPreview } from './WatchPreview';
 import { AnimeCard } from './AnimeCard';
 import { FavoriteButton } from './FavoriteButton';
 import { GalleryShelf } from './GalleryShelf';
 import { Poster } from './Poster';
-import {
-  ArtworkImage,
-  Button,
-  ButtonLink,
-  CachedNotice,
-  CardSkeleton,
-  ErrorState,
-  Icon,
-} from '~/ui';
+import { Button, ButtonLink, CachedNotice, CardSkeleton, ErrorState, Icon } from '~/ui';
 
-export type TGalleryProps = { active?: boolean };
+type LiveWatch = { path: string; media: RefObject<PlaybackMedia> };
+export type TGalleryProps = { active?: boolean; liveWatch?: LiveWatch };
 
-export const Gallery: FC<TGalleryProps> = ({ active = true }) => {
+export const Gallery: FC<TGalleryProps> = ({ active = true, liveWatch }) => {
   const now = new Date(),
     seasonIndex = Math.floor(now.getMonth() / 3),
     season = CURRENT_SEASONS[seasonIndex].value;
@@ -76,6 +72,7 @@ export const Gallery: FC<TGalleryProps> = ({ active = true }) => {
   const focusedAnime = useRef<number>();
   const library = useLibrary();
   const [feature, setFeature] = useState<Anime>();
+  const liveAnime = Number(liveWatch?.path.split('?')[0]?.split('/')[2]);
 
   useEffect(() => {
     const returning = active && !wasActive.current;
@@ -214,66 +211,47 @@ export const Gallery: FC<TGalleryProps> = ({ active = true }) => {
           href="#/profile?tab=history"
           count={library.history.length}
         >
-          {library.history.slice(0, 12).map(entry => (
-            <article
-              class="gallery-continue-card"
-              data-gallery-item
-              key={entry.anime.anime_id}
-              {...cardMenuEvents(entry.anime)}
-            >
-              <AppLink
-                class="gallery-continue"
-                data-gallery-link
-                href={`#/anime/${entry.anime.anime_id}?view=watch&play=1`}
-                publicHref={animeSiteUrl(entry.anime)}
+          {library.history.slice(0, 12).map(entry => {
+            const live = entry.anime.anime_id === liveAnime ? liveWatch : undefined;
+            return (
+              <article
+                class="gallery-continue-card"
+                data-gallery-item
+                key={entry.anime.anime_id}
+                {...cardMenuEvents(entry.anime)}
               >
-                <div class="continue-image">
-                  <ArtworkImage
-                    src={imageUrl(
-                      entry.preview || entry.anime.poster?.big || entry.anime.poster?.medium
-                    )}
-                    alt=""
-                    tone={entry.anime.anime_id}
-                  />
-                  <span class="continue-series">Серия {entry.episode}</span>
-                  <span class="continue-time">
-                    {formatTime(entry.position)}
-                    {entry.duration ? ` / ${formatTime(entry.duration)}` : ''}
-                  </span>
-                  <span class="continue-play">
-                    <Icon name="play" size={22} />
-                  </span>
-                  {entry.duration ? (
-                    <span
-                      class="continue-progress"
-                      style={{
-                        width: `${Math.min(100, ((entry.position || 0) / entry.duration) * 100)}%`,
-                      }}
-                    />
-                  ) : null}
-                </div>
-                <h3>{entry.anime.title}</h3>
-              </AppLink>
-              <button
-                type="button"
-                class="continue-remove"
-                aria-label={`Убрать «${entry.anime.title}» из «Продолжить просмотр»`}
-                title="Убрать из «Продолжить просмотр»"
-                onClick={event => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  try {
-                    removeContinue(entry.anime.anime_id);
-                    notify('Убрано из «Продолжить просмотр»');
-                  } catch (error) {
-                    notify((error as Error).message);
+                <AppLink
+                  class="gallery-continue"
+                  data-gallery-link
+                  href={
+                    live ? '#' + live.path : `#/anime/${entry.anime.anime_id}?view=watch&play=1`
                   }
-                }}
-              >
-                <Icon name="close" size={18} />
-              </button>
-            </article>
-          ))}
+                  publicHref={animeSiteUrl(entry.anime)}
+                >
+                  <ContinuePreview entry={entry} live={live} />
+                  <h3>{entry.anime.title}</h3>
+                </AppLink>
+                <button
+                  type="button"
+                  class="continue-remove"
+                  aria-label={`Убрать «${entry.anime.title}» из «Продолжить просмотр»`}
+                  title="Убрать из «Продолжить просмотр»"
+                  onClick={event => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    try {
+                      removeContinue(entry.anime.anime_id);
+                      notify('Убрано из «Продолжить просмотр»');
+                    } catch (error) {
+                      notify((error as Error).message);
+                    }
+                  }}
+                >
+                  <Icon name="close" size={18} />
+                </button>
+              </article>
+            );
+          })}
         </GalleryShelf>
       )}
       {shelf(
@@ -287,3 +265,29 @@ export const Gallery: FC<TGalleryProps> = ({ active = true }) => {
     </section>
   );
 };
+
+function ContinuePreview({ entry, live }: { entry: WatchEntry; live?: LiveWatch }) {
+  const [canvas, setCanvas] = useState<HTMLCanvasElement | null>(null);
+  const time = usePictureInPictureCard(canvas, live?.path, live?.media);
+  const { position, duration } = time ?? entry;
+  return (
+    <div class="continue-image">
+      <WatchPreview entry={entry} />
+      {live && <canvas ref={setCanvas} class="continue-video" aria-hidden="true" hidden />}
+      <span class="continue-series">Серия {entry.episode}</span>
+      <span class="continue-time">
+        {formatTime(position)}
+        {duration ? ` / ${formatTime(duration)}` : ''}
+      </span>
+      <span class="continue-play">
+        <Icon name="play" size={22} />
+      </span>
+      {duration ? (
+        <span
+          class="continue-progress"
+          style={{ width: `${Math.min(100, ((position || 0) / duration) * 100)}%` }}
+        />
+      ) : null}
+    </div>
+  );
+}

@@ -24,6 +24,7 @@ export type DiscordActivity = {
 const statusText = {
   sourcechange: 'Загрузка',
   buffering: 'Загрузка',
+  loadedmetadata: 'Загрузка',
   offline: 'Нет сети',
   pause: 'На паузе',
 };
@@ -63,8 +64,12 @@ export class DiscordPresence {
       Number.isFinite(playback.playbackRate) && playback.playbackRate! > 0
         ? playback.playbackRate!
         : 1;
+    const dubbing = this.video.data.dubbing
+      .trim()
+      .replace(/^озвучка\s+/iu, '')
+      .replace(/\s+/gu, ' ');
     const activity: DiscordActivity = {
-      details: this.anime.title,
+      details: dubbing ? `${this.anime.title} (${dubbing})` : this.anime.title,
       state: `Серия ${this.video.number} · ${this.status}`,
       animeUrl: `https://ru.yummyani.me/catalog/item/${encodeURIComponent(this.anime.anime_url)}`,
       largeImage: this.poster || undefined,
@@ -111,7 +116,12 @@ export class DiscordPresence {
   }
 
   update(next: PresencePlayback) {
-    if (next.playing || next.reason === 'sourcechange' || next.reason === 'buffering') {
+    if (
+      next.playing ||
+      next.reason === 'sourcechange' ||
+      next.reason === 'buffering' ||
+      next.reason === 'loadedmetadata'
+    ) {
       this.started = true;
       this.pausedAt = undefined;
     } else if (this.started && this.pausedAt === undefined) {

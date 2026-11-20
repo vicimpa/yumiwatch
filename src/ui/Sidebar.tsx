@@ -74,6 +74,13 @@ export const Sidebar: FC<TSidebarProps> = ({
     const keyboard = (event: KeyboardEvent) => {
       if (document.querySelector('dialog[open],.video-settings,[data-card-context-menu]')) return;
       if (
+        (event.key === 'Escape' || event.key === 'Backspace') &&
+        event.target instanceof HTMLElement &&
+        event.target.closest('[role=combobox][aria-expanded=true]')
+      )
+        return;
+      if (event.key === 'Escape' && element.current?.querySelector('.app-update-popover')) return;
+      if (
         event.key === 'Escape' &&
         event.target instanceof HTMLElement &&
         event.target.closest('.native-auto-action')

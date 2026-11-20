@@ -85,6 +85,20 @@
     color: var(--accent);
     background: color-mix(in srgb, var(--accent) 9%, transparent);
   }
+  .phone-nav > .media-menu-trigger[data-update-available] {
+    position: relative;
+    inset: auto;
+  }
+  .phone-nav > .media-menu-trigger[data-update-available]::after {
+    position: absolute;
+    top: calc(50% - 17px);
+    left: calc(50% + 9px);
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    content: '';
+  }
   .media-workspace {
     padding-left: 0;
     left: 0;
@@ -162,12 +176,11 @@
   .catalog-gallery .results-heading {
     flex-wrap: wrap;
   }
-  .catalog-gallery .sort-label select,
-  .about-episodes-voice select,
-  .media-sidebar .discussion-header .select-control > select,
+  .catalog-gallery .sort-label .settings-dropdown,
+  .about-episodes-voice .settings-dropdown,
+  .media-sidebar .discussion-header .settings-dropdown,
   input:not([type='range']):not([type='checkbox']):not([type='radio']),
-  textarea,
-  select {
+  textarea {
     font-size: 16px;
   }
   .catalog-view-tools .icon-button,

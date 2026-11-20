@@ -3,6 +3,7 @@ import type { FunctionalComponent as FC, JSX } from 'preact';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 
 import { useDiscordPresence } from '~/hooks/useDiscordPresence';
+import { usePlaybackWakeLock } from '~/hooks/usePlaybackWakeLock';
 import { useAnimeDiscordContext } from '~/hooks/useAnimeDiscordContext';
 import { useFullscreen } from '~/hooks/useFullscreen';
 import { useSourcePlayback } from '~/hooks/useSourcePlayback';
@@ -29,6 +30,7 @@ import {
   Button,
   ButtonLink,
   CachedNotice,
+  Dropdown,
   Empty,
   EpisodeCaption,
   EpisodePreview,
@@ -39,7 +41,6 @@ import {
   OptionButton,
   SEARCH_INPUT_PROPS,
   SearchField,
-  Select,
   Sheet,
   Sidebar,
   Toggle,
@@ -170,11 +171,9 @@ export const SourcePlayer: FC<TPlayerProps> = ({
     if (fullscreenError) notify(fullscreenError);
   }, [fullscreenError]);
 
-  useDiscordPresence(
-    anime,
-    current,
-    presence?.videoId === current?.video_id ? presence : undefined
-  );
+  const playback = presence?.videoId === current?.video_id ? presence : undefined;
+  useDiscordPresence(anime, current, playback);
+  usePlaybackWakeLock(playback?.playing === true);
 
   useAnimeDiscordContext(
     anime,
@@ -186,7 +185,7 @@ export const SourcePlayer: FC<TPlayerProps> = ({
           ? 'Выбирает серию'
           : panel === 'comments'
             ? 'Читает комментарии'
-            : resource.loading
+            : !current && !resource.error && (resource.loading || groups.size > 0)
               ? 'Смотрит · Загрузка'
               : undefined,
     episodesOpen ? episodeQuery : sourceQuery,
@@ -323,10 +322,8 @@ export const SourcePlayer: FC<TPlayerProps> = ({
   }, []);
 
   const changeVoice = useCallback(
-    (event: JSX.TargetedEvent<HTMLSelectElement>) => {
-      const match = [...groups.values()].find(
-        group => group.videos[0].data.dubbing === event.currentTarget.value
-      );
+    (value: string) => {
+      const match = [...groups.values()].find(group => group.videos[0].data.dubbing === value);
 
       if (match)
         choose(match.videos.find(video => video.number === current.number) || match.videos[0]);
@@ -530,13 +527,12 @@ export const SourcePlayer: FC<TPlayerProps> = ({
       ) : (
         <div class="watch-selectors">
           <Field label="Озвучка">
-            <Select value={current.data.dubbing} onChange={changeVoice}>
-              {dubbings.map(dubbing => (
-                <option key={dubbing} value={dubbing}>
-                  {dubbing}
-                </option>
-              ))}
-            </Select>
+            <Dropdown
+              aria-label="Озвучка"
+              value={current.data.dubbing}
+              onChange={changeVoice}
+              options={dubbings.map(dubbing => ({ value: dubbing, label: dubbing }))}
+            />
           </Field>
           <PlayerSelect
             videos={resource.value!.data}

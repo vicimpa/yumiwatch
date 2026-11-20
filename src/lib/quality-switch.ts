@@ -1,9 +1,10 @@
+import type { PlaybackMedia } from '~/lib/playback-media';
 import { selectedPlaybackRate, setTemporaryPlaybackRate } from './playback-rate';
 
 // Decode the replacement silently while the live video keeps playing.
 export function warmQualitySwitch(
-  live: HTMLVideoElement,
-  next: HTMLVideoElement,
+  live: PlaybackMedia,
+  next: PlaybackMedia,
   commit: () => void,
   failed: () => void
 ) {
