@@ -2,6 +2,7 @@ import type { FunctionalComponent as FC, JSX } from 'preact';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 
 import type { PlaybackClosePositions, PlaybackMedia } from '~/lib/playback-media';
+import { setPictureInPictureUnavailable } from '~/lib/native-playback';
 import { mergeSkips } from '../../shared/skips.mjs';
 import { useDiscordPresence } from '~/hooks/useDiscordPresence';
 import { useAnimeDiscordContext } from '~/hooks/useAnimeDiscordContext';
@@ -31,6 +32,7 @@ import { useWatchFrame } from '~/hooks/useWatchFrame';
 import { watchFrameKey } from '~/lib/watch-frames';
 
 import { PlaybackLoader } from './PlaybackLoader';
+import { PictureInPictureButton } from './PictureInPictureButton';
 import { AutoPictureInPictureSetting, AutoSkipSettings } from './PlaybackSettings';
 import type { TPlayerProps } from './Player.types';
 import { EpisodeOptions, SourceOptions, VoiceOptions } from './PlayerOptions';
@@ -80,6 +82,7 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
   fullscreenContainer,
   background = false,
   watchMedia,
+  pip,
   preferredVoice,
   preferredEpisode,
   startPlaying,
@@ -644,18 +647,59 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
       <button onClick={retrySync}>Сохранено локально · повторить синхронизацию</button>
     ) : null;
 
-  if (session && !session.verified)
-    return <p class="account-loading">Проверяем аккаунт для восстановления просмотра…</p>;
-  if (resource.loading || (all.length > 0 && !current))
-    return loadingImage ? (
-      <div class="player-frame player-skeleton">
-        <PlaybackLoader label="Загружаем серии…" preview={loadingImage} />
-      </div>
-    ) : (
-      <div class="player-skeleton skeleton" role="status" aria-label="Загрузка серий" />
+  const checkingAccount = !!session && !session.verified;
+  const loadingEpisodes = resource.loading || (all.length > 0 && !current);
+  const hasSurface = !!(
+    selected &&
+    current &&
+    watch &&
+    !checkingAccount &&
+    !loadingEpisodes &&
+    !resource.error &&
+    all.length
+  );
+  const unavailable =
+    !!resource.error || showStreamError || (!checkingAccount && !loadingEpisodes && !all.length);
+  useEffect(() => {
+    if (pip?.active && !hasSurface)
+      void setPictureInPictureUnavailable(unavailable).catch(() => {});
+  }, [pip?.active, hasSurface, unavailable]);
+  const pipButton = pip && !background && <PictureInPictureButton pip={pip} floating />;
+
+  if (checkingAccount)
+    return (
+      <>
+        <p class="account-loading">Проверяем аккаунт для восстановления просмотра…</p>
+        {pipButton}
+      </>
     );
-  if (resource.error) return <ErrorState error={resource.error} retry={resource.retry} />;
-  if (!all.length) return <Empty title="Серии пока не появились">Попробуй вернуться позже.</Empty>;
+  if (loadingEpisodes)
+    return (
+      <>
+        {loadingImage ? (
+          <div class="player-frame player-skeleton">
+            <PlaybackLoader label="Загружаем серии…" preview={loadingImage} />
+          </div>
+        ) : (
+          <div class="player-skeleton skeleton" role="status" aria-label="Загрузка серий" />
+        )}
+        {pipButton}
+      </>
+    );
+  if (resource.error)
+    return (
+      <>
+        <ErrorState error={resource.error} retry={resource.retry} />
+        {pipButton}
+      </>
+    );
+  if (!all.length)
+    return (
+      <>
+        <Empty title="Серии пока не появились">Попробуй вернуться позже.</Empty>
+        {pipButton}
+      </>
+    );
 
   return (
     <section
@@ -690,6 +734,7 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
               autoplay={recoveryAutoplay.current ?? (autoplay.current || resumeAutoplay)}
               media={media}
               background={background}
+              pip={pip}
               title={`${anime.title} — серия ${current.number}`}
               poster={poster}
               loadingImage={loadingImage}
@@ -756,6 +801,7 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
               </PlaybackLoader>
             </div>
           )}
+          {!hasSurface && pipButton}
           {!selected && onBack && (
             <button class="native-state-back" onClick={onBack}>
               <Icon name="back" size={21} />

@@ -7,6 +7,10 @@ import { animeDetail, animeVideos, peekAnimeDetail, peekAnimeVideos } from '~/li
 import { exitPlayerFullscreen } from '~/lib/desktop';
 import { useLibrary, useResource, useSession } from '~/lib/hooks';
 import type { PlaybackMedia } from '~/lib/playback-media';
+import {
+  setPictureInPictureUnavailable,
+  type PictureInPictureControls,
+} from '~/lib/native-playback';
 import { readPlaybackRecovery } from '~/lib/playback-recovery';
 import { formatTime, latestWatchEntry } from '~/lib/player';
 import type { WatchEntry } from '~/lib/types';
@@ -17,6 +21,7 @@ import { Comments } from './Comments';
 import { FavoriteButton } from './FavoriteButton';
 import { AnimeListButton } from './Library';
 import { Player } from './Player';
+import { PictureInPictureButton } from './PictureInPictureButton';
 import { type MediaPanel } from './Player.types';
 import { Poster } from './Poster';
 import { Button, CachedNotice, ErrorState, Icon, Sidebar } from '~/ui';
@@ -27,6 +32,7 @@ export type TDetailProps = {
   returnTo?: string;
   background?: boolean;
   watchMedia?: RefObject<PlaybackMedia>;
+  pip?: PictureInPictureControls;
 };
 
 export const Detail: FC<TDetailProps> = ({
@@ -35,6 +41,7 @@ export const Detail: FC<TDetailProps> = ({
   returnTo = '/',
   background = false,
   watchMedia,
+  pip,
 }) => {
   const params = new URLSearchParams(query);
   const library = useLibrary(),
@@ -61,6 +68,11 @@ export const Detail: FC<TDetailProps> = ({
   const [panel, setPanel] = useState<MediaPanel>(() =>
     params.get('view') === 'comments' || params.get('panel') === 'comments' ? 'comments' : null
   );
+  const loadingPlayer = watching && (resource.loading || !!resource.error || !anime);
+  useEffect(() => {
+    if (pip?.active && loadingPlayer)
+      void setPictureInPictureUnavailable(!!resource.error).catch(() => {});
+  }, [pip?.active, loadingPlayer, !!resource.error]);
 
   useAnimeDiscordContext(
     anime,
@@ -175,6 +187,7 @@ export const Detail: FC<TDetailProps> = ({
 
   return (
     <section class={`anime-detail-screen ${watching ? 'is-watching' : 'is-about'}`}>
+      {loadingPlayer && !background && pip && <PictureInPictureButton pip={pip} floating />}
       <AppLink
         draggable={false}
         class={watching ? 'watch-state-back' : 'back-link'}
@@ -283,6 +296,7 @@ export const Detail: FC<TDetailProps> = ({
                     onCheckpoint={checkpointPlayback}
                     background={background}
                     watchMedia={watchMedia}
+                    pip={pip}
                   />
                 ) : (
                   <AnimeAbout

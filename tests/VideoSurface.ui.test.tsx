@@ -107,14 +107,9 @@ it('runs the macOS controls through the native surface without mounting HTML vid
     position: 9,
     duration: 90,
     buffered: 24,
-    pictureInPicture: false,
   };
   const invoke = vi.fn(async (command, args) => {
-    if (command === 'native_video') {
-      if (args.request.action === 'pictureInPicture')
-        snapshot.pictureInPicture = args.request.enabled;
-      if (['poll', 'pictureInPicture'].includes(args.request.action)) return { ...snapshot };
-    }
+    if (command === 'native_video' && args.request.action === 'poll') return { ...snapshot };
     return null;
   });
   vi.stubGlobal('isTauri', true);
@@ -140,21 +135,11 @@ it('runs the macOS controls through the native surface without mounting HTML vid
     },
     undefined
   );
-  const pip = screen.getByRole('button', { name: 'Картинка в картинке' });
-  const togglePip = (button: HTMLElement) =>
-    act(async () => {
-      fireEvent.click(button);
-      await vi.advanceTimersByTimeAsync(100);
-    });
-  await togglePip(pip);
-  expect(pip.getAttribute('aria-pressed')).toBe('true');
-  expect(screen.getByRole('button', { name: 'Вернуть видео в плеер' })).toBeTruthy();
   expect(invoke).toHaveBeenCalledWith(
     'native_video',
-    { request: expect.objectContaining({ action: 'pictureInPicture', enabled: true }) },
+    { request: expect.objectContaining({ action: 'poll', active: true }) },
     undefined
   );
-
   fireEvent.click(screen.getByRole('button', { name: 'Воспроизвести' }));
   fireEvent.input(screen.getByRole('slider', { name: 'Позиция воспроизведения' }), {
     target: { value: '24' },
@@ -167,21 +152,6 @@ it('runs the macOS controls through the native surface without mounting HTML vid
     {
       request: expect.objectContaining({ action: 'poll', controls: { pause: false, seconds: 24 } }),
     },
-    undefined
-  );
-  // Clicking the native close button docks the video without a browser command.
-  snapshot.pictureInPicture = false;
-  await act(async () => {
-    await vi.advanceTimersByTimeAsync(100);
-  });
-  expect(pip.getAttribute('aria-pressed')).toBe('false');
-  expect(screen.queryByRole('button', { name: 'Вернуть видео в плеер' })).toBeNull();
-  await togglePip(pip);
-  await togglePip(screen.getByRole('button', { name: 'Вернуть видео в плеер' }));
-  expect(pip.getAttribute('aria-pressed')).toBe('false');
-  expect(invoke).toHaveBeenCalledWith(
-    'native_video',
-    { request: expect.objectContaining({ action: 'pictureInPicture', enabled: false }) },
     undefined
   );
   expect(invoke.mock.calls.filter(([, args]) => args.request.action === 'open')).toHaveLength(1);

@@ -7,6 +7,13 @@ export const usesNativePlayback = () =>
 
 export const RETURN_TO_PLAYER_EVENT = 'yumiwatch:return-to-player';
 
+export type PictureInPictureControls = {
+  active: boolean;
+  pending: boolean;
+  error: string;
+  toggle: () => void;
+};
+
 type Geometry = { x: number; y: number; width: number; height: number };
 type Controls = {
   pause?: boolean;
@@ -25,11 +32,38 @@ type Snapshot = {
   position: number;
   duration: number;
   buffered: number;
-  pictureInPicture: boolean;
 };
 
 const invoke = <T>(request: Record<string, unknown>) =>
   desktopInvoke<T>('native_video', { request });
+
+export const setNativePictureInPicture = (enabled: boolean) =>
+  invoke<void>({ action: 'pictureInPicture', enabled });
+
+export const setPictureInPictureUnavailable = (unavailable: boolean) =>
+  invoke<void>({ action: 'pictureInPicture', unavailable });
+
+export const setNativePictureInPictureCard = (visible: boolean) =>
+  invoke<void>({ action: 'pictureInPictureCard', visible });
+
+export async function readNativePictureInPictureCard() {
+  const response = await desktopInvoke<ArrayBuffer | number[]>('native_video_card_frame', {});
+  const bytes = Array.isArray(response) ? Uint8ClampedArray.from(response).buffer : response;
+  if (!bytes || bytes.byteLength < 4) return;
+
+  const header = new DataView(bytes);
+  const width = header.getUint16(0, true);
+  const height = header.getUint16(2, true);
+  if (!width || !height || bytes.byteLength !== 4 + width * height * 4) return;
+
+  return new ImageData(new Uint8ClampedArray(bytes, 4), width, height);
+}
+
+function frameBlob(response: ArrayBuffer | number[] | undefined) {
+  if (!response) return;
+  const bytes = Array.isArray(response) ? Uint8Array.from(response) : response;
+  if (bytes.byteLength) return new Blob([bytes], { type: 'image/jpeg' });
+}
 
 let nextId = 0;
 
@@ -40,7 +74,6 @@ export class NativePlayback extends EventTarget implements PlaybackMedia {
   seeking = false;
   paused = true;
   ended = false;
-  pictureInPicture = false;
   duration = NaN;
   defaultPlaybackRate = 1;
   error = null as MediaError | null;
@@ -57,10 +90,9 @@ export class NativePlayback extends EventTarget implements PlaybackMedia {
   private closing = false;
   private opened = false;
   private active = false;
+  private lastActive?: boolean;
   private lastVisible = false;
   private polling = false;
-  private pictureInPictureRevision = 0;
-  private pendingPictureInPicture?: { enabled: boolean; task: Promise<void> };
   private element?: HTMLElement;
 
   constructor(url: string) {
@@ -152,44 +184,6 @@ export class NativePlayback extends EventTarget implements PlaybackMedia {
     this.updatePaused(true);
   }
 
-  private updatePictureInPicture(enabled: boolean) {
-    if (typeof enabled !== 'boolean' || this.pictureInPicture === enabled) return;
-    this.pictureInPicture = enabled;
-    this.emit('yumiwatch:picture-in-picture');
-  }
-
-  get pictureInPictureRequested() {
-    return this.pendingPictureInPicture?.enabled ?? this.pictureInPicture;
-  }
-
-  async setPictureInPicture(enabled: boolean, previous?: NativePlayback) {
-    if (!this.opened || this.disposed) return;
-    const pending = this.pendingPictureInPicture;
-    if (!previous && pending?.enabled === enabled) return pending.task;
-    const revision = ++this.pictureInPictureRevision;
-    const task = (async () => {
-      if (pending) await pending.task.catch(() => {});
-      if (this.disposed || revision !== this.pictureInPictureRevision) return;
-      const snapshot = await invoke<Snapshot>({
-        action: 'pictureInPicture',
-        id: this.id,
-        enabled,
-        previous: previous?.id,
-      });
-      if (!this.disposed && revision === this.pictureInPictureRevision)
-        this.updatePictureInPicture(snapshot.pictureInPicture);
-    })();
-    this.pendingPictureInPicture = { enabled, task };
-    try {
-      await task;
-    } finally {
-      if (revision === this.pictureInPictureRevision) {
-        this.pictureInPictureRevision++;
-        this.pendingPictureInPicture = undefined;
-      }
-    }
-  }
-
   setActive(active: boolean) {
     if (this.active === active) return;
     this.active = active;
@@ -256,7 +250,6 @@ export class NativePlayback extends EventTarget implements PlaybackMedia {
       (Object.keys(geometry) as (keyof Geometry)[]).some(key => geometry[key] !== previous[key]);
     this.geometry = geometry;
     const controls = this.controls;
-    const pictureInPictureRevision = this.pictureInPictureRevision;
     this.controls = {};
 
     try {
@@ -264,17 +257,17 @@ export class NativePlayback extends EventTarget implements PlaybackMedia {
         action: 'poll',
         id: this.id,
         controls,
+        ...(this.lastActive === active ? {} : { active }),
         ...(moved ? { geometry } : {}),
         ...(this.lastVisible === visible ? {} : { visible }),
       });
       this.lastVisible = visible;
+      this.lastActive = active;
       if (this.disposed || this.closing) return;
       if (snapshot.failure) {
         this.fail();
         return;
       }
-      if (pictureInPictureRevision === this.pictureInPictureRevision)
-        this.updatePictureInPicture(snapshot.pictureInPicture);
 
       const initial = snapshot.ready && this.readyState === 0;
       const buffered = this.buffering;
@@ -348,9 +341,7 @@ export class NativePlayback extends EventTarget implements PlaybackMedia {
         close,
         seconds,
       });
-      if (!response) return;
-      const bytes = Array.isArray(response) ? Uint8Array.from(response) : response;
-      if (bytes.byteLength) return new Blob([bytes], { type: 'image/jpeg' });
+      return frameBlob(response);
     } catch {
       if (close) void invoke({ action: 'close', id: this.id }).catch(() => {});
     }

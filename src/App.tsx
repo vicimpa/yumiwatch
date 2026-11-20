@@ -74,7 +74,7 @@ export const App: FC = () => {
     params.get('view') === 'watch' || params.has('watch') ? 'watch' : 'anime-about';
   const watching = detailRoute && detailView === 'watch';
   const nativeWatchPath = watching && usesNativePlayback() ? path : undefined;
-  const { playerPath, media: watchMedia } = usePictureInPicturePage(nativeWatchPath);
+  const { playerPath, media: watchMedia, pip } = usePictureInPicturePage(nativeWatchPath);
   const [playerRoute, playerQuery] = playerPath?.split('?') || [];
   const sidebarHistory =
     isDesktopWindow() &&
@@ -159,7 +159,12 @@ export const App: FC = () => {
           <div class="media-scroll-content">
             {retainedHome.current && (
               <div class="route-panel" hidden={route !== '/'}>
-                <Home active={route === '/'} />
+                <Home
+                  active={route === '/'}
+                  liveWatchPath={
+                    route === '/' && pip.active && !nativeWatchPath ? playerPath : undefined
+                  }
+                />
               </div>
             )}
             {retainedCatalog.current !== undefined && (
@@ -189,6 +194,7 @@ export const App: FC = () => {
                   returnTo={browseReturn.current}
                   background={!nativeWatchPath}
                   watchMedia={watchMedia}
+                  pip={pip}
                 />
               </div>
             )}

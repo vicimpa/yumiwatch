@@ -7,7 +7,12 @@ import {
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 
 import { activeSkip, mergeSkips, metadataSkips, type SkipMarkers } from '../../shared/skips.mjs';
-import { NativePlayback, RETURN_TO_PLAYER_EVENT, usesNativePlayback } from '~/lib/native-playback';
+import {
+  NativePlayback,
+  setPictureInPictureUnavailable,
+  usesNativePlayback,
+  type PictureInPictureControls,
+} from '~/lib/native-playback';
 import type { PlaybackMedia } from '~/lib/playback-media';
 import { mediaAtEnd } from '~/lib/media-state';
 import { selectedPlaybackRate, setPlaybackRate } from '~/lib/playback-rate';
@@ -19,6 +24,7 @@ import type { Stream, StreamCaption } from '~/lib/streams';
 import { AutoActionCountdown } from './AutoActionCountdown';
 import { NativeStreamMedia } from './NativeStreamMedia';
 import { PlaybackLoader, PlaybackPreview } from './PlaybackLoader';
+import { PictureInPictureButton } from './PictureInPictureButton';
 import { StreamMedia } from './StreamMedia';
 import { VideoControls } from './VideoControls';
 import { Button } from '~/ui';
@@ -36,6 +42,7 @@ export type TVideoSurfaceProps = {
   start: number;
   autoplay: boolean;
   background?: boolean;
+  pip?: PictureInPictureControls;
   media: RefObject<PlaybackMedia>;
   onUpdate: (event: MediaUpdate, stream: Stream) => void;
   onEnded?: () => void;
@@ -74,6 +81,7 @@ export const VideoSurface: FC<TVideoSurfaceProps> = ({
   start,
   autoplay,
   background = false,
+  pip,
   media,
   onUpdate,
   onEnded,
@@ -242,12 +250,6 @@ export const VideoSurface: FC<TVideoSurfaceProps> = ({
       if (slot === activeSlot.current) {
         const video = videos[slot].current;
         setLoading(false);
-        if (background && video instanceof NativePlayback && !video.pictureInPictureRequested) {
-          // A refreshed source or the next episode still belongs to the floating player.
-          void video.setPictureInPicture(true).catch(() => {
-            if (media.current === video) window.dispatchEvent(new Event(RETURN_TO_PLAYER_EVENT));
-          });
-        }
         if (saved.current.playing) void video?.play().catch(() => {});
 
         return;
@@ -282,27 +284,16 @@ export const VideoSurface: FC<TVideoSurfaceProps> = ({
         setSwitching(false);
         setLayers(slot === 0 ? [target, undefined] : [undefined, target]);
       };
-      stop = warmQualitySwitch(
-        live,
-        next,
-        () => {
-          if (
-            live instanceof NativePlayback &&
-            next instanceof NativePlayback &&
-            live.pictureInPicture
-          ) {
-            void next.setPictureInPicture(true, live).then(() => {
-              if (cancelled && next.pictureInPicture && media.current === live)
-                void live.setPictureInPicture(true, next).catch(() => {});
-              else commit();
-            }, commit);
-          } else commit();
-        },
-        () => layerFailed(slot, new Error('Не удалось подготовить выбранное качество.'))
+      stop = warmQualitySwitch(live, next, commit, () =>
+        layerFailed(slot, new Error('Не удалось подготовить выбранное качество.'))
       );
     },
-    [videos, layers, media, layerFailed, background]
+    [videos, layers, media, layerFailed]
   );
+
+  useEffect(() => {
+    if (pip?.active) void setPictureInPictureUnavailable(!!error).catch(() => {});
+  }, [pip?.active, !!error]);
 
   useEffect(() => {
     if (!switching) return;
@@ -846,6 +837,7 @@ export const VideoSurface: FC<TVideoSurfaceProps> = ({
           position={position}
           loading={loading}
           failed={!!error}
+          pip={pip}
           settings={settings}
           quality={quality}
           streamInfo={streamInfo}
@@ -855,6 +847,7 @@ export const VideoSurface: FC<TVideoSurfaceProps> = ({
           onVisibility={setControlsVisible}
         />
       )}
+      {!background && !!error && pip && <PictureInPictureButton pip={pip} floating />}
       {switching && (
         <span class="video-quality-switch" role="status">
           Готовим {stream.quality}p…

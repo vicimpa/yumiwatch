@@ -3,10 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/preact';
 import { App } from '~/App';
 import { clearSession, saveSession } from '~/lib/session';
-import { resolveStream } from '~/lib/streams';
+import { resolveStream, type StreamResult } from '~/lib/streams';
 import { RETURN_TO_PLAYER_EVENT } from '~/lib/native-playback';
 import { readPlaybackRecovery } from '~/lib/playback-recovery';
 import { savePlaybackSettings } from '~/lib/playback-settings';
+import { recordWatch } from '~/lib/storage';
 import { anime, video } from './fixtures';
 
 vi.mock('~/lib/streams', async original => ({
@@ -56,6 +57,104 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe('macOS picture in picture navigation', () => {
+  it('opens without a decoder and keeps the same window across automatic episodes in the background', async () => {
+    const animeId = anime.anime_id + 5;
+    history.replaceState(null, '', `#/anime/${animeId}?view=watch&episode=1`);
+    localStorage.setItem('yumiwatch:auto-next', 'true');
+    const streamResolvers = new Map<string, () => void>();
+    vi.mocked(resolveStream).mockImplementation(candidates => {
+      const episode = candidates[0];
+      return new Promise<StreamResult>(resolve => {
+        streamResolvers.set(episode.number, () =>
+          resolve({
+            provider: 'Test',
+            videoId: episode.video_id,
+            duration: 90,
+            streams: [
+              { quality: 360, type: 'mp4', url: `https://cdn.example/${episode.number}.mp4` },
+            ],
+          })
+        );
+      });
+    });
+    const requests: {
+      action: string;
+      id?: number;
+      active?: boolean;
+      enabled?: boolean;
+      url?: string;
+    }[] = [];
+    let ended = false;
+    const players = new Map<number, { paused: boolean; episode: number }>();
+    const invoke = vi.fn(async (command, args) => {
+      if (command === 'yummy_request') {
+        const response = args.request.path.includes('/videos')
+          ? [video('1'), video('2')]
+          : { ...anime, anime_id: animeId };
+        return { status: 200, body: JSON.stringify({ response }) };
+      }
+      if (command !== 'native_video') return false;
+      const request = args.request;
+      requests.push(request);
+      if (request.action === 'open') {
+        players.set(request.id, { paused: true, episode: request.url.endsWith('1.mp4') ? 1 : 2 });
+      }
+      if (request.action !== 'poll') return null;
+      const state = players.get(request.id)!;
+      if (request.controls.pause !== undefined) state.paused = request.controls.pause;
+      const complete = ended && state.episode === 1;
+      return {
+        ready: true,
+        paused: state.paused,
+        ended: complete,
+        duration: 90,
+        position: complete ? 90 : 4,
+        buffering: false,
+        seeking: false,
+        failure: false,
+        buffered: 30,
+      };
+    });
+    vi.stubGlobal('isTauri', true);
+    vi.stubGlobal('__TAURI_INTERNALS__', {
+      metadata: { currentWindow: { label: 'main' }, currentWebview: { label: 'main' } },
+      transformCallback: () => 1,
+      invoke,
+    });
+    vi.stubGlobal('__TAURI_EVENT_PLUGIN_INTERNALS__', { unregisterListener: vi.fn() });
+    document.documentElement.dataset.desktop = 'macos';
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Картинка в картинке' }));
+    await waitFor(() =>
+      expect(requests).toContainEqual({ action: 'pictureInPicture', enabled: true })
+    );
+    expect(players.size).toBe(0);
+    await waitFor(() => expect(streamResolvers.has('1')).toBe(true));
+    streamResolvers.get('1')!();
+    fireEvent.click(await screen.findByRole('button', { name: 'Воспроизвести' }));
+    const first = requests.find(request => request.action === 'open')!.id!;
+    await waitFor(() => expect(players.get(first)?.paused).toBe(false));
+    expect(requests.some(request => request.id === first && request.active === true)).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Об аниме' }));
+    await screen.findByRole('link', { name: /(Начать|Продолжить) просмотр/ });
+
+    ended = true;
+    await waitFor(() => expect(streamResolvers.has('2')).toBe(true), { timeout: 7000 });
+    expect(requests.filter(request => request.action === 'open')).toHaveLength(1);
+    streamResolvers.get('2')!();
+    await waitFor(() =>
+      expect(requests.some(request => request.url?.endsWith('2.mp4'))).toBe(true)
+    );
+    const second = requests.find(request => request.url?.endsWith('2.mp4'))!.id!;
+    expect(second).not.toBe(first);
+    await waitFor(() => expect(players.get(second)?.paused).toBe(false));
+    expect(requests.some(request => request.id === second && request.active === true)).toBe(true);
+    expect(requests.filter(request => request.enabled !== undefined)).toEqual([
+      { action: 'pictureInPicture', enabled: true },
+    ]);
+  }, 10000);
+
   it.each([
     { mode: 'manual', playing: true, retainsPlayer: true },
     { mode: 'automatic', playing: true, retainsPlayer: true },
@@ -74,21 +173,31 @@ describe('macOS picture in picture navigation', () => {
       let holdPosition = false;
       let finishPositionRead: (() => void) | undefined;
       let savedOnClose: number | undefined;
-      const requests: { action: string; id: number; enabled?: boolean }[] = [];
+      const cardFrame = new ArrayBuffer(4 + 640 * 360 * 4);
+      const cardHeader = new DataView(cardFrame);
+      cardHeader.setUint16(0, 640, true);
+      cardHeader.setUint16(2, 360, true);
+      const cardPixels = new Uint8ClampedArray(cardFrame, 4);
+      cardPixels.set([255, 0, 0, 255]);
+      const requests: { action: string; id: number; enabled?: boolean; visible?: boolean }[] = [];
       const invoke = vi.fn(async (command, args) => {
         if (command === 'yummy_request') {
           const path: string = args.request.path;
           const response = path.includes('/videos')
             ? [video('1')]
-            : { ...anime, anime_id: animeId };
+            : path.startsWith('/anime?')
+              ? [anime]
+              : { ...anime, anime_id: animeId };
           return { status: 200, body: JSON.stringify({ response }) };
         }
         if (command === 'window_close_saved')
           savedOnClose = readPlaybackRecovery(animeId)?.position;
+        if (command === 'native_video_card_frame') return cardFrame;
         if (command !== 'native_video') return false;
         const request = args.request;
         requests.push(request);
-        if (request.action === 'pictureInPicture') pictureInPicture = request.enabled;
+        if (request.action === 'pictureInPicture' && typeof request.enabled === 'boolean')
+          pictureInPicture = request.enabled;
         if (request.controls?.pause !== undefined) paused = request.controls.pause;
         const snapshot = {
           ready: true,
@@ -100,7 +209,6 @@ describe('macOS picture in picture navigation', () => {
           position,
           duration: 90,
           buffered: 30,
-          pictureInPicture,
         };
         if (request.action === 'poll' && holdPosition)
           await new Promise<void>(resolve => {
@@ -123,7 +231,11 @@ describe('macOS picture in picture navigation', () => {
         streams: [{ quality: 360, type: 'mp4', url: 'https://cdn.example/pip.mp4' }],
       });
       const { container } = render(<App />);
-      const pip = await screen.findByRole<HTMLButtonElement>('button', {
+      const initialTimeline = await screen.findByRole<HTMLInputElement>('slider', {
+        name: 'Позиция воспроизведения',
+      });
+      await waitFor(() => expect(initialTimeline.max).toBe('90'));
+      const pip = screen.getByRole<HTMLButtonElement>('button', {
         name: 'Картинка в картинке',
       });
       await waitFor(() => expect(pip.disabled).toBe(false));
@@ -178,9 +290,94 @@ describe('macOS picture in picture navigation', () => {
       expect(requests.some(request => request.action === 'close')).toBe(false);
 
       if (mode === 'manual') {
+        const putImageData = vi.fn();
+        vi.stubGlobal(
+          'ImageData',
+          class {
+            constructor(
+              readonly data: Uint8ClampedArray,
+              readonly width: number,
+              readonly height: number
+            ) {}
+          }
+        );
+        vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+          putImageData,
+        } as unknown as CanvasRenderingContext2D);
+        vi.spyOn(document, 'hidden', 'get').mockReturnValue(false);
+        let cardLeft = 60;
+        let cardTop = 100;
+        vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+          this: HTMLElement
+        ) {
+          return this.matches('.continue-image')
+            ? new DOMRect(cardLeft, cardTop, 320, 180)
+            : new DOMRect(0, 0, 800, 600);
+        });
+        recordWatch({ ...anime, anime_id: animeId }, video('1'), '', position, 90);
         const toggle = screen.getByRole('button', { name: 'Картинка в картинке' });
         fireEvent.click(toggle);
         await waitFor(() => expect(toggle.getAttribute('aria-pressed')).toBe('true'));
+        location.hash = '/';
+        await waitFor(() =>
+          expect(requests).toContainEqual({ action: 'pictureInPictureCard', visible: true })
+        );
+        const canvas = container.querySelector<HTMLCanvasElement>('.continue-image canvas')!;
+        const card = canvas.closest('a')!;
+        const rail = card.closest('.gallery-rail')!;
+        expect(canvas.hidden).toBe(false);
+        expect(canvas.width).toBe(640);
+        expect(canvas.height).toBe(360);
+        expect(putImageData).toHaveBeenCalledWith(
+          expect.objectContaining({ data: cardPixels, width: 640, height: 360 }),
+          0,
+          0
+        );
+        expect(card.getAttribute('data-app-href')).toBe('#' + watchPath);
+
+        cardLeft = 120;
+        fireEvent.scroll(rail);
+        expect(canvas.hidden).toBe(false);
+        expect(requests.filter(request => request.action === 'pictureInPictureCard')).toHaveLength(
+          1
+        );
+        cardLeft = -350;
+        fireEvent.scroll(rail);
+        await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+        expect(canvas.hidden).toBe(true);
+        await waitFor(() =>
+          expect(requests).toContainEqual({ action: 'pictureInPictureCard', visible: false })
+        );
+        cardLeft = 60;
+        const callsBeforeScroll = invoke.mock.calls.length;
+        fireEvent.scroll(rail);
+        await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+        expect(
+          invoke.mock.calls
+            .slice(callsBeforeScroll)
+            .some(([command]) => command === 'native_video_card_frame')
+        ).toBe(true);
+        await waitFor(() =>
+          expect(
+            requests.filter(request => request.action === 'pictureInPictureCard').at(-1)
+          ).toMatchObject({ visible: true })
+        );
+        cardTop = -200;
+        fireEvent.scroll(screen.getByRole('main'));
+        await waitFor(() => expect(canvas.hidden).toBe(true));
+        cardTop = 100;
+        fireEvent.scroll(screen.getByRole('main'));
+        await waitFor(() => expect(canvas.hidden).toBe(false));
+        position = 31;
+        fireEvent.click(card);
+        const resumed = await screen.findByRole<HTMLInputElement>('slider', {
+          name: 'Позиция воспроизведения',
+        });
+        await waitFor(() => expect(resumed.value).toBe('31'));
+        expect(requests.filter(request => request.action === 'open')).toHaveLength(1);
+        expect(paused).toBe(false);
+        fireEvent.click(screen.getByRole('button', { name: 'Картинка в картинке' }));
+        await waitFor(() => expect(pictureInPicture).toBe(true));
         location.hash = '/settings';
         await screen.findByRole('checkbox', { name: 'Картинка в картинке при выходе из плеера' });
       }

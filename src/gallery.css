@@ -234,6 +234,13 @@
 .gallery-continue .continue-image {
   width: 100%;
 }
+.gallery-continue .continue-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
 .gallery-continue h3 {
   font-size: 13px;
   font-weight: 500;

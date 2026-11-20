@@ -87,6 +87,9 @@ failure:
     mpv_render_context *renderer;
     BOOL shuttingDown;
     BOOL visible;
+    BOOL cardFrameDirty;
+    GLuint cardFramebuffer, cardColor;
+    NSMutableData *cardPixels;
 }
 @end
 
@@ -134,6 +137,7 @@ static void update_render(void *pointer) {
         if (layer->shuttingDown) return;
         @synchronized (layer) {
             if (!(mpv.render_context_update(layer->renderer) & 1)) return;
+            layer->cardFrameDirty = YES;
             if (!layer->visible) {
                 int skip = 1, block = 0;
                 RenderParam params[] = {
@@ -250,6 +254,8 @@ static void destroy_player(mpv_handle *player) {
                 mpv.render_context_set_update_callback(surface->renderer, NULL, NULL);
                 CGLContextObj previous = CGLGetCurrentContext();
                 CGLSetCurrentContext(surface->gl);
+                glDeleteFramebuffers(1, &surface->cardFramebuffer);
+                glDeleteRenderbuffers(1, &surface->cardColor);
                 mpv.render_context_free(surface->renderer);
                 surface->renderer = NULL;
                 CGLSetCurrentContext(previous);
@@ -262,16 +268,33 @@ static void destroy_player(mpv_handle *player) {
 
 typedef struct {
     double position, duration, buffered;
-    int ready, seeking, buffering, ended, failure, paused, pictureInPicture;
+    int ready, seeking, buffering, ended, failure, paused;
 } Snapshot;
 
 void yw_video_flag(void *pointer, const char *name, int value);
 void yw_video_number(void *pointer, const char *name, double value);
 void yw_video_snapshot(void *pointer, Snapshot *snapshot);
 
+@interface YWPipSlider : NSSlider
+@property(nonatomic, readonly) BOOL dragging;
+@end
+@implementation YWPipSlider
+- (BOOL)acceptsFirstMouse:(NSEvent *)event {
+    return YES;
+}
+- (void)mouseDown:(NSEvent *)event {
+    _dragging = YES;
+    [super mouseDown:event];
+    _dragging = NO;
+}
+@end
+
 @interface YWPictureInPictureView : NSView
 @property(nonatomic, weak) NSButton *playButton;
 @property(nonatomic, weak) NSButton *returnButton;
+@property(nonatomic, weak) NSView *timeline;
+@property(nonatomic) BOOL timelineAvailable;
+@property(nonatomic, readonly) BOOL controlsVisible;
 - (void)setControlsVisible:(BOOL)visible;
 @end
 
@@ -293,11 +316,15 @@ void yw_video_snapshot(void *pointer, Snapshot *snapshot);
     [self setControlsVisible:NO];
 }
 - (void)setControlsVisible:(BOOL)visible {
-    self.playButton.hidden = self.returnButton.hidden = !visible;
+    _controlsVisible = visible;
+    self.returnButton.hidden = !visible;
+    self.playButton.hidden = !visible || !self.playButton.enabled;
+    self.timeline.hidden = !visible || !self.timelineAvailable;
 }
 - (NSView *)hitTest:(NSPoint)point {
     NSView *target = [super hitTest:point];
-    if (!target || [target isKindOfClass:NSButton.class]) return target;
+    if (!target || [target isKindOfClass:NSButton.class] || [target isKindOfClass:NSSlider.class])
+        return target;
     return self;
 }
 - (BOOL)acceptsFirstMouse:(NSEvent *)event {
@@ -325,14 +352,25 @@ static NSButton *floating_button(NSString *symbol, NSString *label, id target, S
 @interface YWPictureInPicture : NSObject <NSWindowDelegate>
 @property(nonatomic, strong, readonly) NSPanel *panel;
 @property(nonatomic, weak, readonly) YWVideo *video;
+@property(nonatomic, readonly) BOOL active;
+@property(nonatomic) BOOL unavailable;
 - (instancetype)initWithScreen:(NSScreen *)screen;
-- (void)showVideo:(YWVideo *)video;
+- (void)showInWebView:(NSView *)web video:(YWVideo *)video;
+- (void)attachVideo:(YWVideo *)video;
 - (void)dismissReturningToPlayer:(BOOL)returnToPlayer;
+- (void)setCardVisible:(BOOL)visible;
 @end
 
 @implementation YWPictureInPicture {
     NSButton *playButton;
+    YWPipSlider *timelineSlider;
+    NSTextField *timeLabel, *statusLabel;
+    NSProgressIndicator *spinner;
+    NSStackView *status;
+    NSLayoutConstraint *statusPosition;
+    __weak NSView *webview;
     NSTimer *timer;
+    BOOL cardVisible;
 }
 - (instancetype)initWithScreen:(NSScreen *)screen {
     self = [super init];
@@ -351,6 +389,7 @@ static NSButton *floating_button(NSString *symbol, NSString *label, id target, S
     _panel.contentMinSize = NSMakeSize(240, 135);
     _panel.contentAspectRatio = NSMakeSize(16, 9);
     _panel.backgroundColor = NSColor.blackColor;
+    _panel.appearance = [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
     _panel.hasShadow = YES;
     _panel.movable = YES;
     _panel.floatingPanel = YES;
@@ -377,46 +416,122 @@ static NSButton *floating_button(NSString *symbol, NSString *label, id target, S
     playButton.autoresizingMask = NSViewMinXMargin | NSViewMaxXMargin | NSViewMinYMargin | NSViewMaxYMargin;
     content.playButton = playButton;
     [content addSubview:playButton];
+
+    NSView *timeline = [[NSView alloc] initWithFrame:NSMakeRect(8, 6, width - 16, 26)];
+    timeline.autoresizingMask = NSViewWidthSizable | NSViewMaxYMargin;
+    timeline.wantsLayer = YES;
+    timeline.layer.cornerRadius = 7;
+    timeline.layer.backgroundColor = [NSColor colorWithWhite:0.06 alpha:0.82].CGColor;
+    timelineSlider = [[YWPipSlider alloc] initWithFrame:NSMakeRect(8, 2, width - 124, 22)];
+    timelineSlider.autoresizingMask = NSViewWidthSizable;
+    timelineSlider.target = self;
+    timelineSlider.action = @selector(seek:);
+    timelineSlider.continuous = NO;
+    [timelineSlider setAccessibilityLabel:@"Позиция воспроизведения"];
+    [timeline addSubview:timelineSlider];
+    timeLabel = [NSTextField labelWithString:@""];
+    timeLabel.frame = NSMakeRect(width - 110, 5, 88, 16);
+    timeLabel.autoresizingMask = NSViewMinXMargin;
+    timeLabel.font = [NSFont monospacedDigitSystemFontOfSize:10 weight:NSFontWeightRegular];
+    timeLabel.alignment = NSTextAlignmentRight;
+    timeLabel.textColor = NSColor.whiteColor;
+    [timeline addSubview:timeLabel];
+    content.timeline = timeline;
+    [content addSubview:timeline];
+
+    spinner = [[NSProgressIndicator alloc] initWithFrame:NSMakeRect(0, 0, 20, 20)];
+    spinner.style = NSProgressIndicatorStyleSpinning;
+    spinner.controlSize = NSControlSizeSmall;
+    statusLabel = [NSTextField labelWithString:@""];
+    statusLabel.textColor = NSColor.whiteColor;
+    status = [NSStackView stackViewWithViews:@[spinner, statusLabel]];
+    status.alignment = NSLayoutAttributeCenterX;
+    status.orientation = NSUserInterfaceLayoutOrientationVertical;
+    status.spacing = 4;
+    status.translatesAutoresizingMaskIntoConstraints = NO;
+    [content addSubview:status];
+    statusPosition = [status.centerYAnchor constraintEqualToAnchor:content.centerYAnchor];
+    [NSLayoutConstraint activateConstraints:@[
+        [status.centerXAnchor constraintEqualToAnchor:content.centerXAnchor],
+        statusPosition
+    ]];
     [content setControlsVisible:NO];
     return self;
 }
 
-- (void)showVideo:(YWVideo *)video {
+- (void)updatePlacement {
+    if (!_active) return;
+    NSWindow *host = webview.window;
+    BOOL showPanel = !cardVisible || !host.visible || host.miniaturized ||
+        !(host.occlusionState & NSWindowOcclusionStateVisible);
+    YWVideo *video = _video;
+    if (video) {
+        video->surface->visible = showPanel;
+        video->view.hidden = !showPanel;
+    }
+    if (showPanel == self.panel.visible) return;
+    if (showPanel) {
+        if (video) [video->surface setNeedsDisplay];
+        [self.panel orderFrontRegardless];
+        [(YWPictureInPictureView *)self.panel.contentView setControlsVisible:
+            NSPointInRect(NSEvent.mouseLocation, self.panel.frame)];
+    } else {
+        [self.panel orderOut:nil];
+    }
+}
+
+- (void)setCardVisible:(BOOL)visible {
+    if (!_active) return;
+    cardVisible = visible;
+    YWVideo *video = _video;
+    if (!visible && video) video->surface->cardFrameDirty = YES;
+    [self updatePlacement];
+}
+
+- (void)attachVideo:(YWVideo *)video {
     if (_video != video) {
         [_video showInline];
         _video = video;
-        video->inPictureInPicture = YES;
-        [video->view removeFromSuperview];
-        video->view.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-        [self.panel.contentView addSubview:video->view positioned:NSWindowBelow relativeTo:nil];
-        video->surface->visible = YES;
-        video->view.hidden = NO;
-        [video resizeVideo:self.panel.contentView.bounds scale:self.panel.backingScaleFactor];
-        [video->surface setNeedsDisplay];
+        if (video) {
+            _unavailable = NO;
+            video->inPictureInPicture = YES;
+            video->surface->cardFrameDirty = YES;
+            [video->view removeFromSuperview];
+            NSView *content = self.panel.contentView;
+            video->view.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+            [content addSubview:video->view positioned:NSWindowBelow relativeTo:nil];
+            [video resizeVideo:content.bounds scale:self.panel.backingScaleFactor];
+            [video->surface setNeedsDisplay];
+        }
     }
+    [self updateControls];
+}
+
+- (void)showInWebView:(NSView *)web video:(YWVideo *)video {
+    _active = YES;
+    webview = web;
+    [self attachVideo:video];
     if (!timer) {
         __weak YWPictureInPicture *weakSelf = self;
         timer = [NSTimer timerWithTimeInterval:0.25 repeats:YES block:^(NSTimer *tick) {
-            [weakSelf updatePlayButton];
+            [weakSelf updateControls];
         }];
         [NSRunLoop.mainRunLoop addTimer:timer forMode:NSRunLoopCommonModes];
     }
-    [self updatePlayButton];
-    [self.panel orderFrontRegardless];
-    [(YWPictureInPictureView *)self.panel.contentView setControlsVisible:
-        NSPointInRect(NSEvent.mouseLocation, self.panel.frame)];
 }
 
 - (void)dismissReturningToPlayer:(BOOL)returnToPlayer {
-    YWVideo *video = _video;
-    _video = nil;
+    NSView *web = webview;
+    _active = NO;
+    cardVisible = NO;
+    webview = nil;
     [timer invalidate];
     timer = nil;
     [(YWPictureInPictureView *)self.panel.contentView setControlsVisible:NO];
     [self.panel orderOut:nil];
-    [video showInline];
-    if (video && returnToPlayer) {
-        NSView *web = video->webview;
+    [self attachVideo:nil];
+    [spinner stopAnimation:nil];
+    if (web && returnToPlayer) {
         NSWindow *host = web.window;
         if (host.miniaturized) [host deminiaturize:nil];
         [NSApp activateIgnoringOtherApps:YES];
@@ -427,12 +542,12 @@ static NSButton *floating_button(NSString *symbol, NSString *label, id target, S
 
 - (void)windowDidChangeBackingProperties:(NSNotification *)notification {
     YWVideo *video = _video;
-    if (video) [video resizeVideo:self.panel.contentView.bounds scale:self.panel.backingScaleFactor];
+    if (video)
+        [video resizeVideo:self.panel.contentView.bounds scale:self.panel.backingScaleFactor];
 }
 
 - (void)returnVideo:(id)sender {
-    YWVideo *video = _video;
-    NSView *web = video ? video->webview : nil;
+    NSView *web = webview;
     [self dismissReturningToPlayer:YES];
     if (web) [NSNotificationCenter.defaultCenter postNotificationName:@"YummyWatchReturnToPlayer" object:web];
 }
@@ -447,15 +562,29 @@ static NSButton *floating_button(NSString *symbol, NSString *label, id target, S
     BOOL paused = state.paused < 0 ? video->requestedPause : state.paused != 0;
     if (state.ended) yw_video_number(pointer, "time-pos", 0);
     yw_video_flag(pointer, "pause", !paused && !state.ended);
-    [self updatePlayButton];
+    [self updateControls];
 }
 
-- (void)updatePlayButton {
+- (void)seek:(NSSlider *)slider {
     YWVideo *video = _video;
     if (!video) return;
+    yw_video_number((__bridge void *)video, "time-pos", slider.doubleValue);
+    [self updateControls];
+}
+
+static NSString *pip_time(double seconds) {
+    int value = (int)fmax(0, fmin(seconds, 86400));
+    return value >= 3600
+        ? [NSString stringWithFormat:@"%d:%02d:%02d", value / 3600, value / 60 % 60, value % 60]
+        : [NSString stringWithFormat:@"%02d:%02d", value / 60, value % 60];
+}
+
+- (void)updateControls {
+    YWVideo *video = _video;
     Snapshot state = {};
-    yw_video_snapshot((__bridge void *)video, &state);
-    BOOL paused = state.ended || (state.paused < 0 ? video->requestedPause : state.paused != 0);
+    if (video) yw_video_snapshot((__bridge void *)video, &state);
+    BOOL paused = !video || state.ended ||
+        (state.paused < 0 ? video->requestedPause : state.paused != 0);
     NSString *label = paused ? @"Воспроизвести" : @"Пауза";
     if (![playButton.toolTip isEqualToString:label]) {
         playButton.toolTip = label;
@@ -463,26 +592,59 @@ static NSButton *floating_button(NSString *symbol, NSString *label, id target, S
             accessibilityDescription:label];
         [playButton setAccessibilityLabel:label];
     }
-    playButton.enabled = state.ready && !state.failure;
+    BOOL failed = state.failure || _unavailable;
+    BOOL waiting = !state.ready || state.buffering || state.seeking;
+    playButton.enabled = state.ready && !failed;
+    statusPosition.constant = state.ready && !failed && waiting ? 40 : 0;
+    statusLabel.stringValue = failed ? @"Видео недоступно" :
+        state.ready ? @"Буферизация…" : @"Загружаем видео…";
+    status.hidden = !_active || (!waiting && !failed);
+    if (_active && waiting && !failed) [spinner startAnimation:nil];
+    else [spinner stopAnimation:nil];
+    spinner.hidden = failed;
+    YWPictureInPictureView *content = (YWPictureInPictureView *)self.panel.contentView;
+    content.timelineAvailable = state.ready && state.duration > 0 && !failed;
+    if (content.timelineAvailable && !timelineSlider.dragging) {
+        timelineSlider.maxValue = state.duration;
+        if (!state.seeking) timelineSlider.doubleValue = state.position;
+        timeLabel.stringValue = [NSString stringWithFormat:@"%@ / %@",
+            pip_time(timelineSlider.doubleValue), pip_time(state.duration)];
+    }
+    [content setControlsVisible:content.controlsVisible];
+    [self updatePlacement];
 }
 @end
 
 static YWPictureInPicture *floatingVideo;
+static BOOL pipUnavailable;
 
-bool yw_video_picture_in_picture(void *pointer, bool enabled, void *previous) {
-    YWVideo *video = (__bridge YWVideo *)pointer;
+bool yw_video_picture_in_picture(void *webview, void *pointer, bool enabled) {
     if (!enabled) {
-        if (floatingVideo.video == video) [floatingVideo dismissReturningToPlayer:NO];
+        [floatingVideo dismissReturningToPlayer:NO];
         return true;
     }
-    if (previous && floatingVideo.video != (__bridge YWVideo *)previous) return true;
-    NSWindow *host = video->webview.window;
-    if (!host || !video->ready || video->failed) return false;
+    NSView *web = (__bridge NSView *)webview;
+    NSWindow *host = web.window;
+    if (!host) return false;
     if (!floatingVideo)
         floatingVideo = [[YWPictureInPicture alloc] initWithScreen:host.screen ?: NSScreen.mainScreen];
     if (!floatingVideo) return false;
-    [floatingVideo showVideo:video];
+    floatingVideo.unavailable = pipUnavailable;
+    [floatingVideo showInWebView:web video:(__bridge YWVideo *)pointer];
     return true;
+}
+
+void yw_video_attach_picture_in_picture(void *pointer) {
+    if (floatingVideo.active) [floatingVideo attachVideo:(__bridge YWVideo *)pointer];
+}
+
+void yw_video_picture_in_picture_unavailable(bool unavailable) {
+    pipUnavailable = unavailable;
+    floatingVideo.unavailable = unavailable;
+}
+
+void yw_video_picture_in_picture_card(bool visible) {
+    [floatingVideo setCardVisible:visible];
 }
 
 static mpv_handle *create_player(const char *kind, BOOL bounded, BOOL preview) {
@@ -599,7 +761,7 @@ failure:
 
 void yw_video_close(void *pointer) {
     YWVideo *session = (__bridge YWVideo *)pointer;
-    if (floatingVideo.video == session) [floatingVideo dismissReturningToPlayer:NO];
+    if (floatingVideo.video == session) [floatingVideo attachVideo:nil];
     // A frame capture may briefly retain the decoder after the view closes.
     session->view.hidden = YES;
     session->surface->visible = NO;
@@ -623,6 +785,73 @@ static Node map_value(Node map, const char *key) {
     return (Node){0};
 }
 
+static NSData *encode_jpeg(CGImageRef image) {
+    if (!image) return nil;
+    NSMutableData *output = [NSMutableData data];
+    CGImageDestinationRef jpeg = CGImageDestinationCreateWithData((__bridge CFMutableDataRef)output,
+        CFSTR("public.jpeg"), 1, NULL);
+    if (!jpeg) return nil;
+    NSDictionary *options = @{(__bridge NSString *)kCGImageDestinationLossyCompressionQuality: @0.76};
+    CGImageDestinationAddImage(jpeg, image, (__bridge CFDictionaryRef)options);
+    BOOL done = CGImageDestinationFinalize(jpeg);
+    CFRelease(jpeg);
+    return done ? output : nil;
+}
+
+enum { CardWidth = 640, CardHeight = 360 };
+
+static NSData *read_card_pixels(YWVideoLayer *layer) {
+    @synchronized (layer) {
+        if (!layer->cardFrameDirty || !layer->renderer) return nil;
+        CGLContextObj previous = CGLGetCurrentContext();
+        CGLSetCurrentContext(layer->gl);
+        GLint draw, read;
+        glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &draw);
+        glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &read);
+        if (!layer->cardFramebuffer) {
+            glGenFramebuffers(1, &layer->cardFramebuffer);
+            glGenRenderbuffers(1, &layer->cardColor);
+            glBindFramebuffer(GL_FRAMEBUFFER, layer->cardFramebuffer);
+            glBindRenderbuffer(GL_RENDERBUFFER, layer->cardColor);
+            glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, CardWidth, CardHeight);
+            glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER,
+                layer->cardColor);
+            glBindRenderbuffer(GL_RENDERBUFFER, 0);
+        }
+        GLFramebuffer target = { layer->cardFramebuffer, CardWidth, CardHeight, GL_RGBA8 };
+        // libmpv's default orientation puts the top row first in the pixel buffer.
+        int block = 0;
+        RenderParam params[] = {
+            {RenderGLFramebuffer, &target}, {RenderBlock, &block}, {RenderEnd, NULL}
+        };
+        NSData *frame = nil;
+        if (mpv.render_context_render(layer->renderer, params) >= 0) {
+            // The binary response begins with two little-endian dimensions, then RGBA8 rows.
+            const uint16_t dimensions[] = { CFSwapInt16HostToLittle(CardWidth), CFSwapInt16HostToLittle(CardHeight) };
+            if (!layer->cardPixels) {
+                layer->cardPixels = [NSMutableData dataWithLength:sizeof(dimensions) + CardWidth * CardHeight * 4];
+                memcpy(layer->cardPixels.mutableBytes, dimensions, sizeof(dimensions));
+            }
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, layer->cardFramebuffer);
+            uint8_t *pixels = layer->cardPixels.mutableBytes;
+            glReadPixels(0, 0, CardWidth, CardHeight, GL_RGBA, GL_UNSIGNED_BYTE, pixels + sizeof(dimensions));
+            layer->cardFrameDirty = NO;
+            frame = layer->cardPixels;
+        }
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, draw);
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, read);
+        CGLSetCurrentContext(previous);
+        return frame;
+    }
+}
+
+void yw_video_picture_in_picture_card_frame(void *context,
+                    void (*complete)(void *, const uint8_t *, size_t)) {
+    YWVideo *video = floatingVideo.video;
+    NSData *frame = video && video->ready && !video->failed ? read_card_pixels(video->surface) : nil;
+    complete(context, frame.bytes, frame.length);
+}
+
 static NSData *thumbnail(Node frame, double limit) {
     Node w = map_value(frame, "w"), h = map_value(frame, "h");
     Node s = map_value(frame, "stride"), bytes = map_value(frame, "data");
@@ -643,26 +872,19 @@ static NSData *thumbnail(Node frame, double limit) {
         format, provider, NULL, false, kCGRenderingIntentDefault) : NULL;
     CGContextRef canvas = source ? CGBitmapContextCreate(NULL, outWidth, outHeight, 8,
         outWidth * 4, colors, format) : NULL;
-    NSMutableData *output = [NSMutableData data];
+    NSData *output = nil;
     if (canvas) {
         CGContextSetInterpolationQuality(canvas, kCGInterpolationMedium);
         CGContextDrawImage(canvas, CGRectMake(0, 0, outWidth, outHeight), source);
         CGImageRef small = CGBitmapContextCreateImage(canvas);
-        CGImageDestinationRef jpeg = CGImageDestinationCreateWithData((__bridge CFMutableDataRef)output,
-            CFSTR("public.jpeg"), 1, NULL);
-        if (jpeg && small) {
-            NSDictionary *options = @{(__bridge NSString *)kCGImageDestinationLossyCompressionQuality: @0.76};
-            CGImageDestinationAddImage(jpeg, small, (__bridge CFDictionaryRef)options);
-            if (!CGImageDestinationFinalize(jpeg)) output = nil;
-        }
-        if (jpeg) CFRelease(jpeg);
+        output = encode_jpeg(small);
         if (small) CGImageRelease(small);
         CGContextRelease(canvas);
     }
     if (source) CGImageRelease(source);
     if (provider) CGDataProviderRelease(provider);
     if (colors) CGColorSpaceRelease(colors);
-    return output.length ? output : nil;
+    return output;
 }
 
 static NSData *capture_frame(mpv_handle *player, double limit) {
@@ -841,5 +1063,4 @@ void yw_video_snapshot(void *pointer, Snapshot *snapshot) {
     snapshot->position = number(player, "time-pos");
     snapshot->duration = number(player, "duration");
     snapshot->buffered = number(player, "demuxer-cache-time");
-    snapshot->pictureInPicture = session->inPictureInPicture;
 }

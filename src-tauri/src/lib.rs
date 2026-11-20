@@ -362,7 +362,9 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             native_video::native_video,
             #[cfg(target_os = "macos")]
-            native_video::native_video_frame
+            native_video::native_video_frame,
+            #[cfg(target_os = "macos")]
+            native_video::native_video_card_frame
         ])
         .run(tauri::generate_context!())
         .expect("Не удалось запустить YummyWatch");

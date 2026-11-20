@@ -2025,6 +2025,20 @@
 .video-pip-return:hover {
   background: #37343e;
 }
+.video-placeholder-pip {
+  position: absolute;
+  right: 20px;
+  bottom: 18px;
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 1px solid #ffffff30;
+  border-radius: 9px;
+  color: #f8f6f8;
+  background: #26242c;
+}
 .video-bottom {
   bottom: 0;
   padding: 38px 20px 12px;

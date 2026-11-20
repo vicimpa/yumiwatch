@@ -15,7 +15,6 @@ export function useMediaStatus(media: RefObject<PlaybackMedia>, revision = '') {
   const [muted, setMuted] = useState(false),
     [volume, setVolume] = useState(1);
   const [rate, setRate] = useState(1);
-  const [pictureInPicture, setPictureInPicture] = useState(false);
 
   useEffect(() => {
     const video = media.current;
@@ -42,7 +41,6 @@ export function useMediaStatus(media: RefObject<PlaybackMedia>, revision = '') {
       setMuted(video.muted);
       setVolume(video.volume);
       setRate(selectedPlaybackRate(video));
-      setPictureInPicture(video.pictureInPicture === true);
 
       let end = 0;
 
@@ -80,7 +78,6 @@ export function useMediaStatus(media: RefObject<PlaybackMedia>, revision = '') {
       'ratechange',
       PLAYBACK_RATE_EVENT,
       'yumiwatch:complete',
-      'yumiwatch:picture-in-picture',
     ];
 
     for (const event of events) video.addEventListener(event, update);
@@ -122,6 +119,5 @@ export function useMediaStatus(media: RefObject<PlaybackMedia>, revision = '') {
     muted,
     volume,
     rate,
-    pictureInPicture,
   };
 }

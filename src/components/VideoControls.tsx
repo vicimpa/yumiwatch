@@ -7,11 +7,13 @@ import { useMediaStatus } from '~/hooks/useMediaStatus';
 import { isDesktop, isDesktopWindow } from '~/lib/desktop';
 import { saveInterfaceSettings } from '~/lib/interface-settings';
 import { mediaAtEnd } from '~/lib/media-state';
+import type { PictureInPictureControls } from '~/lib/native-playback';
 import { PLAYBACK_RATES, setPlaybackRate } from '~/lib/playback-rate';
 import { savePlaybackSettings } from '~/lib/playback-settings';
 import { formatTime } from '~/lib/player';
 
 import { PlaybackLoader } from './PlaybackLoader';
+import { PictureInPictureButton } from './PictureInPictureButton';
 import { VideoTimeline } from './VideoTimeline';
 import { Icon, Input, Select } from '~/ui';
 
@@ -34,6 +36,7 @@ export type TVideoControlsProps = {
   position: number;
   loading: boolean;
   failed: boolean;
+  pip?: PictureInPictureControls;
   settings: ComponentChildren;
   previous?: () => void;
   next?: () => void;
@@ -56,6 +59,7 @@ export const VideoControls: FC<TVideoControlsProps> = ({
   position,
   loading,
   failed,
+  pip,
   settings,
   quality,
   streamInfo,
@@ -69,25 +73,13 @@ export const VideoControls: FC<TVideoControlsProps> = ({
   onVoice,
   voiceLabel,
 }) => {
-  const {
-    ended,
-    paused,
-    buffering,
-    offline,
-    duration,
-    buffered,
-    muted,
-    volume,
-    rate,
-    pictureInPicture,
-  } = useMediaStatus(media, mediaVersion);
+  const { ended, paused, buffering, offline, duration, buffered, muted, volume, rate } =
+    useMediaStatus(media, mediaVersion);
   const [visible, setVisible] = useState(true),
     [menu, setMenu] = useState(false);
   const [activity, setActivity] = useState(0),
     [dragging, setDragging] = useState(false);
   const [pointerOnControls, setPointerOnControls] = useState(false);
-  const [changingPictureInPicture, setChangingPictureInPicture] = useState(false);
-  const [pictureInPictureError, setPictureInPictureError] = useState('');
   const keyboard = useRef(false);
   const controls = useRef<HTMLDivElement>(null);
   const surfaceClickTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -100,11 +92,6 @@ export const VideoControls: FC<TVideoControlsProps> = ({
     },
     [mediaVersion, failed]
   );
-
-  useEffect(() => {
-    setChangingPictureInPicture(false);
-    setPictureInPictureError('');
-  }, [mediaVersion]);
 
   const menuElement = useRef<HTMLDivElement>(null),
     menuButton = useRef<HTMLButtonElement>(null);
@@ -427,24 +414,7 @@ export const VideoControls: FC<TVideoControlsProps> = ({
 
   const fullscreenAction = useCallback(() => void toggleFullscreen(), [toggleFullscreen]);
 
-  const togglePictureInPicture = async () => {
-    const video = media.current;
-    if (!video?.setPictureInPicture || changingPictureInPicture) return;
-    setChangingPictureInPicture(true);
-    setPictureInPictureError('');
-    try {
-      await video.setPictureInPicture(!video.pictureInPicture);
-    } catch {
-      if (media.current === video) setPictureInPictureError('Не удалось переключить мини-плеер.');
-    } finally {
-      if (media.current === video) {
-        setChangingPictureInPicture(false);
-        wake();
-      }
-    }
-  };
-  const pictureInPictureLabel = pictureInPicture ? 'Вернуть видео в плеер' : 'Картинка в картинке';
-  const controlError = pictureInPictureError || fullError;
+  const controlError = pip?.error || fullError;
 
   return (
     <div
@@ -494,18 +464,18 @@ export const VideoControls: FC<TVideoControlsProps> = ({
           {syncStatus}
         </span>
       )}
-      {pictureInPicture && !failed && (
+      {pip?.active && !loading && !failed && !buffering && (
         <button
           class="video-pip-return"
           data-controls-hover
-          disabled={changingPictureInPicture}
-          onClick={togglePictureInPicture}
+          disabled={pip.pending}
+          onClick={pip.toggle}
         >
           <Icon name="pictureInPicture" size={22} />
-          {pictureInPictureLabel}
+          Вернуть видео в плеер
         </button>
       )}
-      {!pictureInPicture && paused && !loading && !failed && !buffering && (
+      {!pip?.active && paused && !loading && !failed && !buffering && (
         <button
           class="video-center-play"
           data-controls-hover
@@ -633,19 +603,7 @@ export const VideoControls: FC<TVideoControlsProps> = ({
           >
             <Icon name="settings" />
           </button>
-          {media.current?.setPictureInPicture && (
-            <button
-              aria-label="Картинка в картинке"
-              aria-pressed={pictureInPicture}
-              title={pictureInPictureLabel}
-              disabled={
-                changingPictureInPicture || (!pictureInPicture && (loading || failed || !duration))
-              }
-              onClick={togglePictureInPicture}
-            >
-              <Icon name="pictureInPicture" />
-            </button>
-          )}
+          {pip && !failed && <PictureInPictureButton pip={pip} />}
           {(!isDesktop() || isDesktopWindow()) && (
             <button
               aria-label={fullscreen ? 'Выйти из полного экрана' : 'Полный экран'}

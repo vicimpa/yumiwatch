@@ -2,7 +2,7 @@ mod relay;
 
 use serde::{Deserialize, Serialize};
 use std::{
-    cell::RefCell,
+    cell::{Cell, RefCell},
     collections::HashMap,
     ffi::{c_char, c_void, CStr, CString},
     ptr::{self, NonNull},
@@ -26,11 +26,14 @@ pub enum Request {
         controls: Controls,
         geometry: Option<Geometry>,
         visible: Option<bool>,
+        active: Option<bool>,
     },
     PictureInPicture {
-        id: u32,
-        enabled: bool,
-        previous: Option<u32>,
+        enabled: Option<bool>,
+        unavailable: Option<bool>,
+    },
+    PictureInPictureCard {
+        visible: bool,
     },
     Close {
         id: u32,
@@ -110,7 +113,6 @@ struct RawSnapshot {
     ended: i32,
     failure: i32,
     paused: i32,
-    picture_in_picture: i32,
 }
 
 #[derive(Serialize)]
@@ -124,8 +126,6 @@ pub struct Snapshot {
     ended: bool,
     failure: bool,
     paused: Option<bool>,
-    #[serde(rename = "pictureInPicture")]
-    picture_in_picture: bool,
 }
 
 extern "C" {
@@ -141,10 +141,17 @@ extern "C" {
     ) -> *mut c_void;
     fn yw_video_close(player: *mut c_void);
     fn yw_video_picture_in_picture(
+        webview: *mut c_void,
         player: *mut c_void,
         enabled: bool,
-        previous: *mut c_void,
     ) -> bool;
+    fn yw_video_attach_picture_in_picture(player: *mut c_void);
+    fn yw_video_picture_in_picture_unavailable(unavailable: bool);
+    fn yw_video_picture_in_picture_card(visible: bool);
+    fn yw_video_picture_in_picture_card_frame(
+        context: *mut c_void,
+        complete: unsafe extern "C" fn(*mut c_void, *const u8, usize),
+    );
     fn yw_video_set_thumbnail_source(
         player: *mut c_void,
         url: *const c_char,
@@ -217,7 +224,6 @@ impl Player {
                 ended: raw.ended != 0,
                 failure: raw.failure != 0,
                 paused: (raw.paused >= 0).then_some(raw.paused != 0),
-                picture_in_picture: raw.picture_in_picture != 0,
             }
         }
     }
@@ -231,12 +237,18 @@ impl Drop for Player {
 
 thread_local! {
     static PLAYERS: RefCell<HashMap<u32, Player>> = RefCell::new(HashMap::new());
+    static ACTIVE: Cell<Option<u32>> = const { Cell::new(None) };
 }
 
 #[derive(Default)]
 pub struct Relay(OnceCell<relay::Relay>);
 
 pub fn clear() {
+    unsafe {
+        yw_video_picture_in_picture(ptr::null_mut(), ptr::null_mut(), false);
+        yw_video_picture_in_picture_unavailable(false);
+    }
+    ACTIVE.with(|active| active.set(None));
     PLAYERS.with(|players| players.borrow_mut().clear());
 }
 
@@ -361,38 +373,53 @@ pub async fn native_video(
             controls,
             geometry,
             visible,
-        } => for_view(&window, move |_| {
-            PLAYERS.with(|players| {
-                players
-                    .borrow()
-                    .get(&id)
-                    .map(|player| Some(player.poll(controls, geometry, visible)))
-                    .ok_or_else(|| "Видеопоток закрыт.".into())
-            })
-        })?,
-        Request::PictureInPicture {
-            id,
-            enabled,
-            previous,
+            active,
         } => for_view(&window, move |_| {
             PLAYERS.with(|players| {
                 let players = players.borrow();
                 let player = players.get(&id).ok_or("Видеопоток закрыт.")?;
-                let from = previous.and_then(|id| players.get(&id));
-                if previous.is_none() || from.is_some() {
-                    let success = unsafe {
-                        yw_video_picture_in_picture(
-                            player.0.as_ptr(),
-                            enabled,
-                            from.map_or(ptr::null_mut(), |player| player.0.as_ptr()),
-                        )
-                    };
-                    if !success {
-                        return Err("Не удалось открыть мини-плеер.".into());
+                ACTIVE.with(|current| match active {
+                    Some(true) if current.get().is_none_or(|previous| id >= previous) => {
+                        current.set(Some(id));
+                        unsafe { yw_video_attach_picture_in_picture(player.0.as_ptr()) };
                     }
-                }
-                Ok(Some(player.poll(Controls::default(), None, None)))
+                    Some(false) if current.get() == Some(id) => {
+                        current.set(None);
+                        unsafe { yw_video_attach_picture_in_picture(ptr::null_mut()) };
+                    }
+                    _ => {}
+                });
+                Ok(Some(player.poll(controls, geometry, visible)))
             })
+        })?,
+        Request::PictureInPicture {
+            enabled,
+            unavailable,
+        } => for_view(&window, move |view| {
+            if let Some(unavailable) = unavailable {
+                unsafe { yw_video_picture_in_picture_unavailable(unavailable) };
+            }
+            if let Some(enabled) = enabled {
+                let success = PLAYERS.with(|players| {
+                    let players = players.borrow();
+                    let player = ACTIVE.with(Cell::get).and_then(|id| players.get(&id));
+                    unsafe {
+                        yw_video_picture_in_picture(
+                            view,
+                            player.map_or(ptr::null_mut(), |player| player.0.as_ptr()),
+                            enabled,
+                        )
+                    }
+                });
+                if !success {
+                    return Err("Не удалось открыть мини-плеер.".into());
+                }
+            }
+            Ok(None)
+        })?,
+        Request::PictureInPictureCard { visible } => for_view(&window, move |_| {
+            unsafe { yw_video_picture_in_picture_card(visible) };
+            Ok(None)
         })?,
         Request::Close { id } => for_view(&window, move |_| {
             PLAYERS.with(|players| players.borrow_mut().remove(&id));
@@ -405,13 +432,42 @@ pub async fn native_video(
 }
 
 unsafe extern "C" fn complete_frame(context: *mut c_void, image: *const u8, length: usize) {
+    send_frame(context, image, length, 256 * 1024);
+}
+
+unsafe extern "C" fn complete_card_frame(context: *mut c_void, image: *const u8, length: usize) {
+    send_frame(context, image, length, 1024 * 1024);
+}
+
+unsafe fn send_frame(context: *mut c_void, image: *const u8, length: usize, limit: usize) {
     let sender = Box::from_raw(context.cast::<oneshot::Sender<Vec<u8>>>());
-    let bytes = if !image.is_null() && (1..=256 * 1024).contains(&length) {
+    let bytes = if !image.is_null() && (1..=limit).contains(&length) {
         std::slice::from_raw_parts(image, length).to_vec()
     } else {
         Vec::new()
     };
     let _ = sender.send(bytes);
+}
+
+#[tauri::command]
+pub async fn native_video_card_frame(
+    window: tauri::WebviewWindow,
+) -> Result<tauri::ipc::Response, String> {
+    if window.label() != "main" {
+        return Err("Неизвестное окно.".into());
+    }
+    let (sender, receiver) = oneshot::channel::<Vec<u8>>();
+    window
+        .with_webview(move |_| unsafe {
+            yw_video_picture_in_picture_card_frame(
+                Box::into_raw(Box::new(sender)).cast(),
+                complete_card_frame,
+            );
+        })
+        .map_err(|error| error.to_string())?;
+    Ok(tauri::ipc::Response::new(
+        receiver.await.unwrap_or_default(),
+    ))
 }
 
 #[tauri::command]

@@ -21,9 +21,6 @@ export type PlaybackMedia = Pick<
   Pick<EventTarget, 'addEventListener' | 'removeEventListener' | 'dispatchEvent'> & {
     captureFrame?: (close: boolean) => Promise<Blob | undefined>;
     previewFrame?: (seconds: number) => Promise<Blob | undefined>;
-    pictureInPicture?: boolean;
-    pictureInPictureRequested?: boolean;
-    setPictureInPicture?: (enabled: boolean) => Promise<void>;
     prepareToClose?: (positions: PlaybackClosePositions) => void;
   } & Partial<
     Pick<
