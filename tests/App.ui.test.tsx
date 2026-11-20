@@ -9,6 +9,7 @@ import { readPlaybackRecovery } from '~/lib/playback-recovery';
 import { savePlaybackSettings } from '~/lib/playback-settings';
 import { recordWatch } from '~/lib/storage';
 import { anime, video } from './fixtures';
+import { FakeSocket } from './realtime-fixture';
 
 vi.mock('~/lib/streams', async original => ({
   ...(await original<typeof import('~/lib/streams')>()),
@@ -17,6 +18,8 @@ vi.mock('~/lib/streams', async original => ({
 beforeEach(() => {
   clearSession();
   localStorage.clear();
+  FakeSocket.instances = [];
+  vi.stubGlobal('WebSocket', FakeSocket);
   vi.stubGlobal(
     'matchMedia',
     vi
