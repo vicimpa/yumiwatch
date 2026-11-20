@@ -327,8 +327,6 @@ pub fn run() {
             #[cfg(desktop)]
             app.manage(shutdown::Shutdown::default());
             #[cfg(target_os = "macos")]
-            app.manage(native_video::Relay::default());
-            #[cfg(target_os = "macos")]
             if let Some(window) = app.get_webview_window("main") {
                 macos_window::install(&window)?;
             }

@@ -3,6 +3,7 @@ set -euo pipefail
 
 target=${1:?Pass aarch64-apple-darwin or x86_64-apple-darwin}
 output=${2:?Pass the output directory}
+recipe_dir=$(cd "$(dirname "$0")" && pwd)
 case "$target" in
   aarch64-apple-darwin) arch=arm64; ffarch=aarch64; cpu=aarch64 ;;
   x86_64-apple-darwin) arch=x86_64; ffarch=x86_64; cpu=x86_64 ;;
@@ -105,6 +106,27 @@ Version: 2.9.13
 Libs: -lxml2
 Cflags: -I$sdk/usr/include/libxml2
 CONFIG
+cp "$recipe_dir"/yumiwatch_protocol.{c,h} "$work/ffmpeg-8.1/libavformat/"
+python3 - "$work/ffmpeg-8.1/libavformat" <<'PYTHON'
+from pathlib import Path
+import sys
+
+root = Path(sys.argv[1])
+
+def replace(name, old, new):
+    path = root / name
+    text = path.read_text()
+    if text.count(old) != 1:
+        raise RuntimeError(f"Patch for {name} no longer applies")
+    path.write_text(text.replace(old, new))
+
+replace("protocols.c", "extern const URLProtocol ff_http_protocol;",
+        "extern const URLProtocol ff_http_protocol;\nextern const URLProtocol ff_yumiwatch_protocol;")
+replace("Makefile", "OBJS-$(CONFIG_HTTP_PROTOCOL)",
+        "OBJS-$(CONFIG_YUMIWATCH_PROTOCOL)         += yumiwatch_protocol.o\nOBJS-$(CONFIG_HTTP_PROTOCOL)")
+replace("hls.c", 'else if (av_strstart(proto_name, "data", NULL)) {',
+        'else if (!strcmp(proto_name, "yumiwatch") || av_strstart(proto_name, "data", NULL)) {')
+PYTHON
 (
   cd "$work/ffmpeg-8.1"
   ./configure --prefix="$prefix" --target-os=darwin --arch="$ffarch" \
@@ -115,7 +137,7 @@ CONFIG
     --enable-static --enable-pic --enable-small --enable-network \
     --enable-securetransport --enable-videotoolbox --enable-audiotoolbox --enable-libxml2 \
     --enable-demuxer=mov,hls,dash,mpegts,aac,ac3,eac3,mp3,webvtt \
-    --enable-protocol=http,https,tls,tcp,crypto \
+    --enable-protocol=http,https,tls,tcp,crypto,yumiwatch \
     --enable-decoder=h264,hevc,aac_at,mp3_at,ac3_at,eac3_at,webvtt \
     --enable-parser=h264,hevc,aac,ac3,mpegaudio \
     --enable-hwaccel=h264_videotoolbox,hevc_videotoolbox \
@@ -145,6 +167,12 @@ meson.write_text(meson.read_text().replace(
 for name in ['player/clipboard/clipboard.c', 'player/main.c', 'input/input.c']:
     path = root / name
     path.write_text(path.read_text().replace('#if HAVE_COCOA', '#if HAVE_SWIFT'))
+stream = root / 'stream/stream_lavf.c'
+text = stream.read_text()
+entry = '    PROTO("srtp"),'
+if text.count(entry) != 1:
+    raise RuntimeError("Patch for stream_lavf.c no longer applies")
+stream.write_text(text.replace(entry, entry + '\n    PROTO("yumiwatch"),'))
 PYTHON
 
 build mpv-0.42.0 shared -Dgpl=false -Dcplayer=false -Dlibmpv=true -Dbuild-date=false \
@@ -173,3 +201,4 @@ cp "$work/harfbuzz-12.1.0/COPYING" "$licenses/harfbuzz.txt"
 cp "$work/fast_float-8.1.0/LICENSE-MIT" "$licenses/fast_float.txt"
 cp "$work/vulkan-headers-1.4.321/LICENSE.md" "$licenses/vulkan-headers.txt"
 cp "$0" "$licenses/build-libmpv.sh"
+cp "$recipe_dir"/yumiwatch_protocol.{c,h} "$licenses/"

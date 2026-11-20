@@ -12,8 +12,13 @@ if (
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const built = join(root, 'src-tauri/native-libs/macos');
-const script = join(root, 'packaging/macos/build-libmpv.sh');
-const recipe = createHash('sha256').update(readFileSync(script)).digest('hex');
+const recipeDirectory = join(root, 'packaging/macos');
+const script = join(recipeDirectory, 'build-libmpv.sh');
+const hash = createHash('sha256');
+for (const file of ['build-libmpv.sh', 'yumiwatch_protocol.c', 'yumiwatch_protocol.h']) {
+  hash.update(readFileSync(join(recipeDirectory, file)));
+}
+const recipe = hash.digest('hex');
 const target =
   process.env.TAURI_ENV_TARGET_TRIPLE ||
   (process.arch === 'arm64' ? 'aarch64-apple-darwin' : 'x86_64-apple-darwin');

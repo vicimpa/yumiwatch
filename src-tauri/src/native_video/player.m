@@ -4,6 +4,7 @@
 #import <QuartzCore/CAOpenGLLayer.h>
 #import <QuartzCore/CATransaction.h>
 #include <dlfcn.h>
+#include "../../../packaging/macos/yumiwatch_protocol.h"
 
 // Subset of the public libmpv client/render ABI (client API 2.x).
 typedef struct mpv_handle mpv_handle;
@@ -41,6 +42,7 @@ static struct {
     Event *(*wait_event)(mpv_handle *, double);
     void (*terminate_destroy)(mpv_handle *);
     void (*free)(void *);
+    void (*set_media_io)(const YWMediaIO *);
     int (*render_context_create)(mpv_render_context **, mpv_handle *, RenderParam *);
     void (*render_context_free)(mpv_render_context *);
     void (*render_context_set_update_callback)(mpv_render_context *, void (*)(void *), void *);
@@ -48,7 +50,7 @@ static struct {
     int (*render_context_render)(mpv_render_context *, RenderParam *);
 } mpv;
 
-static BOOL load_mpv(const char *override) {
+static BOOL load_mpv(const char *override, const YWMediaIO *media_io) {
     if (mpv.create) return YES;
     NSString *bundled = [NSBundle.mainBundle.privateFrameworksPath
         stringByAppendingPathComponent:@"libmpv.2.dylib"];
@@ -76,6 +78,8 @@ static BOOL load_mpv(const char *override) {
     LOAD(render_context_update);
     LOAD(render_context_render);
 #undef LOAD
+    mpv.set_media_io = dlsym(library, "av_yumiwatch_set_io");
+    if (mpv.set_media_io) mpv.set_media_io(media_io);
     return YES;
 failure:
     memset(&mpv, 0, sizeof(mpv));
@@ -166,18 +170,20 @@ static void *gl_proc(void *context, const char *name) {
 @interface YWVideoSource : NSObject {
 @public
     NSString *url, *kind;
-    BOOL bounded;
 }
 @end
 
 @implementation YWVideoSource
 @end
 
-static YWVideoSource *video_source(const char *url, const char *kind, BOOL bounded) {
+static BOOL uses_media_io(const char *url) {
+    return url && strncmp(url, "yumiwatch://", sizeof("yumiwatch://") - 1) == 0;
+}
+
+static YWVideoSource *video_source(const char *url, const char *kind) {
     YWVideoSource *source = [YWVideoSource new];
     source->url = [NSString stringWithUTF8String:url];
     source->kind = [NSString stringWithUTF8String:kind];
-    source->bounded = bounded;
     return source;
 }
 
@@ -678,7 +684,7 @@ void yw_video_upscale(void *pointer, const char *scale, const char *shader,
     set_upscale(session->player, scale, shader, sharpen, strong, YES);
 }
 
-static mpv_handle *create_player(const char *kind, BOOL bounded, BOOL preview,
+static mpv_handle *create_player(const char *kind, BOOL internal_media, BOOL preview,
                                 const char *scale, const char *shader, const char *sharpen,
                                 bool strong) {
     mpv_handle *player = mpv.create();
@@ -698,7 +704,9 @@ static mpv_handle *create_player(const char *kind, BOOL bounded, BOOL preview,
         {"user-agent", "Mozilla/5.0"},
         {"demuxer", "lavf"}, {"demuxer-lavf-format", kind},
         {"demuxer-lavf-allow-mimetype", "no"},
-        {"demuxer-lavf-o", "protocol_whitelist=%25%http,https,tls,tcp,crypto,allowed_extensions=ALL,extension_picky=0"},
+        {"demuxer-lavf-o", internal_media
+            ? "protocol_whitelist=%16%yumiwatch,crypto,allowed_extensions=ALL,extension_picky=0"
+            : "protocol_whitelist=%25%http,https,tls,tcp,crypto,allowed_extensions=ALL,extension_picky=0"},
     };
     for (size_t index = 0; index < sizeof(options) / sizeof(*options); index++) {
         if (mpv.set_option_string(player, options[index][0], options[index][1]) < 0) goto failure;
@@ -709,8 +717,6 @@ static mpv_handle *create_player(const char *kind, BOOL bounded, BOOL preview,
         int result = mpv.set_option_string(player, scriptOptions[index], "no");
         if (result < 0 && result != OptionNotFound) goto failure;
     }
-    if (bounded && mpv.set_option_string(player, "stream-lavf-o",
-        "request_size=8388608,initial_request_size=8388608,short_seek_size=4194304") < 0) goto failure;
     if (preview && (mpv.set_option_string(player, "aid", "no") < 0 ||
         mpv.set_option_string(player, "sid", "no") < 0 ||
         mpv.set_option_string(player, "hls-bitrate", "min") < 0 ||
@@ -738,17 +744,22 @@ static int seek_video(mpv_handle *player, double seconds) {
 }
 
 void *yw_video_open(void *webview, const char *library, const char *url,
-                    const char *caption_url, const char *kind, double start, bool bounded,
+                    const char *caption_url, const char *kind, double start, const YWMediaIO *media_io,
                     const char *scale, const char *shader, const char *sharpen,
                     bool strong, const char **error) {
     NSView *web = (__bridge NSView *)webview;
-    if (!web.superview || !load_mpv(library)) {
+    if (!web.superview || !load_mpv(library, media_io)) {
         *error = "Не найдена нативная библиотека libmpv.";
+        return NULL;
+    }
+    BOOL internal_media = uses_media_io(url);
+    if ((internal_media || uses_media_io(caption_url)) && !mpv.set_media_io) {
+        *error = "Для этого потока нужна libmpv из комплекта YummyWatch.";
         return NULL;
     }
     YWVideo *session = [YWVideo new];
     YWVideoLayer *layer = nil;
-    session->player = create_player(kind, bounded, NO, scale, shader, sharpen, strong);
+    session->player = create_player(kind, internal_media, NO, scale, shader, sharpen, strong);
     if (!session->player) goto failure;
 
     session->surface = [YWVideoLayer new];
@@ -786,7 +797,7 @@ void *yw_video_open(void *webview, const char *library, const char *url,
     mpv.render_context_set_update_callback(layer->renderer, update_render, (__bridge void *)layer);
 
     if (caption_url) session->caption = [NSString stringWithUTF8String:caption_url];
-    session->source = video_source(url, kind, bounded);
+    session->source = video_source(url, kind);
     if (load_video(session->player, url, start) < 0) goto failure;
     return (__bridge_retained void *)session;
 failure:
@@ -805,9 +816,9 @@ void yw_video_close(void *pointer) {
     CFRelease(pointer);
 }
 
-void yw_video_set_thumbnail_source(void *pointer, const char *url, const char *kind, bool bounded) {
+void yw_video_set_thumbnail_source(void *pointer, const char *url, const char *kind) {
     YWVideo *session = (__bridge YWVideo *)pointer;
-    session->previewSource = video_source(url, kind, bounded);
+    session->previewSource = video_source(url, kind);
 }
 
 static Node map_value(Node map, const char *key) {
@@ -954,7 +965,8 @@ void yw_video_frame(void *pointer, void *context,
 - (NSData *)frameAt:(double)seconds source:(YWVideoSource *)source deadline:(NSTimeInterval)deadline {
     BOOL opening = !player;
     if (opening) {
-        player = create_player(source->kind.UTF8String, source->bounded, YES, NULL, NULL, NULL, false);
+        player = create_player(source->kind.UTF8String, uses_media_io(source->url.UTF8String),
+                               YES, NULL, NULL, NULL, false);
         if (!player || load_video(player, source->url.UTF8String, seconds) < 0) return nil;
     } else {
         while (mpv.wait_event(player, 0)->id) {}
@@ -1064,6 +1076,9 @@ void yw_video_snapshot(void *pointer, Snapshot *snapshot) {
     Event *event;
     while ((event = mpv.wait_event(player, 0))->id) {
         if (event->id == EventFileLoaded && session->caption) {
+            // The video format was forced for probing. Let libmpv detect WebVTT independently.
+            const char *format = "";
+            mpv.set_property(player, "file-local-options/demuxer-lavf-format", FormatString, &format);
             const char *sub[] = { "sub-add", session->caption.UTF8String, "select", NULL };
             mpv.command_async(player, 0, sub);
         } else if (event->id == EventPlaybackRestart) {

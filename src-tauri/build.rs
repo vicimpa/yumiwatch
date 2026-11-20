@@ -49,6 +49,7 @@ fn main() {
             "could not archive the native video surface"
         );
         println!("cargo:rerun-if-changed={file}");
+        println!("cargo:rerun-if-changed=../packaging/macos/yumiwatch_protocol.h");
         println!("cargo:rustc-link-search=native={}", out.display());
         println!("cargo:rustc-link-lib=static=native_video");
         for framework in ["AppKit", "OpenGL", "QuartzCore", "ImageIO", "CoreGraphics"] {

@@ -151,8 +151,10 @@ impl Media {
             let mut request = client
                 .request(method.clone(), url.clone())
                 .timeout(Duration::from_secs(25));
+            let path = url.path().to_ascii_lowercase();
             if method == Method::GET
-                && (headers.contains_key("range") || url.path().to_lowercase().ends_with(".mp4"))
+                && !path.ends_with(".m3u8")
+                && (headers.contains_key("range") || path.ends_with(".mp4"))
             {
                 request = request.header("Range", &range);
             }
@@ -175,7 +177,7 @@ impl Media {
                 .get("content-type")
                 .and_then(|v| v.to_str().ok())
                 .is_some_and(|v| v.to_lowercase().contains("mpegurl"))
-                || url.path().to_lowercase().ends_with(".m3u8");
+                || path.ends_with(".m3u8");
             if playlist && method == Method::GET && response.status().is_success() {
                 let bytes = limited_body(response, 512000).await?;
                 let text = std::str::from_utf8(&bytes).map_err(|_| "Некорректный плейлист CVH.")?;

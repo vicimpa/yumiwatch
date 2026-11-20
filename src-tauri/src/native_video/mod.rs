@@ -1,4 +1,4 @@
-mod relay;
+mod protocol;
 
 use serde::{Deserialize, Serialize};
 use std::{
@@ -8,7 +8,7 @@ use std::{
     ptr::{self, NonNull},
 };
 use tauri::Manager;
-use tokio::sync::{oneshot, OnceCell};
+use tokio::sync::oneshot;
 
 #[derive(Deserialize)]
 #[serde(tag = "action", rename_all = "camelCase")]
@@ -216,7 +216,7 @@ extern "C" {
         caption: *const c_char,
         kind: *const c_char,
         start: f64,
-        bounded: bool,
+        media_io: *const protocol::MediaIO,
         scale: *const c_char,
         shader: *const c_char,
         sharpen: *const c_char,
@@ -236,12 +236,7 @@ extern "C" {
         context: *mut c_void,
         complete: unsafe extern "C" fn(*mut c_void, *const u8, usize),
     );
-    fn yw_video_set_thumbnail_source(
-        player: *mut c_void,
-        url: *const c_char,
-        kind: *const c_char,
-        bounded: bool,
-    );
+    fn yw_video_set_thumbnail_source(player: *mut c_void, url: *const c_char, kind: *const c_char);
     fn yw_video_frame(
         player: *mut c_void,
         context: *mut c_void,
@@ -331,9 +326,6 @@ thread_local! {
     static ACTIVE: Cell<Option<u32>> = const { Cell::new(None) };
 }
 
-#[derive(Default)]
-pub struct Relay(OnceCell<relay::Relay>);
-
 pub fn clear() {
     unsafe {
         yw_video_picture_in_picture(ptr::null_mut(), ptr::null_mut(), false);
@@ -388,27 +380,17 @@ pub async fn native_video(
             upscale,
             sharpen,
         } => {
-            let state = window.state::<Relay>();
-            let backend = window.state::<crate::backend::Backend>();
-            let (url, bounded) =
-                relay::Relay::url(&state.0, &backend, &url, kind.extension()).await?;
-            let preview = if let Some(preview) = preview {
-                relay::Relay::url(&state.0, &backend, &preview.url, preview.kind.extension())
-                    .await
+            protocol::init(&window.state::<crate::backend::Backend>());
+            let url = protocol::url(&url, kind.extension())?;
+            let preview = preview.and_then(|preview| {
+                protocol::url(&preview.url, preview.kind.extension())
                     .ok()
-                    .map(|(url, bounded)| (url, preview.kind, bounded))
-            } else {
-                None
-            };
-            let caption = if let Some(caption) = caption {
-                Some(
-                    relay::Relay::url(&state.0, &backend, &caption, "vtt")
-                        .await?
-                        .0,
-                )
-            } else {
-                None
-            };
+                    .map(|url| (url, preview.kind))
+            });
+            let caption = caption
+                .as_deref()
+                .map(|url| protocol::url(url, "vtt"))
+                .transpose()?;
             let upscale = upscale.options(&window, sharpen);
             for_view(&window, move |view| {
                 PLAYERS.with(|players| {
@@ -437,7 +419,7 @@ pub async fn native_video(
                             caption.as_ref().map_or(ptr::null(), |url| url.as_ptr()),
                             kind.demuxer().as_ptr(),
                             start.clamp(0.0, 86400.0),
-                            bounded && matches!(kind, Kind::Mp4),
+                            &protocol::MEDIA_IO,
                             upscale.scale.as_ptr(),
                             upscale.shader.as_deref().map_or(ptr::null(), CStr::as_ptr),
                             upscale.sharpen.as_deref().map_or(ptr::null(), CStr::as_ptr),
@@ -451,13 +433,12 @@ pub async fn native_video(
                             .to_string_lossy()
                             .into_owned()
                     })?;
-                    if let Some((url, kind, bounded)) = preview {
+                    if let Some((url, kind)) = preview {
                         unsafe {
                             yw_video_set_thumbnail_source(
                                 player.as_ptr(),
                                 url.as_ptr(),
                                 kind.demuxer().as_ptr(),
-                                bounded && matches!(kind, Kind::Mp4),
                             );
                         }
                     }
