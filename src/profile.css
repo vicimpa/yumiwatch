@@ -317,8 +317,8 @@
   background: var(--surface-hover);
 }
 .profile-continue-poster {
-  width: 47px;
-  height: 66px;
+  width: 102px;
+  aspect-ratio: 16/9;
   border-radius: 6px;
   overflow: hidden;
   flex-shrink: 0;

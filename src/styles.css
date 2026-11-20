@@ -1458,8 +1458,8 @@ h1 {
   border-color: #54414a;
 }
 .history-poster {
-  width: 62px;
-  aspect-ratio: 250/350;
+  width: 110px;
+  aspect-ratio: 16/9;
   border-radius: 7px;
   overflow: hidden;
   flex-shrink: 0;
@@ -2693,7 +2693,7 @@ h1 {
     padding: 11px;
   }
   .history-poster {
-    width: 55px;
+    width: 80px;
   }
   .history-card h2 {
     font-size: 12px;

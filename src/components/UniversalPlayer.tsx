@@ -1,26 +1,37 @@
 import type { FunctionalComponent as FC, JSX } from 'preact';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 
+import type { PlaybackClosePositions, PlaybackMedia } from '~/lib/playback-media';
 import { mergeSkips } from '../../shared/skips.mjs';
 import { useDiscordPresence } from '~/hooks/useDiscordPresence';
 import { useAnimeDiscordContext } from '~/hooks/useAnimeDiscordContext';
 import { animeVideos, imageUrl, peekAnimeVideos } from '~/lib/api';
 import { probeAudioPlayback } from '~/lib/autoplay';
 import { useResource, useSession } from '~/lib/hooks';
+import { mediaAtEnd } from '~/lib/media-state';
 import { selectedPlaybackRate, setPlaybackRate } from '~/lib/playback-rate';
 import {
   createPlaybackSession,
   type MediaUpdate,
   type PlaybackSnapshot,
 } from '~/lib/playback-session';
-import { PLAYBACK_FLUSH, savePlaybackSettings, usePlaybackSettings } from '~/lib/playback-settings';
+import {
+  PLAYBACK_FLUSH,
+  PLAYBACK_SHUTDOWN,
+  savePlaybackSettings,
+  usePlaybackSettings,
+} from '~/lib/playback-settings';
 import { formatTime, groupKey, resumeVideo, videoPosition } from '~/lib/player';
 import { readJSON, writeJSON } from '~/lib/storage';
 import { resolveStream, selectStream, voiceKey, voiceVideos, type Stream } from '~/lib/streams';
 import type { Video, WatchEntry } from '~/lib/types';
 
+import { useCachedImage } from '~/hooks/useCachedImage';
+import { useWatchFrame } from '~/hooks/useWatchFrame';
+import { watchFrameKey } from '~/lib/watch-frames';
+
 import { PlaybackLoader } from './PlaybackLoader';
-import { AutoSkipSettings } from './PlaybackSettings';
+import { AutoPictureInPictureSetting, AutoSkipSettings } from './PlaybackSettings';
 import type { TPlayerProps } from './Player.types';
 import { EpisodeOptions, SourceOptions, VoiceOptions } from './PlayerOptions';
 import { STREAM_ERROR_DELAY_MS, STREAM_RESUME_REFRESH_MS, VideoSurface } from './VideoSurface';
@@ -67,6 +78,8 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
   onPanelChange,
   onComments,
   fullscreenContainer,
+  background = false,
+  watchMedia,
   preferredVoice,
   preferredEpisode,
   startPlaying,
@@ -101,10 +114,11 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
   const [query, setQuery] = useState('');
 
   useEffect(() => {
-    if (panel) setOverlay(null);
-  }, [panel]);
+    if (panel || background) setOverlay(null);
+  }, [panel, background]);
 
-  const episodesOpen = panel === undefined ? overlay === 'episodes' : panel === 'episodes';
+  const episodesOpen =
+    !background && (panel === undefined ? overlay === 'episodes' : panel === 'episodes');
 
   useAnimeDiscordContext(
     anime,
@@ -153,7 +167,8 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
   }, [anime.anime_id, session?.token]);
 
   const [playback, setPlayback] = useState<PlaybackSnapshot>();
-  const media = useRef<HTMLVideoElement>(null);
+  const localMedia = useRef<PlaybackMedia>(null);
+  const media = watchMedia || localMedia;
   const fullscreenFrame = useRef<HTMLDivElement>(null);
   const currentSession = useRef<ReturnType<typeof createPlaybackSession>>();
   const checkpoints = useRef(new Map<number, WatchEntry>());
@@ -272,25 +287,32 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
     all.find(video => video.video_id === result?.videoId) ||
     candidates.find(video => video.video_id === currentSession.current?.snapshot().videoId) ||
     current;
-  const selected = useMemo(() => {
-    if (!result) return;
+  const { selected, previewStream } = useMemo(() => {
+    if (!result) return {};
 
-    const stream = selectStream(result.streams, settings.quality);
     const fallback =
       fallbackSources.scope === sourceScope && fallbackSources.ids.includes(result.videoId);
+    const playable = (stream: Stream) =>
+      fallback && stream.fallback ? { ...stream, ...stream.fallback, fallback: undefined } : stream;
 
-    return fallback && stream.fallback
-      ? { ...stream, ...stream.fallback, fallback: undefined }
-      : stream;
+    const stream = selectStream(result.streams, settings.quality);
+    const lowest = result.streams.reduce(
+      (current, variant) => (variant.quality < current.quality ? variant : current),
+      stream
+    );
+    return { selected: playable(stream), previewStream: playable(lowest) };
   }, [result, settings.quality, fallbackSources, sourceScope]);
-  const poster = useMemo(
-    () =>
-      imageUrl(
-        anime.random_screenshots?.find(frame => frame.episode === current?.number)?.sizes.small ||
-          anime.poster?.medium
-      ),
-    [anime.random_screenshots, anime.poster?.medium, current?.number]
+  const previewEpisode = current?.number || episode || preferredEpisode || history?.episode;
+  const poster = imageUrl(
+    anime.random_screenshots?.find(frame => frame.episode === previewEpisode)?.sizes.small ||
+      (history?.episode === previewEpisode ? history?.preview : undefined) ||
+      anime.poster?.medium ||
+      anime.poster?.big
   );
+  const frameKey = watchFrameKey(anime.anime_id, previewEpisode, session?.user.id);
+  const savedFrame = useWatchFrame(frameKey);
+  const fallbackImage = useCachedImage(poster);
+  const loadingImage = savedFrame || fallbackImage;
   const skipMarkers = useMemo(
     () => mergeSkips(active?.skips, result?.skips),
     [active?.skips, result?.skips]
@@ -350,6 +372,24 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
   useLayoutEffect(() => {
     const flush = () => currentSession.current?.flush();
 
+    const saveBeforeClose = (event: Event) => {
+      const video = media.current;
+      const watch = currentSession.current;
+      if (!watch || !video || video.readyState < 2 || video.error) {
+        flush();
+        return;
+      }
+      video.prepareToClose?.((event as CustomEvent<PlaybackClosePositions>).detail);
+      watch.update({
+        reason: 'dispose',
+        position: video.currentTime,
+        duration: video.duration,
+        playing: false,
+        seeking: video.seeking,
+        playbackRate: video.playbackRate,
+      });
+    };
+
     const hidden = () => {
       if (document.visibilityState === 'hidden') flush();
     };
@@ -358,6 +398,7 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
 
     window.addEventListener('pagehide', flush);
     window.addEventListener(PLAYBACK_FLUSH, flush);
+    window.addEventListener(PLAYBACK_SHUTDOWN, saveBeforeClose);
     document.addEventListener('visibilitychange', hidden);
 
     return () => {
@@ -365,9 +406,10 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
       flush();
       window.removeEventListener('pagehide', flush);
       window.removeEventListener(PLAYBACK_FLUSH, flush);
+      window.removeEventListener(PLAYBACK_SHUTDOWN, saveBeforeClose);
       document.removeEventListener('visibilitychange', hidden);
     };
-  }, []);
+  }, [media]);
 
   const choose = useCallback(
     (number: string, nextVoice = voice) => {
@@ -385,18 +427,11 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
     [voice, watch, panel, onPanelChange]
   );
 
-  const retrySources = streams.retry;
-  const retryStream = useCallback(() => {
-    setFailedSources({ scope: sourceScope, ids: [] });
-    setFallbackSources({ scope: '', ids: [] });
-    retrySources();
-  }, [sourceScope, retrySources]);
-
   const prepareRecovery = useCallback(
     (playing: boolean) => {
       recoveryAutoplay.current = playing;
       if (media.current)
-        recoveryMedia.current = {
+        recoveryMedia.current ??= {
           muted: media.current.muted,
           volume: media.current.volume,
           rate: selectedPlaybackRate(media.current),
@@ -405,6 +440,16 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
     },
     [watch]
   );
+
+  const retrySources = streams.retry;
+  const retryStream = useCallback(() => {
+    const video = media.current;
+    if (video && video.readyState >= 2 && !video.error)
+      prepareRecovery(!video.paused && !mediaAtEnd(video));
+    setFailedSources({ scope: sourceScope, ids: [] });
+    setFallbackSources({ scope: '', ids: [] });
+    retrySources();
+  }, [sourceScope, retrySources, prepareRecovery]);
 
   const refreshStream = useCallback(
     (playing: boolean) => {
@@ -571,7 +616,12 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
       </Select>
     </label>
   );
-  const playerSettings = <AutoSkipSettings />;
+  const playerSettings = (
+    <>
+      <AutoSkipSettings />
+      <AutoPictureInPictureSetting />
+    </>
+  );
   const streamInfo = result && selected && (
     <span class="video-stream-meta">
       {result.provider} · {snapshot?.quality || selected.quality}p · {selected.type.toUpperCase()}
@@ -597,7 +647,13 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
   if (session && !session.verified)
     return <p class="account-loading">Проверяем аккаунт для восстановления просмотра…</p>;
   if (resource.loading || (all.length > 0 && !current))
-    return <div class="player-skeleton skeleton" role="status" aria-label="Загрузка серий" />;
+    return loadingImage ? (
+      <div class="player-frame player-skeleton">
+        <PlaybackLoader label="Загружаем серии…" preview={loadingImage} />
+      </div>
+    ) : (
+      <div class="player-skeleton skeleton" role="status" aria-label="Загрузка серий" />
+    );
   if (resource.error) return <ErrorState error={resource.error} retry={resource.retry} />;
   if (!all.length) return <Empty title="Серии пока не появились">Попробуй вернуться позже.</Empty>;
 
@@ -626,14 +682,18 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
               key={active.video_id}
               fullscreenFrame={fullscreenContainer || fullscreenFrame}
               stream={selected}
+              previewStream={previewStream}
               provider={result?.provider}
               caption={result?.caption}
               identity={active.video_id}
               start={watch.snapshot().position}
               autoplay={recoveryAutoplay.current ?? (autoplay.current || resumeAutoplay)}
               media={media}
+              background={background}
               title={`${anime.title} — серия ${current.number}`}
               poster={poster}
+              loadingImage={loadingImage}
+              frameKey={frameKey}
               skips={skipMarkers}
               autoOpening={settings.autoSkipOpening}
               autoEnding={settings.autoSkipEnding}
@@ -658,6 +718,7 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
           ) : (
             <div class="player-frame native-placeholder">
               <PlaybackLoader
+                preview={loadingImage}
                 failed={showStreamError}
                 label={
                   showStreamError
@@ -782,7 +843,7 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
         />
       </Sidebar>
       <Sidebar
-        open={immersive && overlay === 'voice'}
+        open={!background && immersive && overlay === 'voice'}
         title="Озвучка"
         subtitle={anime.title}
         close={closeOverlay}

@@ -28,9 +28,9 @@ import {
 } from '~/lib/profile';
 import type { WatchEntry } from '~/lib/types';
 
+import { WatchPreview } from './WatchPreview';
 import { AnimeCard } from './AnimeCard';
 import { AnimeListButton } from './Library';
-import { Poster } from './Poster';
 import { ProfileFriends } from './ProfileFriends';
 import { ProfileHistory, ProfileSubscriptions } from './ProfileLibrary';
 import { FriendActions } from './FriendActions';
@@ -355,7 +355,7 @@ const ContinueWatching: FC<{ history: WatchEntry[] }> = ({ history }) => (
             {...cardMenuEvents(entry.anime)}
           >
             <div class="profile-continue-poster">
-              <Poster anime={entry.anime} />
+              <WatchPreview entry={entry} />
             </div>
             <div class="profile-continue-copy">
               <small>СЕРИЯ {entry.episode || '—'}</small>

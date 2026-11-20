@@ -1,6 +1,6 @@
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import type { FunctionalComponent as FC } from 'preact';
-import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 
 import {
   desktopFullscreen,
@@ -11,7 +11,9 @@ import {
   toggleDesktopFullscreen,
 } from '~/lib/desktop';
 import { notify } from '~/lib/notifications';
+import type { PlaybackClosePositions } from '~/lib/playback-media';
 import { PLAYER_CHROME_EVENT, playerChromeVisible } from '~/lib/player-chrome';
+import { PLAYBACK_SHUTDOWN } from '~/lib/playback-settings';
 
 const action = (run: () => Promise<void>) => {
   void run().catch(() => notify('Не удалось изменить окно.'));
@@ -22,6 +24,17 @@ export const WindowChrome: FC<{ watching?: boolean }> = ({ watching = false }) =
   const [fullscreen, setFullscreen] = useState(false);
   const [visible, setVisible] = useState(playerChromeVisible);
   const chrome = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (!isDesktopWindow()) return;
+    const saveBeforeClose = (event: Event) => {
+      const { detail } = event as CustomEvent<PlaybackClosePositions>;
+      window.dispatchEvent(new CustomEvent(PLAYBACK_SHUTDOWN, { detail: detail ?? {} }));
+      void desktopInvoke('window_close_saved', {}).catch(() => {});
+    };
+    window.addEventListener('yumiwatch:window-close-requested', saveBeforeClose);
+    return () => window.removeEventListener('yumiwatch:window-close-requested', saveBeforeClose);
+  }, []);
 
   useEffect(() => {
     const update = () => setVisible(playerChromeVisible());
@@ -49,13 +62,14 @@ export const WindowChrome: FC<{ watching?: boolean }> = ({ watching = false }) =
     if (!isDesktopWindow()) return;
 
     const appWindow = getCurrentWindow();
+    const macos = document.documentElement.dataset.desktop === 'macos';
     let disposed = false,
       revision = 0;
 
     const sync = async () => {
       const current = ++revision;
       const [maximized, nativeFullscreen] = await Promise.all([
-        appWindow.isMaximized(),
+        macos ? false : appWindow.isMaximized(),
         appWindow.isFullscreen(),
       ]);
 
@@ -70,7 +84,8 @@ export const WindowChrome: FC<{ watching?: boolean }> = ({ watching = false }) =
       void sync().catch(() => {});
     };
 
-    const resize = appWindow.onResized(refresh);
+    // AppKit reports fullscreen transitions directly, including the green window button.
+    const resize = macos ? undefined : appWindow.onResized(refresh);
 
     const externalError = () => notify('Не удалось открыть ссылку в браузере.');
 
@@ -106,6 +121,7 @@ export const WindowChrome: FC<{ watching?: boolean }> = ({ watching = false }) =
 
     refresh();
     document.addEventListener('fullscreenchange', refresh);
+    window.addEventListener('yumiwatch:native-fullscreen', refresh);
     window.addEventListener('yumiwatch:external-error', externalError);
     window.addEventListener('yumiwatch:scale-error', scaleError);
     window.addEventListener('yumiwatch:fullscreen', updateFullscreen);
@@ -113,8 +129,9 @@ export const WindowChrome: FC<{ watching?: boolean }> = ({ watching = false }) =
 
     return () => {
       disposed = true;
-      void resize.then(unlisten => unlisten());
+      void resize?.then(unlisten => unlisten());
       document.removeEventListener('fullscreenchange', refresh);
+      window.removeEventListener('yumiwatch:native-fullscreen', refresh);
       window.removeEventListener('yumiwatch:external-error', externalError);
       window.removeEventListener('yumiwatch:scale-error', scaleError);
       window.removeEventListener('yumiwatch:fullscreen', updateFullscreen);

@@ -13,6 +13,7 @@ import { SUBSCRIPTIONS_EVENT } from '~/lib/social';
 import type { Anime } from '~/lib/types';
 import { cardMenuEvents } from '~/lib/card-context';
 import { Poster } from './Poster';
+import { WatchPreview } from './WatchPreview';
 import {
   Button,
   ButtonLink,
@@ -181,7 +182,7 @@ export const ProfileHistory: FC = () => {
                     {...cardMenuEvents(entry.anime)}
                   >
                     <div class="history-poster">
-                      <Poster anime={entry.anime} />
+                      <WatchPreview entry={entry} />
                     </div>
                     <div class="history-copy">
                       <span class="eyebrow">СЕРИЯ {entry.episode}</span>

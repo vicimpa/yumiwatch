@@ -8,6 +8,7 @@ export const AUTO_ACTION_DELAY_MS = 5000;
 
 export type TAutoActionCountdownProps = {
   label: string;
+  background?: boolean;
   onComplete: () => void;
   onCancel: () => void;
   onNow: () => void;
@@ -15,6 +16,7 @@ export type TAutoActionCountdownProps = {
 
 export const AutoActionCountdown: FC<TAutoActionCountdownProps> = ({
   label,
+  background = false,
   onComplete,
   onCancel,
   onNow,
@@ -54,7 +56,9 @@ export const AutoActionCountdown: FC<TAutoActionCountdownProps> = ({
   }, []);
 
   useLayoutEffect(() => {
+    if (background) return;
     const update = () => setHost(findHost());
+    update();
 
     const observer = new MutationObserver(update);
 
@@ -66,9 +70,10 @@ export const AutoActionCountdown: FC<TAutoActionCountdownProps> = ({
     });
 
     return () => observer.disconnect();
-  }, []);
+  }, [background, findHost]);
 
   useLayoutEffect(() => {
+    if (background) return;
     const keyboard = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && !event.defaultPrevented) {
         event.preventDefault();
@@ -80,11 +85,13 @@ export const AutoActionCountdown: FC<TAutoActionCountdownProps> = ({
     document.addEventListener('keydown', keyboard, true);
 
     return () => document.removeEventListener('keydown', keyboard, true);
-  }, []);
+  }, [background]);
 
   const cancel = useCallback(() => finish('onCancel'), [finish]);
 
   const runNow = useCallback(() => finish('onNow'), [finish]);
+
+  if (background) return null;
 
   const content = (
     <div

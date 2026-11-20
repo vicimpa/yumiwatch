@@ -3,7 +3,7 @@ import type { FunctionalComponent as FC } from 'preact';
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 
 import { CURRENT_SEASONS } from '~/data/catalog';
-import { animeList, imageUrl, peekAnimeList, plainText } from '~/lib/api';
+import { animeList, peekAnimeList, plainText } from '~/lib/api';
 import { animeSiteUrl } from '~/lib/content-links';
 import { navigateGallery } from '~/lib/gallery-navigation';
 import { useLibrary, useResource } from '~/lib/hooks';
@@ -13,19 +13,12 @@ import { cardMenuEvents } from '~/lib/card-context';
 import { removeContinue } from '~/lib/library';
 import { notify } from '~/lib/notifications';
 
+import { WatchPreview } from './WatchPreview';
 import { AnimeCard } from './AnimeCard';
 import { FavoriteButton } from './FavoriteButton';
 import { GalleryShelf } from './GalleryShelf';
 import { Poster } from './Poster';
-import {
-  ArtworkImage,
-  Button,
-  ButtonLink,
-  CachedNotice,
-  CardSkeleton,
-  ErrorState,
-  Icon,
-} from '~/ui';
+import { Button, ButtonLink, CachedNotice, CardSkeleton, ErrorState, Icon } from '~/ui';
 
 export type TGalleryProps = { active?: boolean };
 
@@ -228,13 +221,7 @@ export const Gallery: FC<TGalleryProps> = ({ active = true }) => {
                 publicHref={animeSiteUrl(entry.anime)}
               >
                 <div class="continue-image">
-                  <ArtworkImage
-                    src={imageUrl(
-                      entry.preview || entry.anime.poster?.big || entry.anime.poster?.medium
-                    )}
-                    alt=""
-                    tone={entry.anime.anime_id}
-                  />
+                  <WatchPreview entry={entry} />
                   <span class="continue-series">Серия {entry.episode}</span>
                   <span class="continue-time">
                     {formatTime(entry.position)}

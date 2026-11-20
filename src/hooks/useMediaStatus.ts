@@ -1,10 +1,11 @@
 import type { RefObject } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 
+import type { PlaybackMedia } from '~/lib/playback-media';
 import { mediaAtEnd } from '~/lib/media-state';
 import { PLAYBACK_RATE_EVENT, selectedPlaybackRate } from '~/lib/playback-rate';
 
-export function useMediaStatus(media: RefObject<HTMLVideoElement>, revision = 0) {
+export function useMediaStatus(media: RefObject<PlaybackMedia>, revision = '') {
   const [ended, setEnded] = useState(false);
   const [paused, setPaused] = useState(true),
     [buffering, setBuffering] = useState(false);
@@ -14,6 +15,7 @@ export function useMediaStatus(media: RefObject<HTMLVideoElement>, revision = 0)
   const [muted, setMuted] = useState(false),
     [volume, setVolume] = useState(1);
   const [rate, setRate] = useState(1);
+  const [pictureInPicture, setPictureInPicture] = useState(false);
 
   useEffect(() => {
     const video = media.current;
@@ -23,6 +25,7 @@ export function useMediaStatus(media: RefObject<HTMLVideoElement>, revision = 0)
     let lastPosition = video.currentTime;
 
     const update = (event?: Event) => {
+      if (media.current !== video) return;
       setEnded(mediaAtEnd(video));
       setPaused(video.paused || mediaAtEnd(video));
       setDuration(Number.isFinite(video.duration) ? video.duration : 0);
@@ -30,6 +33,8 @@ export function useMediaStatus(media: RefObject<HTMLVideoElement>, revision = 0)
         video.paused ||
         mediaAtEnd(video) ||
         video.readyState >= 3 ||
+        event?.type === 'playing' ||
+        event?.type === 'canplay' ||
         (event?.type === 'timeupdate' && !video.seeking && video.currentTime > lastPosition + 0.01)
       )
         setBuffering(false);
@@ -37,6 +42,7 @@ export function useMediaStatus(media: RefObject<HTMLVideoElement>, revision = 0)
       setMuted(video.muted);
       setVolume(video.volume);
       setRate(selectedPlaybackRate(video));
+      setPictureInPicture(video.pictureInPicture === true);
 
       let end = 0;
 
@@ -49,22 +55,32 @@ export function useMediaStatus(media: RefObject<HTMLVideoElement>, revision = 0)
       setBuffered(end);
     };
 
-    const wait = () => setBuffering(!video.paused && !mediaAtEnd(video) && video.readyState < 3),
-      ready = () => setBuffering(false);
+    const wait = () => {
+      if (media.current === video)
+        setBuffering(!video.paused && !mediaAtEnd(video) && video.readyState < 3);
+    };
+    const ready = () => {
+      if (media.current === video) setBuffering(false);
+    };
 
     const events = [
       'play',
+      'playing',
       'pause',
       'ended',
       'loadedmetadata',
+      'loadeddata',
+      'canplay',
       'durationchange',
       'timeupdate',
       'volumechange',
       'progress',
+      'seeking',
       'seeked',
       'ratechange',
       PLAYBACK_RATE_EVENT,
       'yumiwatch:complete',
+      'yumiwatch:picture-in-picture',
     ];
 
     for (const event of events) video.addEventListener(event, update);
@@ -80,26 +96,32 @@ export function useMediaStatus(media: RefObject<HTMLVideoElement>, revision = 0)
 
     video.addEventListener('waiting', wait);
     video.addEventListener('stalled', wait);
-    video.addEventListener('playing', ready);
-    video.addEventListener('canplay', ready);
-    video.addEventListener('pause', ready);
     video.addEventListener('error', ready);
     window.addEventListener('offline', disconnect);
     window.addEventListener('online', connect);
+    wait();
     update();
 
     return () => {
       for (const event of events) video.removeEventListener(event, update);
       video.removeEventListener('waiting', wait);
       video.removeEventListener('stalled', wait);
-      video.removeEventListener('playing', ready);
-      video.removeEventListener('canplay', ready);
-      video.removeEventListener('pause', ready);
       video.removeEventListener('error', ready);
       window.removeEventListener('offline', disconnect);
       window.removeEventListener('online', connect);
     };
   }, [media, revision]);
 
-  return { ended, paused, buffering, offline, duration, buffered, muted, volume, rate };
+  return {
+    ended,
+    paused,
+    buffering,
+    offline,
+    duration,
+    buffered,
+    muted,
+    volume,
+    rate,
+    pictureInPicture,
+  };
 }

@@ -7,13 +7,16 @@ import { useAppEnvironment } from '~/hooks/useAppEnvironment';
 import { useAppDiscordPresence } from '~/hooks/useAppDiscordPresence';
 import { useAppUpdate } from '~/hooks/useAppUpdate';
 import { useInstallation } from '~/hooks/useInstallation';
+import { usePictureInPicturePage } from '~/hooks/usePictureInPicturePage';
 import { useReleaseUpdate } from '~/hooks/useReleaseUpdate';
 import { useYummyRealtime } from '~/hooks/useYummyRealtime';
 import { useHash, useSession, useVisualViewport } from '~/lib/hooks';
 import { isDesktopWindow } from '~/lib/desktop';
+import { usesNativePlayback } from '~/lib/native-playback';
 
 import { InterfaceEffects } from '~/components/InterfaceEffects';
 import { MediaNavigation } from '~/components/MediaNavigation';
+import { Detail } from '~/components/Detail';
 import { Catalog, Home } from '~/components/Pages';
 import { RoutePage } from '~/components/RoutePage';
 import { Search } from '~/components/Search';
@@ -70,6 +73,9 @@ export const App: FC = () => {
   const detailView =
     params.get('view') === 'watch' || params.has('watch') ? 'watch' : 'anime-about';
   const watching = detailRoute && detailView === 'watch';
+  const nativeWatchPath = watching && usesNativePlayback() ? path : undefined;
+  const { playerPath, media: watchMedia } = usePictureInPicturePage(nativeWatchPath);
+  const [playerRoute, playerQuery] = playerPath?.split('?') || [];
   const sidebarHistory =
     isDesktopWindow() &&
     ['macos', 'windows'].includes(document.documentElement.dataset.desktop || '');
@@ -166,12 +172,26 @@ export const App: FC = () => {
                 <Search query={retainedSearch.current} active={route === '/search'} />
               </div>
             )}
-            <RoutePage
-              route={route}
-              query={query}
-              returnTo={browseReturn.current}
-              installation={installation}
-            />
+            {!nativeWatchPath && (
+              <RoutePage
+                route={route}
+                query={query}
+                returnTo={browseReturn.current}
+                installation={installation}
+              />
+            )}
+            {playerRoute && (
+              <div class="route-panel" hidden={!nativeWatchPath}>
+                <Detail
+                  key={playerRoute}
+                  id={playerRoute.split('/')[2]}
+                  query={playerQuery}
+                  returnTo={browseReturn.current}
+                  background={!nativeWatchPath}
+                  watchMedia={watchMedia}
+                />
+              </div>
+            )}
           </div>
         </main>
       </div>

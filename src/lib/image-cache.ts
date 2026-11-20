@@ -39,10 +39,10 @@ export function beginImageRefresh() {
   for (const [key, epoch] of checked) if (epoch < generation - 1) checked.delete(key);
 }
 
-export function cachedImage(url: string) {
+export function cachedImage(url: string, kind: 'image' | 'frame' = 'image') {
   if (!canCacheImages()) return url;
 
-  const entry = getCache<Blob>('image', url);
+  const entry = getCache<Blob>(kind, url);
 
   if (!entry) return '';
 
@@ -59,7 +59,7 @@ export function cachedImage(url: string) {
     setTimeout(() => revoke(previous.url), 1000);
   }
   for (const [key, entry] of urls)
-    if (!hasCache('image', key) && !listeners.get(key)?.size) {
+    if (!hasCache('image', key) && !hasCache('frame', key) && !listeners.get(key)?.size) {
       urls.delete(key);
       URL.revokeObjectURL(entry.url);
     }
@@ -77,6 +77,11 @@ export function subscribeImage(url: string, listener: () => void) {
     group.delete(listener);
     if (!group.size) listeners.delete(url);
   };
+}
+
+export function storeWatchFrame(key: string, image: Blob, savedAt: number) {
+  putCache('frame', key, image, savedAt);
+  for (const listener of listeners.get(key) || []) listener();
 }
 
 async function fetchImage(url: string) {

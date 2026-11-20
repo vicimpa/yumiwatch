@@ -5,12 +5,28 @@ import { Icon } from '~/ui';
 export type TPlaybackLoaderProps = {
   label: string;
   detail?: string;
+  preview?: string;
   failed?: boolean;
   children?: ComponentChildren;
 };
 
-export const PlaybackLoader: FC<TPlaybackLoaderProps> = ({ label, detail, failed, children }) => (
+export function PlaybackPreview({ src }: { src: string }) {
+  return (
+    <div class="playback-preview" aria-hidden="true">
+      <img src={src} alt="" />
+    </div>
+  );
+}
+
+export const PlaybackLoader: FC<TPlaybackLoaderProps> = ({
+  label,
+  detail,
+  preview,
+  failed,
+  children,
+}) => (
   <div class={`playback-loader ${failed ? 'is-error' : ''}`} role={failed ? 'alert' : 'status'}>
+    {preview && <PlaybackPreview src={preview} />}
     <div class="playback-loader-content">
       {failed ? (
         <span class="playback-interrupted" aria-hidden="true">

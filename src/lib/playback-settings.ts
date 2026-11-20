@@ -1,17 +1,22 @@
 import { useEffect, useState } from 'preact/hooks';
 
+import { PLAYBACK_RATES } from './playback-rate';
 import { readJSON, writeJSON } from './storage';
 
 export const PLAYBACK_EVENT = 'yumiwatch:playback-settings';
 export const PLAYBACK_FLUSH = 'yumiwatch:playback-flush';
+export const PLAYBACK_SHUTDOWN = 'yumiwatch:playback-shutdown';
 
 export const PLAYBACK_QUALITIES = ['144', '240', '360', '480', '720', '1080', 'auto'];
 
 export interface PlaybackSettings {
   mode: 'source' | 'universal';
   quality: string;
+  rate: number;
+  muted: boolean;
   autoSkipOpening: boolean;
   autoSkipEnding: boolean;
+  autoPictureInPicture: boolean;
 }
 
 export function playbackSettings(): PlaybackSettings {
@@ -20,8 +25,11 @@ export function playbackSettings(): PlaybackSettings {
   return {
     mode: raw.mode === 'universal' ? 'universal' : 'source',
     quality: PLAYBACK_QUALITIES.includes(raw.quality || '') ? raw.quality! : '360',
+    rate: typeof raw.rate === 'number' && PLAYBACK_RATES.includes(raw.rate) ? raw.rate : 1,
+    muted: raw.muted === true,
     autoSkipOpening: raw.autoSkipOpening === true,
     autoSkipEnding: raw.autoSkipEnding === true,
+    autoPictureInPicture: raw.autoPictureInPicture === true,
   };
 }
 

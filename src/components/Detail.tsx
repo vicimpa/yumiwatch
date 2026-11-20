@@ -1,11 +1,12 @@
 import { animeSiteUrl } from '~/lib/content-links';
 import { AppLink } from '~/ui/AppLink';
-import type { FunctionalComponent as FC } from 'preact';
+import type { FunctionalComponent as FC, RefObject } from 'preact';
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 
 import { animeDetail, animeVideos, peekAnimeDetail, peekAnimeVideos } from '~/lib/api';
 import { exitPlayerFullscreen } from '~/lib/desktop';
 import { useLibrary, useResource, useSession } from '~/lib/hooks';
+import type { PlaybackMedia } from '~/lib/playback-media';
 import { readPlaybackRecovery } from '~/lib/playback-recovery';
 import { formatTime, latestWatchEntry } from '~/lib/player';
 import type { WatchEntry } from '~/lib/types';
@@ -24,9 +25,17 @@ export type TDetailProps = {
   id: string;
   query?: string;
   returnTo?: string;
+  background?: boolean;
+  watchMedia?: RefObject<PlaybackMedia>;
 };
 
-export const Detail: FC<TDetailProps> = ({ id, query = '', returnTo = '/' }) => {
+export const Detail: FC<TDetailProps> = ({
+  id,
+  query = '',
+  returnTo = '/',
+  background = false,
+  watchMedia,
+}) => {
   const params = new URLSearchParams(query);
   const library = useLibrary(),
     session = useSession();
@@ -65,8 +74,9 @@ export const Detail: FC<TDetailProps> = ({ id, query = '', returnTo = '/' }) => 
   );
 
   useEffect(() => {
-    if (params.get('view') === 'comments') setPanel('comments');
-  }, [query]);
+    if (background) setPanel(null);
+    else if (params.get('view') === 'comments') setPanel('comments');
+  }, [query, background]);
 
   const entries = [
     anime && latestWatchEntry(anime, videos.value?.data || []),
@@ -90,6 +100,7 @@ export const Detail: FC<TDetailProps> = ({ id, query = '', returnTo = '/' }) => 
   }, [id]);
 
   useEffect(() => {
+    if (background) return;
     const keys = (event: KeyboardEvent) => {
       if (
         event.defaultPrevented ||
@@ -123,7 +134,7 @@ export const Detail: FC<TDetailProps> = ({ id, query = '', returnTo = '/' }) => 
     window.addEventListener('keydown', keys);
 
     return () => window.removeEventListener('keydown', keys);
-  }, [watching, id]);
+  }, [watching, id, background]);
 
   const shareAnime = useCallback(async () => {
     if (!anime) return;
@@ -270,6 +281,8 @@ export const Detail: FC<TDetailProps> = ({ id, query = '', returnTo = '/' }) => 
                     onComments={openComments}
                     fullscreenContainer={room}
                     onCheckpoint={checkpointPlayback}
+                    background={background}
+                    watchMedia={watchMedia}
                   />
                 ) : (
                   <AnimeAbout
@@ -283,7 +296,7 @@ export const Detail: FC<TDetailProps> = ({ id, query = '', returnTo = '/' }) => 
                 )}
               </div>
               <Sidebar
-                open={panel === 'comments'}
+                open={!background && panel === 'comments'}
                 title="Комментарии"
                 subtitle={anime.title}
                 close={closePanel}

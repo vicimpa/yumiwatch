@@ -1,6 +1,7 @@
 import type { FunctionalComponent as FC, JSX } from 'preact';
 import { useCallback } from 'preact/hooks';
 
+import { usesNativePlayback } from '~/lib/native-playback';
 import {
   PLAYBACK_QUALITIES,
   savePlaybackSettings,
@@ -8,6 +9,22 @@ import {
 } from '~/lib/playback-settings';
 
 import { Dropdown, Field, Icon, SettingsCard, Toggle } from '~/ui';
+
+export const AutoPictureInPictureSetting: FC = () => {
+  const settings = usePlaybackSettings();
+  if (!usesNativePlayback()) return null;
+
+  return (
+    <Toggle
+      checked={settings.autoPictureInPicture}
+      onChange={event =>
+        savePlaybackSettings({ autoPictureInPicture: event.currentTarget.checked })
+      }
+    >
+      Картинка в картинке при выходе из плеера
+    </Toggle>
+  );
+};
 
 export const AutoSkipSettings: FC = () => {
   const settings = usePlaybackSettings();
@@ -65,6 +82,7 @@ export const PlaybackSettingsCard: FC = () => {
           }))}
         />
       </Field>
+      <AutoPictureInPictureSetting />
     </SettingsCard>
   );
 };

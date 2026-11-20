@@ -7,6 +7,8 @@ import {
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 
 import { activeSkip, mergeSkips, metadataSkips, type SkipMarkers } from '../../shared/skips.mjs';
+import { NativePlayback, RETURN_TO_PLAYER_EVENT, usesNativePlayback } from '~/lib/native-playback';
+import type { PlaybackMedia } from '~/lib/playback-media';
 import { mediaAtEnd } from '~/lib/media-state';
 import { selectedPlaybackRate, setPlaybackRate } from '~/lib/playback-rate';
 import type { MediaUpdate, PlaybackReason } from '~/lib/playback-session';
@@ -15,7 +17,8 @@ import { warmQualitySwitch } from '~/lib/quality-switch';
 import type { Stream, StreamCaption } from '~/lib/streams';
 
 import { AutoActionCountdown } from './AutoActionCountdown';
-import { PlaybackLoader } from './PlaybackLoader';
+import { NativeStreamMedia } from './NativeStreamMedia';
+import { PlaybackLoader, PlaybackPreview } from './PlaybackLoader';
 import { StreamMedia } from './StreamMedia';
 import { VideoControls } from './VideoControls';
 import { Button } from '~/ui';
@@ -27,17 +30,21 @@ export const STREAM_RESUME_REFRESH_MS = 120000;
 
 export type TVideoSurfaceProps = {
   stream: Stream;
+  previewStream?: Stream;
   caption?: StreamCaption;
   identity: number;
   start: number;
   autoplay: boolean;
-  media: RefObject<HTMLVideoElement>;
+  background?: boolean;
+  media: RefObject<PlaybackMedia>;
   onUpdate: (event: MediaUpdate, stream: Stream) => void;
   onEnded?: () => void;
   autoNext?: boolean;
   retry: () => void;
   title: string;
   poster: string;
+  loadingImage?: string;
+  frameKey?: string;
   provider?: string;
   skips: SkipMarkers;
   autoOpening: boolean;
@@ -61,10 +68,12 @@ export type TVideoSurfaceProps = {
 
 export const VideoSurface: FC<TVideoSurfaceProps> = ({
   stream,
+  previewStream,
   caption,
   identity,
   start,
   autoplay,
+  background = false,
   media,
   onUpdate,
   onEnded,
@@ -74,6 +83,8 @@ export const VideoSurface: FC<TVideoSurfaceProps> = ({
   retry,
   title,
   poster,
+  loadingImage,
+  frameKey,
   provider,
   skips,
   autoOpening,
@@ -96,28 +107,45 @@ export const VideoSurface: FC<TVideoSurfaceProps> = ({
   const [controlsVisible, setControlsVisible] = useState(true);
 
   useEffect(() => {
-    if (frame.current?.closest('.media-app.is-playback')) setPlayerChrome(controlsVisible);
-  }, [controlsVisible]);
+    if (!background && frame.current?.closest('.media-app.is-playback'))
+      setPlayerChrome(controlsVisible);
+  }, [controlsVisible, background]);
 
   useEffect(
     () => () => {
-      if (
-        frame.current?.closest('.media-app.is-playback') ||
-        document.documentElement.dataset.playerChrome
-      )
-        resetPlayerChrome();
+      if (!background && document.documentElement.dataset.playerChrome) resetPlayerChrome();
     },
-    []
+    [background]
   );
 
   const [reload, setReload] = useState(0);
-  const videos = useMemo(() => [createRef<HTMLVideoElement>(), createRef<HTMLVideoElement>()], []);
+  const native = import.meta.env.VITE_NATIVE_VIDEO_ONLY === 'true' || usesNativePlayback();
+  useLayoutEffect(() => {
+    if (!native || background) return;
+    const root = document.documentElement;
+    root.dataset.nativeVideo = 'true';
+
+    return () => {
+      delete root.dataset.nativeVideo;
+    };
+  }, [native, background]);
+
+  const webVideos = useMemo(
+    () => [createRef<HTMLVideoElement>(), createRef<HTMLVideoElement>()],
+    []
+  );
+  const nativeVideos = useMemo(
+    () => [createRef<NativePlayback>(), createRef<NativePlayback>()],
+    []
+  );
+  const videos = native ? nativeVideos : webVideos;
   const [layers, setLayers] = useState<[Stream | undefined, Stream | undefined]>([
     stream,
     undefined,
   ]);
   const [active, setActive] = useState(0),
     [switching, setSwitching] = useState(false);
+  const mediaVersion = JSON.stringify([native, active, reload, layers[active]?.url, caption?.url]);
   const activeSlot = useRef(0),
     actualStream = useRef(stream);
   const cancelSwitch = useRef<() => void>();
@@ -152,8 +180,12 @@ export const VideoSurface: FC<TVideoSurfaceProps> = ({
   rules.current = { skips: markers, autoOpening, autoEnding };
 
   useLayoutEffect(() => {
-    media.current = videos[active].current;
-  }, [active, reload]);
+    const video = videos[active].current;
+    media.current = video;
+    return () => {
+      if (media.current === video) media.current = null;
+    };
+  }, [media, mediaVersion]);
 
   useEffect(() => {
     cancelSwitch.current?.();
@@ -208,8 +240,15 @@ export const VideoSurface: FC<TVideoSurfaceProps> = ({
     (slot: number) => {
       readySlots.current.add(slot);
       if (slot === activeSlot.current) {
+        const video = videos[slot].current;
         setLoading(false);
-        if (saved.current.playing) void videos[slot].current?.play().catch(() => {});
+        if (background && video instanceof NativePlayback && !video.pictureInPictureRequested) {
+          // A refreshed source or the next episode still belongs to the floating player.
+          void video.setPictureInPicture(true).catch(() => {
+            if (media.current === video) window.dispatchEvent(new Event(RETURN_TO_PLAYER_EVENT));
+          });
+        }
+        if (saved.current.playing) void video?.play().catch(() => {});
 
         return;
       }
@@ -219,30 +258,50 @@ export const VideoSurface: FC<TVideoSurfaceProps> = ({
         next = videos[slot].current!,
         target = layers[slot]!;
 
-      cancelSwitch.current = warmQualitySwitch(
+      let cancelled = false;
+      let stop = () => {};
+      cancelSwitch.current = () => {
+        cancelled = true;
+        stop();
+      };
+      const commit = () => {
+        if (cancelled) return;
+        const muted = live.muted,
+          playing = !live.paused;
+
+        live.muted = true;
+        next.muted = muted;
+        next.volume = live.volume;
+        setPlaybackRate(next, selectedPlaybackRate(live));
+        saved.current = { time: next.currentTime, playing };
+        activeSlot.current = slot;
+        actualStream.current = target;
+        media.current = next;
+        cancelSwitch.current = undefined;
+        setActive(slot);
+        setSwitching(false);
+        setLayers(slot === 0 ? [target, undefined] : [undefined, target]);
+      };
+      stop = warmQualitySwitch(
         live,
         next,
         () => {
-          const muted = live.muted,
-            playing = !live.paused;
-
-          live.muted = true;
-          next.muted = muted;
-          next.volume = live.volume;
-          setPlaybackRate(next, selectedPlaybackRate(live));
-          saved.current = { time: next.currentTime, playing };
-          activeSlot.current = slot;
-          actualStream.current = target;
-          media.current = next;
-          cancelSwitch.current = undefined;
-          setActive(slot);
-          setSwitching(false);
-          setLayers(slot === 0 ? [target, undefined] : [undefined, target]);
+          if (
+            live instanceof NativePlayback &&
+            next instanceof NativePlayback &&
+            live.pictureInPicture
+          ) {
+            void next.setPictureInPicture(true, live).then(() => {
+              if (cancelled && next.pictureInPicture && media.current === live)
+                void live.setPictureInPicture(true, next).catch(() => {});
+              else commit();
+            }, commit);
+          } else commit();
         },
         () => layerFailed(slot, new Error('Не удалось подготовить выбранное качество.'))
       );
     },
-    [videos, layers, media, layerFailed]
+    [videos, layers, media, layerFailed, background]
   );
 
   useEffect(() => {
@@ -286,9 +345,10 @@ export const VideoSurface: FC<TVideoSurfaceProps> = ({
   }, [autoplay, identity]);
 
   useEffect(() => {
-    const video = media.current!;
+    const video = media.current;
+    if (!video) return;
     let disposed = false,
-      ready = readySlots.current.has(active),
+      ready = video.readyState >= 2 && readySlots.current.has(active),
       broken = false;
     let lastMediaTime = video.currentTime;
     let pausedAt = video.paused ? Date.now() : undefined;
@@ -488,8 +548,11 @@ export const VideoSurface: FC<TVideoSurfaceProps> = ({
     };
 
     const update = (event: Event) => {
-      if (disposed || activeSlot.current !== active) return;
-      if (event.type === 'pause') pausedAt ??= Date.now();
+      if (disposed || media.current !== video || activeSlot.current !== active) return;
+      if (event.type === 'pause') {
+        pausedAt ??= Date.now();
+        if (!video.error) saved.current.playing = false;
+      }
       if (event.type === 'play') {
         saved.current.playing = true;
         const longPause =
@@ -641,7 +704,7 @@ export const VideoSurface: FC<TVideoSurfaceProps> = ({
     video.addEventListener('yumiwatch:quality', qualityChanged);
     video.textTracks?.addEventListener?.('addtrack', tracksChanged);
     emit('sourcechange');
-    if (video.readyState >= 1 && (video.currentSrc || video.getAttribute('src'))) restore();
+    if (video.readyState >= 1 && (video.currentSrc || video.getAttribute?.('src'))) restore();
     if (!ready) armStall();
 
     return () => {
@@ -676,7 +739,7 @@ export const VideoSurface: FC<TVideoSurfaceProps> = ({
       video.textTracks?.removeEventListener?.('addtrack', tracksChanged);
       for (const track of tracked) track.removeEventListener('cuechange', inspectTracks);
     };
-  }, [active, identity, reload, layers[active]?.url]);
+  }, [media, mediaVersion, identity]);
 
   const marker = activeSkip(rules.current.skips, position, media.current?.duration);
   const skipKey = marker ? `${marker.kind}:${marker.time}:${marker.length}` : '';
@@ -730,56 +793,68 @@ export const VideoSurface: FC<TVideoSurfaceProps> = ({
   return (
     <div
       ref={frame}
-      class={`player-frame universal-frame ${controlsVisible ? '' : 'controls-idle'}`}
+      class={`player-frame universal-frame ${native ? 'native-video-frame' : ''} ${controlsVisible ? '' : 'controls-idle'}`}
     >
-      {layers.map(
-        (layer, slot) =>
-          layer && (
-            <StreamMedia
-              key={`${slot}:${reload}`}
-              stream={layer}
-              caption={caption}
-              video={videos[slot]}
-              active={slot === active}
-              provider={provider}
-              title={title}
-              poster={poster}
-              start={() =>
-                slot === activeSlot.current
-                  ? saved.current.time
-                  : media.current?.currentTime || saved.current.time
-              }
-              onPending={pending => {
-                if (pending) pendingSlots.current.add(slot);
-                else pendingSlots.current.delete(slot);
-              }}
-              onReady={() => layerReady(slot)}
-              onError={failure => layerFailed(slot, failure)}
-              onSkips={value => setDiscovered(previous => mergeSkips(previous, value))}
-            />
-          )
+      {layers.map((layer, slot) => {
+        if (!layer) return null;
+
+        const props = {
+          stream: layer,
+          caption,
+          active: slot === active,
+          provider,
+          title,
+          poster: loadingImage ? '' : poster,
+          frameKey,
+          start: () =>
+            slot === activeSlot.current
+              ? saved.current.time
+              : media.current?.currentTime || saved.current.time,
+          onPending: (pending: boolean) => {
+            if (pending) pendingSlots.current.add(slot);
+            else pendingSlots.current.delete(slot);
+          },
+          onReady: () => layerReady(slot),
+          onError: (failure: Error) => layerFailed(slot, failure),
+          onSkips: (value: SkipMarkers) => setDiscovered(previous => mergeSkips(previous, value)),
+        };
+        const key = `${slot}:${reload}`;
+
+        return native ? (
+          <NativeStreamMedia
+            key={key}
+            {...props}
+            video={nativeVideos[slot]}
+            previewStream={previewStream}
+          />
+        ) : (
+          <StreamMedia key={key} {...props} video={webVideos[slot]} />
+        );
+      })}
+      {(loading || error) && loadingImage && <PlaybackPreview src={loadingImage} />}
+      {!background && (
+        <VideoControls
+          onBack={onBack}
+          onVoice={onVoice}
+          voiceLabel={voiceLabel}
+          onEpisodes={onEpisodes}
+          onComments={onComments}
+          mediaVersion={mediaVersion}
+          media={media}
+          frame={fullscreenFrame || frame}
+          title={title}
+          position={position}
+          loading={loading}
+          failed={!!error}
+          settings={settings}
+          quality={quality}
+          streamInfo={streamInfo}
+          syncStatus={syncStatus}
+          previous={previous}
+          next={next}
+          onVisibility={setControlsVisible}
+        />
       )}
-      <VideoControls
-        onBack={onBack}
-        onVoice={onVoice}
-        voiceLabel={voiceLabel}
-        onEpisodes={onEpisodes}
-        onComments={onComments}
-        mediaVersion={active + reload * 2}
-        media={media}
-        frame={fullscreenFrame || frame}
-        title={title}
-        position={position}
-        loading={loading}
-        failed={!!error}
-        settings={settings}
-        quality={quality}
-        streamInfo={streamInfo}
-        syncStatus={syncStatus}
-        previous={previous}
-        next={next}
-        onVisibility={setControlsVisible}
-      />
       {switching && (
         <span class="video-quality-switch" role="status">
           Готовим {stream.quality}p…
@@ -808,6 +883,7 @@ export const VideoSurface: FC<TVideoSurfaceProps> = ({
       {nextAction ? (
         <AutoActionCountdown
           key={`next:${identity}`}
+          background={background}
           label="Следующая серия"
           onCancel={cancelNext}
           onNow={advanceNow}
@@ -816,6 +892,7 @@ export const VideoSurface: FC<TVideoSurfaceProps> = ({
       ) : autoSkip ? (
         <AutoActionCountdown
           key={`${identity}:${skipKey}`}
+          background={background}
           label={marker!.kind === 'opening' ? 'Пропуск опенинга' : 'Пропуск титров'}
           onCancel={cancelSkip}
           onNow={skipNow}

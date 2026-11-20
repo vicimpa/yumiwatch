@@ -1,15 +1,18 @@
 import type { ComponentChildren, FunctionalComponent as FC, JSX, RefObject } from 'preact';
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 
+import type { PlaybackMedia } from '~/lib/playback-media';
 import { useFullscreen } from '~/hooks/useFullscreen';
 import { useMediaStatus } from '~/hooks/useMediaStatus';
 import { isDesktop, isDesktopWindow } from '~/lib/desktop';
 import { saveInterfaceSettings } from '~/lib/interface-settings';
 import { mediaAtEnd } from '~/lib/media-state';
 import { PLAYBACK_RATES, setPlaybackRate } from '~/lib/playback-rate';
+import { savePlaybackSettings } from '~/lib/playback-settings';
 import { formatTime } from '~/lib/player';
 
 import { PlaybackLoader } from './PlaybackLoader';
+import { VideoTimeline } from './VideoTimeline';
 import { Icon, Input, Select } from '~/ui';
 
 const physical: Partial<Record<string, string>> = {
@@ -24,8 +27,8 @@ const physical: Partial<Record<string, string>> = {
 export const CONTROLS_IDLE_MS = 3000;
 
 export type TVideoControlsProps = {
-  mediaVersion?: number;
-  media: RefObject<HTMLVideoElement>;
+  mediaVersion?: string;
+  media: RefObject<PlaybackMedia>;
   frame: RefObject<HTMLDivElement>;
   title: string;
   position: number;
@@ -46,7 +49,7 @@ export type TVideoControlsProps = {
 };
 
 export const VideoControls: FC<TVideoControlsProps> = ({
-  mediaVersion = 0,
+  mediaVersion = '',
   media,
   frame,
   title,
@@ -66,16 +69,29 @@ export const VideoControls: FC<TVideoControlsProps> = ({
   onVoice,
   voiceLabel,
 }) => {
-  const { ended, paused, buffering, offline, duration, buffered, muted, volume, rate } =
-    useMediaStatus(media, mediaVersion);
+  const {
+    ended,
+    paused,
+    buffering,
+    offline,
+    duration,
+    buffered,
+    muted,
+    volume,
+    rate,
+    pictureInPicture,
+  } = useMediaStatus(media, mediaVersion);
   const [visible, setVisible] = useState(true),
     [menu, setMenu] = useState(false);
   const [activity, setActivity] = useState(0),
     [dragging, setDragging] = useState(false);
+  const [pointerOnControls, setPointerOnControls] = useState(false);
+  const [changingPictureInPicture, setChangingPictureInPicture] = useState(false);
+  const [pictureInPictureError, setPictureInPictureError] = useState('');
   const keyboard = useRef(false);
   const controls = useRef<HTMLDivElement>(null);
   const surfaceClickTimer = useRef<ReturnType<typeof setTimeout>>();
-  const surfaceClickPlayback = useRef<{ video: HTMLVideoElement; paused: boolean }>();
+  const surfaceClickPlayback = useRef<{ video: PlaybackMedia; paused: boolean }>();
 
   useEffect(
     () => () => {
@@ -84,6 +100,11 @@ export const VideoControls: FC<TVideoControlsProps> = ({
     },
     [mediaVersion, failed]
   );
+
+  useEffect(() => {
+    setChangingPictureInPicture(false);
+    setPictureInPictureError('');
+  }, [mediaVersion]);
 
   const menuElement = useRef<HTMLDivElement>(null),
     menuButton = useRef<HTMLButtonElement>(null);
@@ -99,6 +120,11 @@ export const VideoControls: FC<TVideoControlsProps> = ({
       keyboard.current = false;
 
       const target = event.target;
+      setPointerOnControls(
+        target instanceof Element &&
+          !!controls.current?.contains(target) &&
+          !!target.closest('[data-controls-hover]')
+      );
 
       if (
         document.querySelector('.media-app.is-playback') ||
@@ -108,10 +134,23 @@ export const VideoControls: FC<TVideoControlsProps> = ({
         wake();
     };
 
-    window.addEventListener('pointermove', move, { passive: true });
+    const leave = (event: PointerEvent) => {
+      if (event.relatedTarget === null) setPointerOnControls(false);
+    };
+    const blur = () => setPointerOnControls(false);
 
-    return () => window.removeEventListener('pointermove', move);
-  }, []);
+    window.addEventListener('pointermove', move, { passive: true });
+    window.addEventListener('pointerover', move, { passive: true });
+    window.addEventListener('pointerout', leave, { passive: true });
+    window.addEventListener('blur', blur);
+
+    return () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerover', move);
+      window.removeEventListener('pointerout', leave);
+      window.removeEventListener('blur', blur);
+    };
+  }, [frame, wake]);
 
   const seek = useCallback(
     (time: number) => {
@@ -137,7 +176,10 @@ export const VideoControls: FC<TVideoControlsProps> = ({
   }, [media, wake]);
 
   const toggleMute = useCallback(() => {
-    if (media.current) media.current.muted = !media.current.muted;
+    if (media.current) {
+      media.current.muted = !media.current.muted;
+      savePlaybackSettings({ muted: media.current.muted });
+    }
     wake();
   }, [media, wake]);
 
@@ -204,7 +246,7 @@ export const VideoControls: FC<TVideoControlsProps> = ({
   }, []);
 
   useEffect(() => {
-    if (paused || loading || failed || buffering || menu || dragging) {
+    if (paused || loading || failed || buffering || menu || dragging || pointerOnControls) {
       setVisible(true);
 
       return;
@@ -220,7 +262,7 @@ export const VideoControls: FC<TVideoControlsProps> = ({
     }, CONTROLS_IDLE_MS);
 
     return () => clearTimeout(timer);
-  }, [paused, loading, failed, buffering, menu, dragging, activity]);
+  }, [paused, loading, failed, buffering, menu, dragging, pointerOnControls, activity]);
 
   useEffect(() => {
     onVisibility(visible);
@@ -241,7 +283,7 @@ export const VideoControls: FC<TVideoControlsProps> = ({
       wake();
       if (
         !(target instanceof HTMLElement && target.closest('.native-auto-action')) &&
-        (media.current?.closest('.universal-frame') || frame.current)?.contains(target)
+        (controls.current?.closest('.universal-frame') || frame.current)?.contains(target)
       ) {
         event.preventDefault();
         event.stopPropagation();
@@ -346,7 +388,11 @@ export const VideoControls: FC<TVideoControlsProps> = ({
 
   const changeRate = useCallback(
     (event: JSX.TargetedEvent<HTMLSelectElement>) => {
-      if (media.current) setPlaybackRate(media.current, Number(event.currentTarget.value));
+      const rate = Number(event.currentTarget.value);
+      if (media.current && PLAYBACK_RATES.includes(rate)) {
+        setPlaybackRate(media.current, rate);
+        savePlaybackSettings({ rate });
+      }
       wake();
     },
     [media, wake]
@@ -364,7 +410,10 @@ export const VideoControls: FC<TVideoControlsProps> = ({
       if (media.current) {
         media.current.volume = Number(event.currentTarget.value);
         saveInterfaceSettings({ volume: media.current.volume });
-        media.current.muted = false;
+        if (media.current.muted) {
+          media.current.muted = false;
+          savePlaybackSettings({ muted: false });
+        }
       }
       wake();
     },
@@ -377,6 +426,25 @@ export const VideoControls: FC<TVideoControlsProps> = ({
   }, [wake]);
 
   const fullscreenAction = useCallback(() => void toggleFullscreen(), [toggleFullscreen]);
+
+  const togglePictureInPicture = async () => {
+    const video = media.current;
+    if (!video?.setPictureInPicture || changingPictureInPicture) return;
+    setChangingPictureInPicture(true);
+    setPictureInPictureError('');
+    try {
+      await video.setPictureInPicture(!video.pictureInPicture);
+    } catch {
+      if (media.current === video) setPictureInPictureError('Не удалось переключить мини-плеер.');
+    } finally {
+      if (media.current === video) {
+        setChangingPictureInPicture(false);
+        wake();
+      }
+    }
+  };
+  const pictureInPictureLabel = pictureInPicture ? 'Вернуть видео в плеер' : 'Картинка в картинке';
+  const controlError = pictureInPictureError || fullError;
 
   return (
     <div
@@ -400,7 +468,7 @@ export const VideoControls: FC<TVideoControlsProps> = ({
         onDblClick={surfaceDoubleClick}
       />
       {(onBack || onVoice) && (
-        <div class="video-chrome video-top-actions" inert={!visible}>
+        <div class="video-chrome video-top-actions" inert={!visible} data-controls-hover>
           {onBack && (
             <button aria-label="Об аниме" title="Об аниме (I)" onClick={onBack}>
               <Icon name="back" size={21} />
@@ -426,9 +494,21 @@ export const VideoControls: FC<TVideoControlsProps> = ({
           {syncStatus}
         </span>
       )}
-      {paused && !loading && !failed && !buffering && (
+      {pictureInPicture && !failed && (
+        <button
+          class="video-pip-return"
+          data-controls-hover
+          disabled={changingPictureInPicture}
+          onClick={togglePictureInPicture}
+        >
+          <Icon name="pictureInPicture" size={22} />
+          {pictureInPictureLabel}
+        </button>
+      )}
+      {!pictureInPicture && paused && !loading && !failed && !buffering && (
         <button
           class="video-center-play"
+          data-controls-hover
           aria-label={ended ? 'Смотреть заново' : 'Продолжить просмотр'}
           onClick={surfaceClick}
           onDblClick={surfaceDoubleClick}
@@ -443,7 +523,13 @@ export const VideoControls: FC<TVideoControlsProps> = ({
         />
       )}
       {menu && (
-        <div ref={menuElement} class="video-settings" role="dialog" aria-label="Настройки плеера">
+        <div
+          ref={menuElement}
+          class="video-settings"
+          role="dialog"
+          aria-label="Настройки плеера"
+          data-controls-hover
+        >
           <div class="video-settings-heading">
             <strong>Настройки плеера</strong>
             <button aria-label="Закрыть настройки" onClick={closeSettings}>
@@ -474,31 +560,18 @@ export const VideoControls: FC<TVideoControlsProps> = ({
         role="group"
         aria-label="Управление воспроизведением"
         inert={!visible}
+        data-controls-hover
       >
-        <div class="video-timeline">
-          <div class="video-timeline-track">
-            <span
-              class="video-buffered"
-              style={{ width: `${duration ? (buffered / duration) * 100 : 0}%` }}
-            />
-            <span
-              class="video-progress"
-              style={{ width: `${duration ? Math.min(100, (position / duration) * 100) : 0}%` }}
-            />
-          </div>
-          <Input
-            type="range"
-            min="0"
-            max={duration || 0}
-            step="0.1"
-            value={Math.min(position, duration)}
-            disabled={!duration}
-            aria-label="Позиция воспроизведения"
-            aria-valuetext={`${formatTime(position)} из ${formatTime(duration)}`}
-            onPointerDown={startDragging}
-            onInput={seekInput}
-          />
-        </div>
+        <VideoTimeline
+          mediaVersion={mediaVersion}
+          media={media}
+          duration={duration}
+          position={position}
+          buffered={buffered}
+          visible={visible && !loading && !failed}
+          onPointerDown={startDragging}
+          onInput={seekInput}
+        />
         <div class="video-toolbar">
           <button
             aria-label={ended ? 'Смотреть заново' : paused ? 'Воспроизвести' : 'Пауза'}
@@ -560,6 +633,19 @@ export const VideoControls: FC<TVideoControlsProps> = ({
           >
             <Icon name="settings" />
           </button>
+          {media.current?.setPictureInPicture && (
+            <button
+              aria-label="Картинка в картинке"
+              aria-pressed={pictureInPicture}
+              title={pictureInPictureLabel}
+              disabled={
+                changingPictureInPicture || (!pictureInPicture && (loading || failed || !duration))
+              }
+              onClick={togglePictureInPicture}
+            >
+              <Icon name="pictureInPicture" />
+            </button>
+          )}
           {(!isDesktop() || isDesktopWindow()) && (
             <button
               aria-label={fullscreen ? 'Выйти из полного экрана' : 'Полный экран'}
@@ -571,9 +657,9 @@ export const VideoControls: FC<TVideoControlsProps> = ({
           )}
         </div>
       </div>
-      {fullError && (
+      {controlError && (
         <p class="video-fullscreen-error" role="status">
-          {fullError}
+          {controlError}
         </p>
       )}
     </div>

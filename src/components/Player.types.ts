@@ -1,5 +1,6 @@
 import type { RefObject } from 'preact';
 
+import type { PlaybackMedia } from '~/lib/playback-media';
 import type { PlaybackReport } from '~/lib/playback-session';
 import type { Anime, Video, WatchEntry } from '~/lib/types';
 
@@ -13,6 +14,8 @@ export type TPlayerProps = {
   onPanelChange?: (panel: MediaPanel) => void;
   onComments?: () => void;
   fullscreenContainer?: RefObject<HTMLDivElement>;
+  background?: boolean;
+  watchMedia?: RefObject<PlaybackMedia>;
   preferredVoice?: string;
   preferredEpisode?: string;
   startPlaying?: boolean;

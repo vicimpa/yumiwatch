@@ -38,7 +38,7 @@ impl Resolved {
     }
 }
 
-/// Native state only: no server, listener, child process, or bound socket.
+/// Provider resolution and transport shared by WebView and native playback.
 #[derive(Clone)]
 pub struct Backend {
     pub client: Client,
@@ -638,7 +638,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn native_backend_needs_no_listener_and_rejects_unregistered_resources() {
+    async fn media_protocol_rejects_unregistered_resources() {
         let backend = Backend::new().unwrap();
         assert!(backend.resolve(vec![]).await.is_err());
         assert!(backend

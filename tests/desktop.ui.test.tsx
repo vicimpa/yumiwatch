@@ -109,6 +109,27 @@ describe('desktop IPC and application chrome', () => {
     expect(native.setFullscreen).toHaveBeenCalledTimes(2);
   });
 
+  it('uses AppKit fullscreen events without querying window state on every macOS resize', async () => {
+    const { dataset } = document.documentElement;
+    dataset.desktop = 'macos';
+    const { container } = render(<WindowChrome />);
+    await waitFor(() => expect(dataset.desktopFullscreen).toBe('false'));
+    expect(native.isMaximized).not.toHaveBeenCalled();
+    expect(native.onResized).not.toHaveBeenCalled();
+
+    for (let step = 0; step < 12; step++) window.dispatchEvent(new Event('resize'));
+    expect(native.isFullscreen).toHaveBeenCalledOnce();
+
+    native.isFullscreen.mockResolvedValue(true);
+    window.dispatchEvent(new Event('yumiwatch:native-fullscreen'));
+    await waitFor(() => expect(dataset.desktopFullscreen).toBe('true'));
+    expect(container.querySelector('.window-chrome')).toBeNull();
+
+    native.isFullscreen.mockResolvedValue(false);
+    window.dispatchEvent(new Event('yumiwatch:native-fullscreen'));
+    await waitFor(() => expect(dataset.desktopFullscreen).toBe('false'));
+    expect(container.querySelector('.window-chrome')).not.toBeNull();
+  });
   it('does not let an old resize query overwrite the most recent native fullscreen state', async () => {
     let old!: (value: boolean) => void, resized!: () => void;
 

@@ -10,8 +10,13 @@ import {
   VideoSurface,
 } from '~/components/VideoSurface';
 import { CONTROLS_IDLE_MS } from '~/components/VideoControls';
+import type { Stream } from '~/lib/streams';
 
 function Harness({
+  url = 'https://cdn.example/test.mp4',
+  poster = '',
+  loadingImage,
+  previewStream,
   failure = () => {},
   autoOpening = false,
   autoEnding = false,
@@ -21,6 +26,10 @@ function Harness({
   skips = {},
   resume,
 }: {
+  url?: string;
+  poster?: string;
+  loadingImage?: string;
+  previewStream?: Stream;
   failure?: (playing: boolean) => void;
   autoOpening?: boolean;
   autoEnding?: boolean;
@@ -34,7 +43,8 @@ function Harness({
 
   return (
     <VideoSurface
-      stream={{ quality: 360, type: 'mp4', url: 'https://cdn.example/test.mp4' }}
+      stream={{ quality: 360, type: 'mp4', url }}
+      previewStream={previewStream}
       identity={1}
       start={0}
       autoplay={false}
@@ -47,7 +57,8 @@ function Harness({
       onResume={resume}
       retry={() => {}}
       title="Тест"
-      poster=""
+      poster={poster}
+      loadingImage={loadingImage}
       skips={skips}
       autoOpening={autoOpening}
       autoEnding={autoEnding}
@@ -65,12 +76,254 @@ afterEach(() => {
   cleanup();
   vi.useRealTimers();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+  localStorage.removeItem('yumiwatch:playback-settings');
+  localStorage.removeItem('yumiwatch:interface-settings');
+  delete document.documentElement.dataset.desktop;
 });
 
 const advance = () =>
   act(() => {
     vi.advanceTimersByTime(STREAM_STALL_TIMEOUT_MS + STREAM_ERROR_DELAY_MS + 1);
   });
+
+it('shows only the selected preview while the video is loading', () => {
+  const { container } = render(
+    <Harness poster="https://static.yani.tv/poster.jpg" loadingImage="blob:watch-frame" />
+  );
+  expect(container.querySelector('video')?.hasAttribute('poster')).toBe(false);
+  const images = container.querySelectorAll('.playback-preview img');
+  expect(images).toHaveLength(1);
+  expect(images[0].getAttribute('src')).toBe('blob:watch-frame');
+});
+
+it('runs the macOS controls through the native surface without mounting HTML video', async () => {
+  const snapshot = {
+    ready: true,
+    seeking: false,
+    buffering: false,
+    ended: false,
+    failure: false,
+    position: 9,
+    duration: 90,
+    buffered: 24,
+    pictureInPicture: false,
+  };
+  const invoke = vi.fn(async (command, args) => {
+    if (command === 'native_video') {
+      if (args.request.action === 'pictureInPicture')
+        snapshot.pictureInPicture = args.request.enabled;
+      if (['poll', 'pictureInPicture'].includes(args.request.action)) return { ...snapshot };
+    }
+    return null;
+  });
+  vi.stubGlobal('isTauri', true);
+  vi.stubGlobal('__TAURI_INTERNALS__', { invoke });
+  document.documentElement.dataset.desktop = 'macos';
+
+  const preview = { quality: 144, url: 'https://cdn.example/low.m3u8', type: 'hls' } as const;
+  const { container, unmount } = render(<Harness previewStream={preview} />);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(100);
+  });
+  expect(container.querySelector('video')).toBeNull();
+  const surface = container.querySelector('.native-stream-ready');
+  expect(surface).not.toBeNull();
+  expect(invoke).toHaveBeenCalledWith(
+    'native_video',
+    {
+      request: expect.objectContaining({
+        action: 'open',
+        kind: 'mp4',
+        preview: { url: preview.url, kind: 'hls' },
+      }),
+    },
+    undefined
+  );
+  const pip = screen.getByRole('button', { name: 'Картинка в картинке' });
+  const togglePip = (button: HTMLElement) =>
+    act(async () => {
+      fireEvent.click(button);
+      await vi.advanceTimersByTimeAsync(100);
+    });
+  await togglePip(pip);
+  expect(pip.getAttribute('aria-pressed')).toBe('true');
+  expect(screen.getByRole('button', { name: 'Вернуть видео в плеер' })).toBeTruthy();
+  expect(invoke).toHaveBeenCalledWith(
+    'native_video',
+    { request: expect.objectContaining({ action: 'pictureInPicture', enabled: true }) },
+    undefined
+  );
+
+  fireEvent.click(screen.getByRole('button', { name: 'Воспроизвести' }));
+  fireEvent.input(screen.getByRole('slider', { name: 'Позиция воспроизведения' }), {
+    target: { value: '24' },
+  });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(100);
+  });
+  expect(invoke).toHaveBeenCalledWith(
+    'native_video',
+    {
+      request: expect.objectContaining({ action: 'poll', controls: { pause: false, seconds: 24 } }),
+    },
+    undefined
+  );
+  // Clicking the native close button docks the video without a browser command.
+  snapshot.pictureInPicture = false;
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(100);
+  });
+  expect(pip.getAttribute('aria-pressed')).toBe('false');
+  expect(screen.queryByRole('button', { name: 'Вернуть видео в плеер' })).toBeNull();
+  await togglePip(pip);
+  await togglePip(screen.getByRole('button', { name: 'Вернуть видео в плеер' }));
+  expect(pip.getAttribute('aria-pressed')).toBe('false');
+  expect(invoke).toHaveBeenCalledWith(
+    'native_video',
+    { request: expect.objectContaining({ action: 'pictureInPicture', enabled: false }) },
+    undefined
+  );
+  expect(invoke.mock.calls.filter(([, args]) => args.request.action === 'open')).toHaveLength(1);
+  unmount();
+  expect(invoke).toHaveBeenCalledWith(
+    'native_video',
+    { request: expect.objectContaining({ action: 'close' }) },
+    undefined
+  );
+});
+
+it('updates every control after a new URL replaces the native player at the same quality', async () => {
+  const sources = new Map<number, string>();
+  const paused = new Map<number, boolean>();
+  const invoke = vi.fn(async (command, { request }) => {
+    if (command !== 'native_video') return null;
+    if (request.action === 'open') sources.set(request.id, request.url);
+    if (request.action !== 'poll') return null;
+    if (request.controls.pause !== undefined) paused.set(request.id, request.controls.pause);
+
+    const replacement = sources.get(request.id)?.includes('replacement');
+
+    return {
+      ready: true,
+      seeking: false,
+      buffering: false,
+      ended: false,
+      failure: false,
+      paused: paused.get(request.id) ?? true,
+      position: 9,
+      duration: replacement ? 180 : 90,
+      buffered: 24,
+    };
+  });
+  vi.stubGlobal('isTauri', true);
+  vi.stubGlobal('__TAURI_INTERNALS__', { invoke });
+  document.documentElement.dataset.desktop = 'macos';
+
+  const { rerender } = render(<Harness />);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(100);
+  });
+  expect(screen.getByRole('slider', { name: 'Позиция воспроизведения' }).getAttribute('max')).toBe(
+    '90'
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Воспроизвести' }));
+  fireEvent.input(screen.getByRole('slider', { name: 'Громкость' }), { target: { value: '0.4' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Выключить звук' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Настройки плеера' }));
+  fireEvent.change(screen.getByRole('combobox', { name: 'Скорость воспроизведения' }), {
+    target: { value: '1.5' },
+  });
+
+  rerender(<Harness url="https://cdn.example/replacement.mp4" />);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(200);
+  });
+  expect(screen.getByRole('slider', { name: 'Позиция воспроизведения' }).getAttribute('max')).toBe(
+    '180'
+  );
+  expect(screen.getByRole('button', { name: 'Пауза' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Включить звук' })).toBeTruthy();
+  expect(
+    (screen.getByRole('combobox', { name: 'Скорость воспроизведения' }) as HTMLSelectElement).value
+  ).toBe('1.5');
+  const replacement = [...sources].find(([, url]) => url.includes('replacement'))?.[0];
+  expect(replacement).toBeDefined();
+  expect(invoke).toHaveBeenCalledWith(
+    'native_video',
+    { request: expect.objectContaining({ action: 'open', id: replacement, start: 9 }) },
+    undefined
+  );
+  expect(invoke).toHaveBeenCalledWith(
+    'native_video',
+    {
+      request: expect.objectContaining({
+        action: 'poll',
+        id: replacement,
+        controls: expect.objectContaining({ volume: 0.4, speed: 1.5 }),
+      }),
+    },
+    undefined
+  );
+});
+
+it('keeps a newer Play request while a poll is in flight and then follows the native pause state', async () => {
+  const snapshot = {
+    ready: true,
+    seeking: false,
+    buffering: false,
+    ended: false,
+    failure: false,
+    paused: true,
+    position: 9,
+    duration: 90,
+    buffered: 24,
+  };
+  let finishPoll: (value: typeof snapshot) => void = () => {};
+  let block = false;
+  const invoke = vi.fn(async (command, { request }) => {
+    if (command !== 'native_video' || request.action !== 'poll') return null;
+    if (block) {
+      return new Promise<typeof snapshot>(resolve => {
+        finishPoll = resolve;
+      });
+    }
+    if (request.controls.pause !== undefined) {
+      snapshot.paused = request.controls.pause;
+      return { ...snapshot, paused: null };
+    }
+
+    return { ...snapshot };
+  });
+  vi.stubGlobal('isTauri', true);
+  vi.stubGlobal('__TAURI_INTERNALS__', { invoke });
+  document.documentElement.dataset.desktop = 'macos';
+
+  render(<Harness />);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(100);
+  });
+  block = true;
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(80);
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Воспроизвести' }));
+  await act(async () => {
+    block = false;
+    finishPoll({ ...snapshot });
+  });
+  expect(screen.getByRole('button', { name: 'Пауза' })).toBeTruthy();
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(80);
+  });
+  expect(snapshot.paused).toBe(false);
+  expect(screen.getByRole('button', { name: 'Пауза' })).toBeTruthy();
+  snapshot.paused = true;
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(80);
+  });
+  expect(screen.getByRole('button', { name: 'Воспроизвести' })).toBeTruthy();
+});
 
 describe('unresponsive media sources', () => {
   it('renews an opted-in source on play after a long pause, without renewing during the pause', () => {

@@ -4,11 +4,15 @@ mod discord;
 mod images;
 mod interface_scale;
 #[cfg(target_os = "macos")]
-mod macos_fullscreen;
+mod macos_window;
 mod media;
+#[cfg(target_os = "macos")]
+mod native_video;
 mod providers;
 mod server_status;
 mod session;
+#[cfg(desktop)]
+mod shutdown;
 mod skips;
 mod updates;
 
@@ -271,7 +275,28 @@ pub fn run() {
         .enable_macos_default_menu(false)
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
+        .on_page_load(|_webview, _payload| {
+            #[cfg(target_os = "macos")]
+            if _webview.label() == "main"
+                && _payload.event() == tauri::webview::PageLoadEvent::Started
+            {
+                let _ = _webview.run_on_main_thread(native_video::clear);
+            }
+        })
         .on_window_event(|window, event| {
+            #[cfg(desktop)]
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() == "main" {
+                    if let Some(webview) = window.get_webview_window("main") {
+                        api.prevent_close();
+                        shutdown::save_then_close(webview, false);
+                    }
+                }
+            }
+            #[cfg(target_os = "macos")]
+            if window.label() == "main" && matches!(event, tauri::WindowEvent::Destroyed) {
+                native_video::clear();
+            }
             if window.label() == "main"
                 && matches!(
                     event,
@@ -283,9 +308,13 @@ pub fn run() {
         })
         .setup(|app| {
             app.manage(updates::ReleaseCache::default());
+            #[cfg(desktop)]
+            app.manage(shutdown::Shutdown::default());
+            #[cfg(target_os = "macos")]
+            app.manage(native_video::Relay::default());
             #[cfg(target_os = "macos")]
             if let Some(window) = app.get_webview_window("main") {
-                macos_fullscreen::install(&window)?;
+                macos_window::install(&window)?;
             }
             app.manage(discord::DiscordPresence::new());
             app.manage(backend::Backend::new()?);
@@ -327,7 +356,13 @@ pub fn run() {
             yummy_request,
             server_status::yummy_server_status,
             updates::latest_app_release,
-            resolve_candidates
+            resolve_candidates,
+            #[cfg(desktop)]
+            shutdown::window_close_saved,
+            #[cfg(target_os = "macos")]
+            native_video::native_video,
+            #[cfg(target_os = "macos")]
+            native_video::native_video_frame
         ])
         .run(tauri::generate_context!())
         .expect("Не удалось запустить YummyWatch");
