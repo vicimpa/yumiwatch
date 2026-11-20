@@ -343,6 +343,11 @@ describe('our player mode', () => {
   it('tries another provider before the Kodik MP4 fallback and retains the fallback after an error', async () => {
     const kodik = video('1');
     const reserve = video('1', 'AniLibria', 4);
+    type Resolution = Awaited<ReturnType<typeof resolveStream>>;
+    let resolveReserve!: (result: Resolution) => void;
+    const pending = new Promise<Resolution>(resolve => {
+      resolveReserve = resolve;
+    });
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(new Response(JSON.stringify({ response: [kodik, reserve] })))
@@ -362,17 +367,25 @@ describe('our player mode', () => {
           },
         ],
       })
-      .mockResolvedValueOnce({
-        provider: 'CVH',
-        videoId: reserve.video_id,
-        duration: 1400,
-        streams: [{ quality: 360, type: 'mp4', url: 'https://cdn.example/cvh.mp4' }],
-      });
+      .mockReturnValueOnce(pending);
     const { container } = render(<Player anime={anime} />);
     await waitFor(() =>
       expect(container.querySelector('.video-stream-meta')?.textContent).toContain('Kodik')
     );
     mediaError(container.querySelector('video')!);
+    await waitFor(() =>
+      expect(useDiscordPresence).toHaveBeenLastCalledWith(
+        anime,
+        expect.objectContaining({ number: '1' }),
+        expect.objectContaining({ playing: false, reason: 'sourcechange' })
+      )
+    );
+    resolveReserve({
+      provider: 'CVH',
+      videoId: reserve.video_id,
+      duration: 1400,
+      streams: [{ quality: 360, type: 'mp4', url: 'https://cdn.example/cvh.mp4' }],
+    });
     await waitFor(() =>
       expect(container.querySelector('video')?.getAttribute('src')).toBe(
         'https://cdn.example/cvh.mp4'

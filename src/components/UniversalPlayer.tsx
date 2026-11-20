@@ -143,23 +143,6 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
   const episodesOpen =
     !background && (panel === undefined ? overlay === 'episodes' : panel === 'episodes');
 
-  useAnimeDiscordContext(
-    anime,
-    overlay === 'voice'
-      ? 'Выбирает озвучку'
-      : overlay === 'player'
-        ? 'Выбирает плеер'
-        : episodesOpen
-          ? 'Выбирает серию'
-          : panel === 'comments'
-            ? 'Читает комментарии'
-            : resource.loading && !all.length
-              ? 'Смотрит · Загрузка'
-              : undefined,
-    query,
-    200
-  );
-
   const openEpisodes = useCallback(() => {
     setQuery('');
     if (onPanelChange) onPanelChange('episodes');
@@ -472,7 +455,29 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
 
   const snapshot = playback?.videoId === active?.video_id ? playback : watch?.snapshot();
 
-  useDiscordPresence(anime, active, snapshot);
+  useDiscordPresence(
+    anime,
+    active,
+    !result && snapshot
+      ? { ...snapshot, playing: false, reason: streams.error ? 'error' : 'sourcechange' }
+      : snapshot
+  );
+  useAnimeDiscordContext(
+    anime,
+    overlay === 'voice'
+      ? 'Выбирает озвучку'
+      : overlay === 'player'
+        ? 'Выбирает плеер'
+        : episodesOpen
+          ? 'Выбирает серию'
+          : panel === 'comments'
+            ? 'Читает комментарии'
+            : !active && !resource.error && (resource.loading || all.length > 0)
+              ? 'Смотрит · Загрузка'
+              : undefined,
+    query,
+    200
+  );
 
   const position = snapshot?.position || 0,
     duration = snapshot?.duration || result?.duration || 0;

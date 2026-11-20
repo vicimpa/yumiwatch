@@ -31,13 +31,13 @@ function setup(enabled = true) {
 }
 
 describe('Discord playback presence', () => {
-  it.each(['sourcechange', 'buffering'] as const)(
+  it.each(['sourcechange', 'buffering', 'loadedmetadata'] as const)(
     'shows the selected anime and episode during initial %s before playback starts',
     reason => {
       const { presence, send, playing } = setup();
       presence.update({ ...playing, playing: false, reason });
       expect(send).toHaveBeenLastCalledWith({
-        details: anime.title,
+        details: `${anime.title} (AniLibria)`,
         state: 'Серия 2 · Загрузка',
         animeUrl: `https://ru.yummyani.me/catalog/item/${anime.anime_url}`,
         largeImage: 'https://static.yani.tv/poster.webp',
@@ -60,7 +60,10 @@ describe('Discord playback presence', () => {
     allowed.value = true;
     presence.refresh();
     expect(send).toHaveBeenLastCalledWith(
-      expect.objectContaining({ details: anime.title, state: 'Серия 2 · Воспроизводится' })
+      expect.objectContaining({
+        details: `${anime.title} (AniLibria)`,
+        state: 'Серия 2 · Воспроизводится',
+      })
     );
   });
 
@@ -69,7 +72,7 @@ describe('Discord playback presence', () => {
 
     presence.update({ ...playing, playbackRate: 2 });
     expect(send).toHaveBeenLastCalledWith({
-      details: anime.title,
+      details: `${anime.title} (AniLibria)`,
       state: 'Серия 2 · Воспроизводится',
       animeUrl: `https://ru.yummyani.me/catalog/item/${anime.anime_url}`,
       largeImage: 'https://static.yani.tv/poster.webp',

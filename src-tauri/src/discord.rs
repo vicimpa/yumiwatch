@@ -152,6 +152,7 @@ where
         let (Some(desired), Some(activity)) = (desired, activity) else {
             if let Some(mut current) = connection.take() {
                 let _ = timeout(IO_TIMEOUT, current.set_activity(None)).await;
+                retry_at = Instant::now();
             }
             continue;
         };
