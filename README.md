@@ -11,8 +11,8 @@
   <a href="https://github.com/vicimpa/yummywatch/issues">Сообщить о проблеме</a>
 </p>
 <p align="center">
-  <a href="https://github.com/vicimpa/yummywatch/actions/workflows/ci.yml"><img src="https://github.com/vicimpa/yummywatch/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://github.com/vicimpa/yummywatch/releases"><img src="https://img.shields.io/github/v/release/vicimpa/yummywatch?color=ff7777&label=версия" alt="Версия"></a>
+  <a href="https://github.com/vicimpa/yummywatch/actions/workflows/release.yml"><img src="https://github.com/vicimpa/yummywatch/actions/workflows/release.yml/badge.svg?event=push" alt="Статус релизных сборок"></a>
+  <a href="https://github.com/vicimpa/yummywatch/releases"><img src="https://img.shields.io/github/v/release/vicimpa/yummywatch?color=ff7777&amp;label=%D0%B2%D0%B5%D1%80%D1%81%D0%B8%D1%8F" alt="Версия"></a>
   <img src="https://img.shields.io/badge/Tauri-2-24c8d8" alt="Tauri 2">
 </p>
 
