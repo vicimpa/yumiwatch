@@ -11,7 +11,7 @@ import { useReleaseUpdate } from '~/hooks/useReleaseUpdate';
 import { useYummyRealtime } from '~/hooks/useYummyRealtime';
 import { useHash, useSession, useVisualViewport } from '~/lib/hooks';
 import { isDesktopWindow } from '~/lib/desktop';
-import { usesNativePlayback } from '~/lib/native-playback';
+import { usesMacNativePlayback } from '~/lib/native-playback';
 
 import { InterfaceEffects } from '~/components/InterfaceEffects';
 import { MediaNavigation } from '~/components/MediaNavigation';
@@ -73,7 +73,7 @@ export const App: FC = () => {
   const detailView =
     params.get('view') === 'watch' || params.has('watch') ? 'watch' : 'anime-about';
   const watching = detailRoute && detailView === 'watch';
-  const nativeWatchPath = watching && usesNativePlayback() ? path : undefined;
+  const nativeWatchPath = watching && usesMacNativePlayback() ? path : undefined;
   const { playerPath, media: watchMedia, pip } = usePictureInPicturePage(nativeWatchPath);
   const [playerRoute, playerQuery] = playerPath?.split('?') || [];
   const sidebarHistory =

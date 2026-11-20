@@ -5,7 +5,7 @@ import { hlsSkips } from '../../shared/skips.mjs';
 import { useCachedImage } from '~/hooks/useCachedImage';
 import { isDesktopMedia } from '~/lib/desktop';
 import { interfaceSettings } from '~/lib/interface-settings';
-import { NativePlayback } from '~/lib/native-playback';
+import { NativePlayback, usesCanvasPlayback } from '~/lib/native-playback';
 import { setPlaybackRate } from '~/lib/playback-rate';
 import { PLAYBACK_EVENT, playbackSettings } from '~/lib/playback-settings';
 import type { Stream } from '~/lib/streams';
@@ -26,6 +26,7 @@ export function NativeStreamMedia(props: Props) {
   const { stream, previewStream, caption, active, title, poster, video } = props;
   const image = useCachedImage(poster);
   const element = useRef<HTMLDivElement>(null);
+  const canvas = useRef<HTMLCanvasElement>(null);
   const callbacks = useRef(props);
   callbacks.current = props;
   const playback = useMemo(() => new NativePlayback(stream.url), [stream.url, caption?.url]);
@@ -79,7 +80,14 @@ export function NativeStreamMedia(props: Props) {
     playback.addEventListener('loadeddata', loaded);
     playback.addEventListener('error', error);
     callbacks.current.onPending?.(true);
-    void playback.open(anchor, stream, caption, callbacks.current.start(), previewStream);
+    void playback.open(
+      anchor,
+      stream,
+      caption,
+      callbacks.current.start(),
+      previewStream,
+      canvas.current || undefined
+    );
 
     if (stream.type === 'hls' && isDesktopMedia(stream.url)) {
       void fetch(stream.url, { signal: controller.signal })
@@ -109,6 +117,8 @@ export function NativeStreamMedia(props: Props) {
       aria-hidden={!active}
       aria-label={active ? title : undefined}
       style={image ? { backgroundImage: `url("${image}")` } : undefined}
-    />
+    >
+      {usesCanvasPlayback() && <canvas ref={canvas} width={640} height={360} />}
+    </div>
   );
 }

@@ -1,4 +1,15 @@
 {
+  "build": {
+    "beforeDevCommand": "node scripts/prepare-windows-libmpv.mjs && npm run clean:tauri && npm run dev:web -- --port 4179 --strictPort",
+    "beforeBuildCommand": "node scripts/prepare-windows-libmpv.mjs && npm run clean:tauri && npm run build:web"
+  },
+  "bundle": {
+    "resources": {
+      "native-libs/windows/libmpv-2.dll": "libmpv/libmpv-2.dll",
+      "native-libs/windows/LICENSE.LGPL": "libmpv/LICENSE.LGPL",
+      "native-libs/windows/SOURCE.txt": "libmpv/SOURCE.txt"
+    }
+  },
   "app": {
     "windows": [
       {

@@ -3,9 +3,14 @@
     "linux": {
       "appimage": { "bundleMediaFramework": true },
       "deb": {
-        "depends": ["gstreamer1.0-plugins-good", "gstreamer1.0-plugins-bad", "gstreamer1.0-libav"]
+        "depends": [
+          "libmpv2",
+          "gstreamer1.0-plugins-good",
+          "gstreamer1.0-plugins-bad",
+          "gstreamer1.0-libav"
+        ]
       },
-      "rpm": { "depends": ["gstreamer1-plugins-good", "gstreamer1-plugins-bad-free"] }
+      "rpm": { "depends": ["mpv-libs", "gstreamer1-plugins-good", "gstreamer1-plugins-bad-free"] }
     }
   }
 }

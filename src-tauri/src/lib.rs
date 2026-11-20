@@ -9,6 +9,9 @@ mod macos_window;
 mod media;
 #[cfg(target_os = "macos")]
 mod native_video;
+#[cfg(any(target_os = "linux", target_os = "windows"))]
+#[path = "native_video/portable.rs"]
+mod native_video;
 mod providers;
 mod server_status;
 mod session;
@@ -293,7 +296,7 @@ pub fn run() {
                 && payload.event() == tauri::webview::PageLoadEvent::Started
             {
                 keep_awake::clear(webview);
-                #[cfg(target_os = "macos")]
+                #[cfg(desktop)]
                 let _ = webview.run_on_main_thread(native_video::clear);
             }
         })
@@ -310,7 +313,7 @@ pub fn run() {
             if window.label() == "main" && matches!(event, tauri::WindowEvent::Destroyed) {
                 #[cfg(not(target_os = "android"))]
                 keep_awake::window_destroyed(window);
-                #[cfg(target_os = "macos")]
+                #[cfg(desktop)]
                 native_video::clear();
             }
             if window.label() == "main"
@@ -375,12 +378,14 @@ pub fn run() {
             inspect_stream_qualities,
             #[cfg(desktop)]
             shutdown::window_close_saved,
-            #[cfg(target_os = "macos")]
+            #[cfg(desktop)]
             native_video::native_video,
             #[cfg(target_os = "macos")]
             native_video::native_video_frame,
             #[cfg(target_os = "macos")]
-            native_video::native_video_card_frame
+            native_video::native_video_card_frame,
+            #[cfg(any(target_os = "linux", target_os = "windows"))]
+            native_video::native_video_pixels
         ])
         .run(tauri::generate_context!())
         .expect("Не удалось запустить YummyWatch");
