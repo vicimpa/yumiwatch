@@ -10,6 +10,7 @@ import {
   VideoSurface,
 } from '~/components/VideoSurface';
 import { CONTROLS_IDLE_MS } from '~/components/VideoControls';
+import { playbackSettings } from '~/lib/playback-settings';
 import type { Stream } from '~/lib/streams';
 
 function Harness({
@@ -115,6 +116,10 @@ it('runs the macOS controls through the native surface without mounting HTML vid
   vi.stubGlobal('isTauri', true);
   vi.stubGlobal('__TAURI_INTERNALS__', { invoke });
   document.documentElement.dataset.desktop = 'macos';
+  localStorage.setItem(
+    'yumiwatch:playback-settings',
+    JSON.stringify({ upscale: 'fsr', upscaleSharpen: true })
+  );
 
   const preview = { quality: 144, url: 'https://cdn.example/low.m3u8', type: 'hls' } as const;
   const { container, unmount } = render(<Harness previewStream={preview} />);
@@ -131,6 +136,8 @@ it('runs the macOS controls through the native surface without mounting HTML vid
         action: 'open',
         kind: 'mp4',
         preview: { url: preview.url, kind: 'hls' },
+        upscale: 'fsr',
+        sharpen: 'moderate',
       }),
     },
     undefined
@@ -140,6 +147,34 @@ it('runs the macOS controls through the native surface without mounting HTML vid
     { request: expect.objectContaining({ action: 'poll', active: true }) },
     undefined
   );
+  fireEvent.click(screen.getByRole('button', { name: 'Настройки плеера' }));
+  const upscale = screen.getByRole<HTMLSelectElement>('combobox', { name: 'Апскейл видео' });
+  const speed = screen.getByRole('combobox', { name: 'Скорость воспроизведения' });
+  const sharpen = screen.getByRole<HTMLSelectElement>('combobox', { name: 'Резкость контуров' });
+  expect(upscale.closest('label')?.previousElementSibling).toBe(speed.closest('label'));
+  expect(upscale.value).toBe('fsr');
+  expect(sharpen.value).toBe('moderate');
+  fireEvent.change(sharpen, { target: { value: 'strong' } });
+  expect(playbackSettings().upscaleSharpness).toBe('strong');
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(100);
+  });
+  expect(invoke).toHaveBeenCalledWith(
+    'native_video',
+    { request: expect.objectContaining({ action: 'poll', upscale: 'fsr', sharpen: 'strong' }) },
+    undefined
+  );
+  fireEvent.change(upscale, { target: { value: 'default' } });
+  expect(playbackSettings().upscale).toBe('default');
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(100);
+  });
+  expect(invoke).toHaveBeenCalledWith(
+    'native_video',
+    { request: expect.objectContaining({ action: 'poll', upscale: 'default', sharpen: 'strong' }) },
+    undefined
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Закрыть настройки' }));
   fireEvent.click(screen.getByRole('button', { name: 'Воспроизвести' }));
   fireEvent.input(screen.getByRole('slider', { name: 'Позиция воспроизведения' }), {
     target: { value: '24' },

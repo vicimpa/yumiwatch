@@ -825,6 +825,7 @@ export const VideoSurface: FC<TVideoSurfaceProps> = ({
       {(loading || error) && loadingImage && <PlaybackPreview src={loadingImage} />}
       {!background && (
         <VideoControls
+          native={native}
           onBack={onBack}
           onVoice={onVoice}
           voiceLabel={voiceLabel}

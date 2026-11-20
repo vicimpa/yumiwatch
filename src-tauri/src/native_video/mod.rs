@@ -20,6 +20,9 @@ pub enum Request {
         caption: Option<String>,
         preview: Option<PreviewSource>,
         start: f64,
+        #[serde(default)]
+        upscale: UpscaleMode,
+        sharpen: Option<SharpenSetting>,
     },
     Poll {
         id: u32,
@@ -27,6 +30,8 @@ pub enum Request {
         geometry: Option<Geometry>,
         visible: Option<bool>,
         active: Option<bool>,
+        upscale: Option<UpscaleMode>,
+        sharpen: Option<SharpenSetting>,
     },
     PictureInPicture {
         enabled: Option<bool>,
@@ -38,6 +43,81 @@ pub enum Request {
     Close {
         id: u32,
     },
+}
+
+#[derive(Default, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum UpscaleMode {
+    #[default]
+    Default,
+    EwaLanczos,
+    Fsr,
+    Anime4k,
+    Fsrcnnx,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SharpenLevel {
+    Off,
+    Moderate,
+    Strong,
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+pub enum SharpenSetting {
+    Level(SharpenLevel),
+    Legacy(bool),
+}
+
+struct UpscaleOptions {
+    scale: &'static CStr,
+    shader: Option<CString>,
+    sharpen: Option<CString>,
+    strong: bool,
+}
+
+impl UpscaleMode {
+    fn options(
+        self,
+        window: &tauri::WebviewWindow,
+        sharpen: Option<SharpenSetting>,
+    ) -> UpscaleOptions {
+        let level = match sharpen {
+            Some(SharpenSetting::Level(level)) => level,
+            Some(SharpenSetting::Legacy(true)) => SharpenLevel::Moderate,
+            _ => SharpenLevel::Off,
+        };
+        let shader_path = |name| {
+            let path = window
+                .path()
+                .resource_dir()
+                .ok()?
+                .join("upscaling")
+                .join(name);
+            CString::new(path.as_os_str().as_encoded_bytes()).ok()
+        };
+        let shader = match self {
+            Self::Default | Self::EwaLanczos => None,
+            Self::Fsr => Some("FSR.glsl"),
+            Self::Anime4k => Some("Anime4K_Upscale_CNN_x2_S.glsl"),
+            Self::Fsrcnnx => Some("FSRCNNX_x2_8-0-4-1.glsl"),
+        }
+        .and_then(shader_path);
+        UpscaleOptions {
+            scale: if matches!(self, Self::Default) {
+                c"lanczos"
+            } else {
+                c"ewa_lanczos"
+            },
+            shader,
+            sharpen: (!matches!(level, SharpenLevel::Off))
+                .then_some("UpscaleSharpen.glsl")
+                .and_then(shader_path),
+            strong: matches!(level, SharpenLevel::Strong),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Deserialize)]
@@ -137,6 +217,10 @@ extern "C" {
         kind: *const c_char,
         start: f64,
         bounded: bool,
+        scale: *const c_char,
+        shader: *const c_char,
+        sharpen: *const c_char,
+        strong: bool,
         error: *mut *const c_char,
     ) -> *mut c_void;
     fn yw_video_close(player: *mut c_void);
@@ -170,6 +254,13 @@ extern "C" {
         complete: unsafe extern "C" fn(*mut c_void, *const u8, usize),
     );
     fn yw_video_layout(player: *mut c_void, rect: *const f64, visibility: i32);
+    fn yw_video_upscale(
+        player: *mut c_void,
+        scale: *const c_char,
+        shader: *const c_char,
+        sharpen: *const c_char,
+        strong: bool,
+    );
     fn yw_video_flag(player: *mut c_void, name: *const c_char, value: i32);
     fn yw_video_number(player: *mut c_void, name: *const c_char, value: f64);
     fn yw_video_snapshot(player: *mut c_void, snapshot: *mut RawSnapshot);
@@ -294,6 +385,8 @@ pub async fn native_video(
             caption,
             preview,
             start,
+            upscale,
+            sharpen,
         } => {
             let state = window.state::<Relay>();
             let backend = window.state::<crate::backend::Backend>();
@@ -316,6 +409,7 @@ pub async fn native_video(
             } else {
                 None
             };
+            let upscale = upscale.options(&window, sharpen);
             for_view(&window, move |view| {
                 PLAYERS.with(|players| {
                     let mut players = players.borrow_mut();
@@ -344,6 +438,10 @@ pub async fn native_video(
                             kind.demuxer().as_ptr(),
                             start.clamp(0.0, 86400.0),
                             bounded && matches!(kind, Kind::Mp4),
+                            upscale.scale.as_ptr(),
+                            upscale.shader.as_deref().map_or(ptr::null(), CStr::as_ptr),
+                            upscale.sharpen.as_deref().map_or(ptr::null(), CStr::as_ptr),
+                            upscale.strong,
                             &mut error,
                         )
                     };
@@ -374,24 +472,40 @@ pub async fn native_video(
             geometry,
             visible,
             active,
-        } => for_view(&window, move |_| {
-            PLAYERS.with(|players| {
-                let players = players.borrow();
-                let player = players.get(&id).ok_or("Видеопоток закрыт.")?;
-                ACTIVE.with(|current| match active {
-                    Some(true) if current.get().is_none_or(|previous| id >= previous) => {
-                        current.set(Some(id));
-                        unsafe { yw_video_attach_picture_in_picture(player.0.as_ptr()) };
+            upscale,
+            sharpen,
+        } => {
+            let upscale = upscale.map(|mode| mode.options(&window, sharpen));
+            for_view(&window, move |_| {
+                PLAYERS.with(|players| {
+                    let players = players.borrow();
+                    let player = players.get(&id).ok_or("Видеопоток закрыт.")?;
+                    if let Some(upscale) = upscale {
+                        unsafe {
+                            yw_video_upscale(
+                                player.0.as_ptr(),
+                                upscale.scale.as_ptr(),
+                                upscale.shader.as_deref().map_or(ptr::null(), CStr::as_ptr),
+                                upscale.sharpen.as_deref().map_or(ptr::null(), CStr::as_ptr),
+                                upscale.strong,
+                            );
+                        }
                     }
-                    Some(false) if current.get() == Some(id) => {
-                        current.set(None);
-                        unsafe { yw_video_attach_picture_in_picture(ptr::null_mut()) };
-                    }
-                    _ => {}
-                });
-                Ok(Some(player.poll(controls, geometry, visible)))
-            })
-        })?,
+                    ACTIVE.with(|current| match active {
+                        Some(true) if current.get().is_none_or(|previous| id >= previous) => {
+                            current.set(Some(id));
+                            unsafe { yw_video_attach_picture_in_picture(player.0.as_ptr()) };
+                        }
+                        Some(false) if current.get() == Some(id) => {
+                            current.set(None);
+                            unsafe { yw_video_attach_picture_in_picture(ptr::null_mut()) };
+                        }
+                        _ => {}
+                    });
+                    Ok(Some(player.poll(controls, geometry, visible)))
+                })
+            })?
+        }
         Request::PictureInPicture {
             enabled,
             unavailable,

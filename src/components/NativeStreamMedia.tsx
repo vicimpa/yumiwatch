@@ -7,7 +7,7 @@ import { isDesktopMedia } from '~/lib/desktop';
 import { interfaceSettings } from '~/lib/interface-settings';
 import { NativePlayback } from '~/lib/native-playback';
 import { setPlaybackRate } from '~/lib/playback-rate';
-import { playbackSettings } from '~/lib/playback-settings';
+import { PLAYBACK_EVENT, playbackSettings } from '~/lib/playback-settings';
 import type { Stream } from '~/lib/streams';
 import { trackWatchFrames } from '~/lib/watch-frames';
 
@@ -45,6 +45,9 @@ export function NativeStreamMedia(props: Props) {
     playback.volume = interfaceSettings().volume;
     playback.muted = !active || settings.muted;
     if (settings.rate !== 1) setPlaybackRate(playback, settings.rate);
+    playback.setUpscale(settings);
+    const updateUpscale = () => playback.setUpscale(playbackSettings());
+    window.addEventListener(PLAYBACK_EVENT, updateUpscale);
 
     const fail = (message: string) => {
       if (failed) return;
@@ -90,6 +93,7 @@ export function NativeStreamMedia(props: Props) {
     return () => {
       clearTimeout(timer);
       controller.abort();
+      window.removeEventListener(PLAYBACK_EVENT, updateUpscale);
       playback.removeEventListener('loadeddata', loaded);
       playback.removeEventListener('error', error);
       if (!stopRecording()) playback.close();

@@ -13,6 +13,7 @@ import { savePlaybackSettings } from '~/lib/playback-settings';
 import { formatTime } from '~/lib/player';
 
 import { PlaybackLoader } from './PlaybackLoader';
+import { VideoUpscaleSetting } from './PlaybackSettings';
 import { PictureInPictureButton } from './PictureInPictureButton';
 import { VideoTimeline } from './VideoTimeline';
 import { Icon, Input, Select } from '~/ui';
@@ -29,6 +30,7 @@ const physical: Partial<Record<string, string>> = {
 export const CONTROLS_IDLE_MS = 3000;
 
 export type TVideoControlsProps = {
+  native?: boolean;
   mediaVersion?: string;
   media: RefObject<PlaybackMedia>;
   frame: RefObject<HTMLDivElement>;
@@ -52,6 +54,7 @@ export type TVideoControlsProps = {
 };
 
 export const VideoControls: FC<TVideoControlsProps> = ({
+  native,
   mediaVersion = '',
   media,
   frame,
@@ -518,6 +521,7 @@ export const VideoControls: FC<TVideoControlsProps> = ({
                 ))}
               </Select>
             </label>
+            {native && <VideoUpscaleSetting />}
           </div>
           {settings}
           <p class="video-shortcuts">

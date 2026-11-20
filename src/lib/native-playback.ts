@@ -1,5 +1,6 @@
 import { desktopInvoke, isDesktop } from './desktop';
 import type { PlaybackClosePositions, PlaybackMedia } from './playback-media';
+import type { PlaybackSettings, UpscaleMode, UpscaleSharpness } from './playback-settings';
 import type { Stream, StreamCaption } from './streams';
 
 export const usesNativePlayback = () =>
@@ -15,6 +16,7 @@ export type PictureInPictureControls = {
 };
 
 type Geometry = { x: number; y: number; width: number; height: number };
+type UpscaleOptions = { upscale: UpscaleMode; sharpen: UpscaleSharpness };
 type Controls = {
   pause?: boolean;
   seconds?: number;
@@ -81,6 +83,8 @@ export class NativePlayback extends EventTarget implements PlaybackMedia {
   private level = 1;
   private silent = true;
   private rate = 1;
+  private upscaleOptions: UpscaleOptions = { upscale: 'default', sharpen: 'off' };
+  private appliedUpscale?: UpscaleOptions;
   private bufferEnd = 0;
   private controls: Controls = {};
   private geometry?: Geometry;
@@ -193,6 +197,14 @@ export class NativePlayback extends EventTarget implements PlaybackMedia {
     }
   }
 
+  setUpscale({
+    upscale,
+    upscaleSharpness,
+  }: Pick<PlaybackSettings, 'upscale' | 'upscaleSharpness'>) {
+    if (this.upscaleOptions.upscale !== upscale || this.upscaleOptions.sharpen !== upscaleSharpness)
+      this.upscaleOptions = { upscale, sharpen: upscaleSharpness };
+  }
+
   async open(
     element: HTMLElement,
     stream: Stream,
@@ -202,6 +214,7 @@ export class NativePlayback extends EventTarget implements PlaybackMedia {
   ) {
     this.position = start;
     this.element = element;
+    const upscale = this.upscaleOptions;
 
     try {
       await invoke({
@@ -215,7 +228,9 @@ export class NativePlayback extends EventTarget implements PlaybackMedia {
             ? { url: previewStream.url, kind: previewStream.type }
             : undefined,
         start,
+        ...upscale,
       });
+      this.appliedUpscale = upscale;
       this.opened = true;
       if (this.disposed) {
         this.close();
@@ -251,16 +266,19 @@ export class NativePlayback extends EventTarget implements PlaybackMedia {
     this.geometry = geometry;
     const controls = this.controls;
     this.controls = {};
+    const upscale = this.upscaleOptions;
 
     try {
       const snapshot = await invoke<Snapshot>({
         action: 'poll',
         id: this.id,
         controls,
+        ...(this.appliedUpscale === upscale ? {} : upscale),
         ...(this.lastActive === active ? {} : { active }),
         ...(moved ? { geometry } : {}),
         ...(this.lastVisible === visible ? {} : { visible }),
       });
+      this.appliedUpscale = upscale;
       this.lastVisible = visible;
       this.lastActive = active;
       if (this.disposed || this.closing) return;

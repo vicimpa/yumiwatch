@@ -17,11 +17,12 @@ typedef struct { void *data; size_t size; } ByteArray;
 typedef struct Node Node;
 typedef struct { int count; Node *values; char **keys; } NodeList;
 struct Node {
-    union { int64_t integer; NodeList *list; ByteArray *bytes; } data;
+    union { int64_t integer; const char *string; NodeList *list; ByteArray *bytes; } data;
     int format;
 };
 enum { OptionNotFound = -5 };
-enum { FormatString = 1, FormatFlag = 3, FormatInteger = 4, FormatDouble = 5, FormatMap = 8, FormatBytes = 9 };
+enum { FormatString = 1, FormatFlag = 3, FormatInteger = 4, FormatDouble = 5,
+       FormatNode = 6, FormatArray = 7, FormatMap = 8, FormatBytes = 9 };
 enum { EventSetPropertyReply = 4, EventEndFile = 7, EventFileLoaded = 8,
        EventSeek = 20, EventPlaybackRestart = 21 };
 enum { LoadReply = 1, SeekReply, PauseReply };
@@ -31,6 +32,7 @@ static struct {
     mpv_handle *(*create)(void);
     int (*initialize)(mpv_handle *);
     int (*set_option_string)(mpv_handle *, const char *, const char *);
+    int (*set_property)(mpv_handle *, const char *, int, void *);
     int (*set_property_async)(mpv_handle *, uint64_t, const char *, int, void *);
     int (*get_property)(mpv_handle *, const char *, int, void *);
     int (*command_async)(mpv_handle *, uint64_t, const char **);
@@ -59,6 +61,7 @@ static BOOL load_mpv(const char *override) {
     LOAD(create);
     LOAD(initialize);
     LOAD(set_option_string);
+    LOAD(set_property);
     LOAD(set_property_async);
     LOAD(get_property);
     LOAD(command_async);
@@ -647,7 +650,36 @@ void yw_video_picture_in_picture_card(bool visible) {
     [floatingVideo setCardVisible:visible];
 }
 
-static mpv_handle *create_player(const char *kind, BOOL bounded, BOOL preview) {
+static void set_upscale(mpv_handle *player, const char *scale, const char *shader,
+                        const char *sharpen, bool strong, BOOL running) {
+    // The node array passes paths verbatim, including any list separators in the app's location.
+    Node values[2];
+    NodeList paths = { .values = values };
+    if (shader) values[paths.count++] = (Node){ .data.string = shader, .format = FormatString };
+    if (sharpen) values[paths.count++] = (Node){ .data.string = sharpen, .format = FormatString };
+    Node shaders = { .data.list = &paths, .format = FormatArray };
+    const char *shaderOptions = strong ? "UpscaleSharpen/YW_SHARPEN_LEVEL=2" :
+        "UpscaleSharpen/YW_SHARPEN_LEVEL=1";
+    if (running) {
+        mpv.set_property_async(player, 0, "options/scale", FormatString, &scale);
+        mpv.set_property_async(player, 0, "options/glsl-shader-opts", FormatString, &shaderOptions);
+        mpv.set_property_async(player, 0, "options/glsl-shaders", FormatNode, &shaders);
+    } else {
+        mpv.set_option_string(player, "scale", scale);
+        mpv.set_option_string(player, "glsl-shader-opts", shaderOptions);
+        mpv.set_property(player, "glsl-shaders", FormatNode, &shaders);
+    }
+}
+
+void yw_video_upscale(void *pointer, const char *scale, const char *shader,
+                      const char *sharpen, bool strong) {
+    YWVideo *session = (__bridge YWVideo *)pointer;
+    set_upscale(session->player, scale, shader, sharpen, strong, YES);
+}
+
+static mpv_handle *create_player(const char *kind, BOOL bounded, BOOL preview,
+                                const char *scale, const char *shader, const char *sharpen,
+                                bool strong) {
     mpv_handle *player = mpv.create();
     if (!player) return NULL;
     const char *options[][2] = {
@@ -683,6 +715,7 @@ static mpv_handle *create_player(const char *kind, BOOL bounded, BOOL preview) {
         mpv.set_option_string(player, "hls-bitrate", "min") < 0 ||
         mpv.set_option_string(player, "demuxer-max-bytes", "8MiB") < 0 ||
         mpv.set_option_string(player, "demuxer-max-back-bytes", "2MiB") < 0)) goto failure;
+    if (!preview) set_upscale(player, scale, shader, sharpen, strong, NO);
     if (mpv.initialize(player) >= 0) return player;
 failure:
     destroy_player(player);
@@ -704,8 +737,9 @@ static int seek_video(mpv_handle *player, double seconds) {
 }
 
 void *yw_video_open(void *webview, const char *library, const char *url,
-                    const char *caption_url, const char *kind, double start,
-                    bool bounded, const char **error) {
+                    const char *caption_url, const char *kind, double start, bool bounded,
+                    const char *scale, const char *shader, const char *sharpen,
+                    bool strong, const char **error) {
     NSView *web = (__bridge NSView *)webview;
     if (!web.superview || !load_mpv(library)) {
         *error = "Не найдена нативная библиотека libmpv.";
@@ -713,7 +747,7 @@ void *yw_video_open(void *webview, const char *library, const char *url,
     }
     YWVideo *session = [YWVideo new];
     YWVideoLayer *layer = nil;
-    session->player = create_player(kind, bounded, NO);
+    session->player = create_player(kind, bounded, NO, scale, shader, sharpen, strong);
     if (!session->player) goto failure;
 
     session->surface = [YWVideoLayer new];
@@ -919,7 +953,7 @@ void yw_video_frame(void *pointer, void *context,
 - (NSData *)frameAt:(double)seconds source:(YWVideoSource *)source deadline:(NSTimeInterval)deadline {
     BOOL opening = !player;
     if (opening) {
-        player = create_player(source->kind.UTF8String, source->bounded, YES);
+        player = create_player(source->kind.UTF8String, source->bounded, YES, NULL, NULL, NULL, false);
         if (!player || load_video(player, source->url.UTF8String, seconds) < 0) return nil;
     } else {
         while (mpv.wait_event(player, 0)->id) {}

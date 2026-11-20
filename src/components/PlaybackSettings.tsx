@@ -4,11 +4,59 @@ import { useCallback } from 'preact/hooks';
 import { usesNativePlayback } from '~/lib/native-playback';
 import {
   PLAYBACK_QUALITIES,
+  PLAYBACK_UPSCALERS,
+  UPSCALE_SHARPNESS,
   savePlaybackSettings,
   usePlaybackSettings,
 } from '~/lib/playback-settings';
 
-import { Dropdown, Field, Icon, SettingsCard, Toggle } from '~/ui';
+import { Dropdown, Field, Icon, Select, SettingsCard, Toggle } from '~/ui';
+
+const saveUpscale = (value: string) => {
+  const mode = PLAYBACK_UPSCALERS.find(option => option.value === value);
+  if (mode) savePlaybackSettings({ upscale: mode.value });
+};
+
+export const VideoUpscaleSetting: FC = () => {
+  const { upscale, upscaleSharpness } = usePlaybackSettings();
+
+  return (
+    <>
+      <label class="video-setting-field video-upscale-setting">
+        <span>Апскейл</span>
+        <Select
+          aria-label="Апскейл видео"
+          value={upscale}
+          onChange={event => saveUpscale(event.currentTarget.value)}
+        >
+          {PLAYBACK_UPSCALERS.map(({ value, label }) => (
+            <option value={value} key={value}>
+              {label}
+            </option>
+          ))}
+        </Select>
+      </label>
+      <label class="video-setting-field video-upscale-setting">
+        <span>Резкость контуров</span>
+        <Select
+          aria-label="Резкость контуров"
+          value={upscaleSharpness}
+          onChange={event => {
+            const value = event.currentTarget.value;
+            const level = UPSCALE_SHARPNESS.find(option => option.value === value);
+            if (level) savePlaybackSettings({ upscaleSharpness: level.value });
+          }}
+        >
+          {UPSCALE_SHARPNESS.map(({ value, label }) => (
+            <option value={value} key={value}>
+              {label}
+            </option>
+          ))}
+        </Select>
+      </label>
+    </>
+  );
+};
 
 export const AutoPictureInPictureSetting: FC = () => {
   const settings = usePlaybackSettings();
@@ -82,6 +130,16 @@ export const PlaybackSettingsCard: FC = () => {
           }))}
         />
       </Field>
+      {usesNativePlayback() && (
+        <Field class="settings-choice" label="Апскейл видео">
+          <Dropdown
+            aria-label="Апскейл видео"
+            value={settings.upscale}
+            onChange={saveUpscale}
+            options={[...PLAYBACK_UPSCALERS]}
+          />
+        </Field>
+      )}
       <AutoPictureInPictureSetting />
     </SettingsCard>
   );

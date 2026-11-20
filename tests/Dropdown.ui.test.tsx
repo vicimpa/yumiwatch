@@ -8,6 +8,30 @@ afterEach(() => {
   cleanup();
   localStorage.clear();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+  delete document.documentElement.dataset.desktop;
+});
+
+it('offers and persists all upscaling modes on the native macOS player', () => {
+  const web = render(<PlaybackSettingsCard />);
+  expect(screen.queryByRole('combobox', { name: 'Апскейл видео' })).toBeNull();
+  web.unmount();
+  vi.stubGlobal('isTauri', true);
+  document.documentElement.dataset.desktop = 'macos';
+  render(<PlaybackSettingsCard />);
+  const trigger = screen.getByRole('combobox', { name: 'Апскейл видео' });
+  expect(trigger.textContent).toContain('Стандартный');
+  fireEvent.click(trigger);
+  expect(screen.getAllByRole('option').map(option => option.textContent?.trim())).toEqual([
+    'Стандартный',
+    'EWA Lanczos',
+    'AMD FSR 1.0',
+    'Anime4K CNN x2 S',
+    'FSRCNNX x2 8-0-4-1',
+  ]);
+  fireEvent.click(screen.getByRole('option', { name: 'Anime4K CNN x2 S' }));
+  expect(playbackSettings().upscale).toBe('anime4k');
+  expect(trigger.textContent).toContain('Anime4K CNN x2 S');
 });
 
 it('selects and persists quality using an app menu instead of a native select', () => {

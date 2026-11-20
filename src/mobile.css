@@ -2468,6 +2468,9 @@
   font-size: 12px;
   color: #bcb6c2;
 }
+.video-settings-selects .video-upscale-setting {
+  grid-column: 1 / -1;
+}
 .video-settings-selects .select-control {
   width: 100%;
 }
