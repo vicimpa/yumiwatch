@@ -15,6 +15,7 @@ import type { Stream } from '~/lib/streams';
 
 function Harness({
   url = 'https://cdn.example/test.mp4',
+  quality = 360,
   poster = '',
   loadingImage,
   previewStream,
@@ -28,6 +29,7 @@ function Harness({
   resume,
 }: {
   url?: string;
+  quality?: number;
   poster?: string;
   loadingImage?: string;
   previewStream?: Stream;
@@ -44,7 +46,7 @@ function Harness({
 
   return (
     <VideoSurface
-      stream={{ quality: 360, type: 'mp4', url }}
+      stream={{ quality, type: 'mp4', url }}
       previewStream={previewStream}
       identity={1}
       start={0}
@@ -266,6 +268,77 @@ it('updates every control after a new URL replaces the native player at the same
         action: 'poll',
         id: replacement,
         controls: expect.objectContaining({ volume: 0.4, speed: 1.5 }),
+      }),
+    },
+    undefined
+  );
+});
+
+it('keeps the prepared native layer transparent when a new quality becomes active', async () => {
+  const sources = new Map<number, string>();
+  const playing = new Map<number, boolean>();
+  let aligned = false;
+  const invoke = vi.fn(async (command, { request }) => {
+    if (command !== 'native_video') return null;
+    if (request.action === 'open') sources.set(request.id, request.url);
+    if (request.action !== 'poll') return null;
+    if (request.controls.pause !== undefined) playing.set(request.id, !request.controls.pause);
+    const replacement = sources.get(request.id)?.endsWith('/720.mp4');
+    return {
+      ready: true,
+      seeking: !!replacement && !aligned,
+      buffering: false,
+      ended: false,
+      failure: false,
+      paused: !playing.get(request.id),
+      position: !replacement || aligned ? 9 : 6,
+      duration: 90,
+      buffered: 24,
+    };
+  });
+  vi.stubGlobal('isTauri', true);
+  vi.stubGlobal('__TAURI_INTERNALS__', { invoke });
+  document.documentElement.dataset.desktop = 'macos';
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(
+    new DOMRect(0, 0, 640, 360)
+  );
+
+  const { container, rerender } = render(<Harness />);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(100);
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Воспроизвести' }));
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(100);
+  });
+  const original = container.querySelector('.native-stream-layer.is-active');
+  expect(original?.classList.contains('native-stream-ready')).toBe(true);
+
+  rerender(<Harness url="https://cdn.example/720.mp4" quality={720} />);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(200);
+  });
+  const prepared = container.querySelector('.native-stream-layer.is-standby');
+  expect(prepared?.classList.contains('native-stream-ready')).toBe(true);
+  expect(container.querySelector('.native-stream-layer.is-active')).toBe(original);
+
+  aligned = true;
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(240);
+  });
+  expect(prepared).toBe(container.querySelector('.native-stream-layer.is-active'));
+  expect(prepared?.classList.contains('native-stream-ready')).toBe(true);
+  expect(original?.isConnected).toBe(false);
+  expect(screen.getByRole('button', { name: 'Пауза' })).toBeTruthy();
+  const replacement = [...sources].find(([, url]) => url.endsWith('/720.mp4'))?.[0];
+  expect(invoke).toHaveBeenCalledWith(
+    'native_video',
+    {
+      request: expect.objectContaining({
+        action: 'poll',
+        id: replacement,
+        active: true,
+        visible: true,
       }),
     },
     undefined

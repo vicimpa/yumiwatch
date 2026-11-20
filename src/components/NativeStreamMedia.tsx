@@ -1,5 +1,5 @@
 import type { RefObject } from 'preact';
-import { useEffect, useLayoutEffect, useMemo, useRef } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 
 import { hlsSkips } from '../../shared/skips.mjs';
 import { useCachedImage } from '~/hooks/useCachedImage';
@@ -29,6 +29,7 @@ export function NativeStreamMedia(props: Props) {
   const callbacks = useRef(props);
   callbacks.current = props;
   const playback = useMemo(() => new NativePlayback(stream.url), [stream.url, caption?.url]);
+  const [readyId, setReadyId] = useState<number>();
   useLayoutEffect(() => playback.setActive(active), [active, playback]);
   // As with a DOM ref, the parent needs the playback object during its layout effect.
   video.current = playback;
@@ -68,7 +69,7 @@ export function NativeStreamMedia(props: Props) {
     const loaded = () => {
       if (failed || ready) return;
       ready = true;
-      anchor.classList.add('native-stream-ready');
+      setReadyId(playback.id);
       clearTimeout(timer);
       callbacks.current.onPending?.(false);
       callbacks.current.onReady();
@@ -97,14 +98,13 @@ export function NativeStreamMedia(props: Props) {
       playback.removeEventListener('loadeddata', loaded);
       playback.removeEventListener('error', error);
       if (!stopRecording()) playback.close();
-      anchor.classList.remove('native-stream-ready');
     };
   }, [playback]);
 
   return (
     <div
       ref={element}
-      class={`stream-layer native-stream-layer ${active ? 'is-active' : 'is-standby'}`}
+      class={`stream-layer native-stream-layer ${active ? 'is-active' : 'is-standby'}${readyId === playback.id ? ' native-stream-ready' : ''}`}
       data-active={active}
       aria-hidden={!active}
       aria-label={active ? title : undefined}
