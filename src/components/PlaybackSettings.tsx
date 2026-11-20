@@ -104,6 +104,9 @@ export const AutoSkipSettings: FC = () => {
 
 export const PlaybackSettingsCard: FC = () => {
   const settings = usePlaybackSettings();
+  const qualities = [...new Set([...PLAYBACK_QUALITIES, settings.quality])]
+    .filter(value => value !== 'auto')
+    .sort((a, b) => Number(a) - Number(b));
 
   const changeQuality = useCallback(
     (value: string) => savePlaybackSettings({ quality: value }),
@@ -121,7 +124,7 @@ export const PlaybackSettingsCard: FC = () => {
           aria-label="Предпочитаемое качество"
           value={settings.quality}
           onChange={changeQuality}
-          options={PLAYBACK_QUALITIES.map(value => ({
+          options={[...qualities, 'auto'].map(value => ({
             value,
             label:
               value === 'auto'

@@ -68,14 +68,48 @@ export function voiceVideos(videos: Video[], voice: string) {
   return [...episodes.values()];
 }
 
+export const preferredStreamQuality = (quality: string) =>
+  quality === 'auto' ? 480 : Number(quality);
+
 export function selectStream(streams: Stream[], preferred: string) {
   const sorted = [...streams].sort((a, b) => a.quality - b.quality);
 
   if (!sorted.length) throw new Error('Источник не предоставил видео.');
 
-  const limit = preferred === 'auto' ? 480 : Number(preferred);
+  const limit = preferredStreamQuality(preferred);
 
   return sorted.filter(stream => stream.quality <= limit).at(-1) || sorted[0];
+}
+
+export function streamSourceFamily(raw: string) {
+  try {
+    const url = new URL(raw.startsWith('//') ? `https:${raw}` : raw);
+    if (url.protocol !== 'https:' || url.username || url.password || url.port) return;
+    if (
+      ['ru.yummyani.me', 'yummyani.me'].includes(url.hostname) &&
+      url.pathname.endsWith('/iframeCVH.html')
+    )
+      return 'CVH';
+    if (['kodikplayer.com', 'kodikplayer.org', 'kodik.info', 'kodik.cc'].includes(url.hostname))
+      return 'Kodik';
+    if (['alloha.yani.tv', 'alloha.tv', 'streamalloha.live'].includes(url.hostname))
+      return 'Alloha';
+    if (url.hostname === 'player.aksor.tv') return 'Aksor';
+  } catch {
+    return undefined;
+  }
+}
+
+export function kodikMp4(result: StreamResult): StreamResult | undefined {
+  if (result.provider !== 'Kodik') return;
+  const streams = result.streams.flatMap(stream =>
+    stream.type === 'mp4'
+      ? [stream]
+      : stream.fallback
+        ? [{ ...stream, ...stream.fallback, fallback: undefined }]
+        : []
+  );
+  if (streams.length) return { ...result, streams };
 }
 
 async function getJSON(url: string, signal: AbortSignal) {
@@ -147,32 +181,69 @@ function sourcePriority(url: string) {
   return 3;
 }
 
-export async function resolveStream(
-  videos: Video[],
-  signal: AbortSignal,
-  options: { preferredVideoId?: number } = {}
-): Promise<StreamResult> {
-  const candidates = videos.map(video => ({
+const streamCandidates = (videos: Video[]) =>
+  videos.map(video => ({
     url: video.iframe_url.startsWith('//') ? `https:${video.iframe_url}` : video.iframe_url,
     videoId: video.video_id,
     dubbing: video.data.dubbing,
     episode: video.number,
   }));
+
+const MAX_CANDIDATES = 12;
+
+export async function inspectStreamQualities(videos: Video[], signal: AbortSignal) {
+  const desktop = isDesktop();
+  const supported = videos.filter(video => {
+    const family = streamSourceFamily(video.iframe_url);
+    return desktop ? !!family : family === 'CVH';
+  });
+  const requests: Promise<number[]>[] = [];
+  if (desktop) {
+    const candidates = streamCandidates(supported);
+    for (let i = 0; i < candidates.length; i += MAX_CANDIDATES)
+      requests.push(
+        desktopInvoke<number[]>(
+          'inspect_stream_qualities',
+          { candidates: candidates.slice(i, i + MAX_CANDIDATES) },
+          signal
+        )
+      );
+  } else {
+    for (const candidate of supported)
+      requests.push(
+        resolveStream([candidate], signal).then(result =>
+          result.streams.map(stream => stream.quality)
+        )
+      );
+  }
+  const results = await Promise.allSettled(requests);
+  return results.flatMap(result =>
+    result.status === 'fulfilled' && Array.isArray(result.value)
+      ? result.value.filter(quality => Number.isInteger(quality) && quality > 0)
+      : []
+  );
+}
+
+export async function resolveStream(
+  videos: Video[],
+  signal: AbortSignal,
+  options: { preferredVideoId?: number; quality?: number } = {}
+): Promise<StreamResult> {
   const timeout = AbortSignal.timeout(30000);
   const combined = AbortSignal.any([signal, timeout]);
 
-  const sorted = [...candidates]
+  const sorted = streamCandidates(videos)
     .sort(
       (a, b) =>
         (a.videoId === options.preferredVideoId ? -1 : sourcePriority(a.url)) -
         (b.videoId === options.preferredVideoId ? -1 : sourcePriority(b.url))
     )
-    .slice(0, 8);
+    .slice(0, MAX_CANDIDATES);
 
   if (isDesktop()) {
     const result = await desktopInvoke<StreamResult>(
       'resolve_candidates',
-      { candidates: sorted },
+      { candidates: sorted, ...(options.quality && { quality: options.quality }) },
       combined
     );
 
@@ -180,23 +251,9 @@ export async function resolveStream(
   }
 
   let directError = '';
+  let reserve: { result: StreamResult; rank: number } | undefined;
 
-  for (const candidate of sorted.filter(value => {
-    try {
-      const url = new URL(value.url);
-
-      return (
-        url.protocol === 'https:' &&
-        !url.username &&
-        !url.password &&
-        !url.port &&
-        ['ru.yummyani.me', 'yummyani.me'].includes(url.hostname) &&
-        url.pathname.endsWith('/iframeCVH.html')
-      );
-    } catch {
-      return false;
-    }
-  })) {
+  for (const candidate of sorted.filter(value => streamSourceFamily(value.url) === 'CVH')) {
     try {
       const url = new URL(candidate.url);
       const id = url.searchParams.get('anime_id');
@@ -222,7 +279,7 @@ export async function resolveStream(
         combined
       );
 
-      return validate({
+      const result = validate({
         provider: 'CVH',
         videoId: candidate.videoId,
         duration: data.duration || 0,
@@ -238,11 +295,17 @@ export async function resolveStream(
           .filter(([key]) => data.sources?.[key])
           .map(([key, quality]) => ({ quality, url: data.sources[key], type: 'mp4' })),
       });
+      if (!options.quality) return result;
+      const selected = selectStream(result.streams, String(options.quality));
+      if (selected.quality === options.quality) return result;
+      const rank = selected.quality <= options.quality ? -selected.quality : selected.quality;
+      if (!reserve || rank < reserve.rank) reserve = { result, rank };
     } catch (error) {
       if (combined.aborted) throw error;
       directError = (error as Error).message;
     }
   }
+  if (reserve) return reserve.result;
   throw new Error(
     directError || 'Прямой поток недоступен в браузере. Открой приложение или плеер источника.'
   );

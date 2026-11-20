@@ -60,6 +60,7 @@ export type TVideoSurfaceProps = {
   previous?: () => void;
   next?: () => void;
   quality?: ComponentChildren;
+  sourcePicker?: ComponentChildren;
   streamInfo?: ComponentChildren;
   syncStatus?: ComponentChildren;
   onBack?: () => void;
@@ -99,6 +100,7 @@ export const VideoSurface: FC<TVideoSurfaceProps> = ({
   autoEnding,
   settings,
   quality,
+  sourcePicker,
   streamInfo,
   syncStatus,
   previous,
@@ -839,7 +841,12 @@ export const VideoSurface: FC<TVideoSurfaceProps> = ({
           loading={loading}
           failed={!!error}
           pip={pip}
-          settings={settings}
+          settings={
+            <>
+              {sourcePicker}
+              {settings}
+            </>
+          }
           quality={quality}
           streamInfo={streamInfo}
           syncStatus={syncStatus}
@@ -862,6 +869,7 @@ export const VideoSurface: FC<TVideoSurfaceProps> = ({
         >
           {error && (
             <>
+              {sourcePicker}
               <Button onClick={reloadStream} variant="primary">
                 Повторить загрузку
               </Button>

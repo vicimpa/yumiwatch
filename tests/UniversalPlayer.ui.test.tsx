@@ -287,7 +287,7 @@ describe('our player mode', () => {
     expect(container.querySelector('video')!.currentTime).toBe(321);
     expect(container.querySelector('iframe')).toBeNull();
   });
-  it('tries the same Kodik video as MP4 before discarding its provider and keeps the saved position', async () => {
+  it('tries Kodik MP4 when it is the only fallback and keeps the saved position', async () => {
     const source = video('1');
     vi.mocked(resolveStream).mockClear();
     vi.mocked(resolveStream).mockResolvedValue({
@@ -339,6 +339,156 @@ describe('our player mode', () => {
     mediaError(media);
     await screen.findByRole('button', { name: 'Повторить загрузку' }, { timeout: 3000 });
     expect(resolveStream).toHaveBeenCalledOnce();
+  });
+  it('tries another provider before the Kodik MP4 fallback and retains the fallback after an error', async () => {
+    const kodik = video('1');
+    const reserve = video('1', 'AniLibria', 4);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response(JSON.stringify({ response: [kodik, reserve] })))
+    );
+    vi.mocked(resolveStream)
+      .mockReset()
+      .mockResolvedValueOnce({
+        provider: 'Kodik',
+        videoId: kodik.video_id,
+        duration: 1400,
+        streams: [
+          {
+            quality: 360,
+            type: 'hls',
+            url: 'https://cdn.example/kodik.m3u8',
+            fallback: { type: 'mp4', url: 'https://cdn.example/kodik.mp4' },
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        provider: 'CVH',
+        videoId: reserve.video_id,
+        duration: 1400,
+        streams: [{ quality: 360, type: 'mp4', url: 'https://cdn.example/cvh.mp4' }],
+      });
+    const { container } = render(<Player anime={anime} />);
+    await waitFor(() =>
+      expect(container.querySelector('.video-stream-meta')?.textContent).toContain('Kodik')
+    );
+    mediaError(container.querySelector('video')!);
+    await waitFor(() =>
+      expect(container.querySelector('video')?.getAttribute('src')).toBe(
+        'https://cdn.example/cvh.mp4'
+      )
+    );
+    const cvh = container.querySelector('video')!;
+    Object.defineProperty(cvh, 'duration', { value: 1400, configurable: true });
+    fireEvent.loadedMetadata(cvh);
+    cvh.currentTime = 321;
+    fireEvent.timeUpdate(cvh);
+    mediaError(cvh);
+    await waitFor(() =>
+      expect(container.querySelector('video')?.getAttribute('src')).toBe(
+        'https://cdn.example/kodik.mp4'
+      )
+    );
+    const mp4 = container.querySelector('video')!;
+    Object.defineProperty(mp4, 'duration', { value: 1400, configurable: true });
+    fireEvent.loadedMetadata(mp4);
+    expect(mp4.currentTime).toBe(321);
+    expect(
+      vi.mocked(resolveStream).mock.calls.map(([videos]) => videos.map(item => item.video_id))
+    ).toEqual([[kodik.video_id, reserve.video_id], [reserve.video_id]]);
+  });
+
+  it('lists qualities across sources and falls back within the manually selected stream', async () => {
+    const kodik = { ...video('1'), iframe_url: 'https://kodikplayer.com/video/1' };
+    const cvh = {
+      ...video('1', 'AniLibria', 4),
+      iframe_url: 'https://ru.yummyani.me/iframeCVH.html?anime_id=10531',
+    };
+    vi.stubGlobal('isTauri', true);
+    vi.stubGlobal('__TAURI_INTERNALS__', {
+      invoke: vi.fn(async (command, args) => {
+        if (command === 'inspect_stream_qualities') return [1080, 720, 360, 480, 360];
+        if (command !== 'yummy_request') return null;
+        const response = args.request.path.includes('/videos') ? [kodik, cvh] : anime;
+        return { status: 200, body: JSON.stringify({ response }) };
+      }),
+    });
+    vi.mocked(resolveStream)
+      .mockReset()
+      .mockImplementation(async (videos, _signal, options) =>
+        videos.length > 1 && options?.quality !== 720
+          ? {
+              provider: 'CVH',
+              videoId: cvh.video_id,
+              duration: 1400,
+              streams: [360, 1080].map(quality => ({
+                quality,
+                type: 'mp4',
+                url: `https://cdn.example/cvh-${quality}.mp4`,
+              })),
+            }
+          : {
+              provider: 'Kodik',
+              videoId: kodik.video_id,
+              duration: 1400,
+              streams: [480, 720].map(quality => ({
+                quality,
+                type: 'mp4',
+                url: `https://cdn.example/kodik-${quality}.mp4`,
+              })),
+            }
+      );
+    const { container } = render(<Player anime={anime} />);
+    const stream = (name: string) =>
+      waitFor(() =>
+        expect(container.querySelector('video')?.getAttribute('src')).toBe(
+          `https://cdn.example/${name}.mp4`
+        )
+      );
+    const openSettings = () =>
+      fireEvent.click(screen.getByRole('button', { name: 'Настройки плеера' }));
+    const quality = () =>
+      screen.getByRole<HTMLSelectElement>('combobox', { name: 'Качество видео' });
+    const source = () =>
+      screen.getByRole<HTMLSelectElement>('combobox', { name: 'Источник потока' });
+
+    await stream('cvh-360');
+    openSettings();
+    expect(source().selectedOptions[0]?.textContent).toBe('Авто');
+    await waitFor(() =>
+      expect(Array.from(quality().options, option => option.value)).toEqual([
+        'auto',
+        '360',
+        '480',
+        '720',
+        '1080',
+      ])
+    );
+    fireEvent.change(quality(), { target: { value: '720' } });
+    await stream('kodik-720');
+    expect(vi.mocked(resolveStream).mock.calls.at(-1)?.[2]?.quality).toBe(720);
+
+    openSettings();
+    fireEvent.change(quality(), { target: { value: '1080' } });
+    await stream('cvh-1080');
+    openSettings();
+    fireEvent.change(source(), { target: { value: `${kodik.video_id}:mp4` } });
+    await stream('kodik-720');
+    expect(vi.mocked(resolveStream).mock.calls.at(-1)?.[0]).toEqual([kodik]);
+    expect(vi.mocked(resolveStream).mock.calls.at(-1)?.[2]?.quality).toBeUndefined();
+    openSettings();
+    expect(quality().value).toBe('1080');
+    fireEvent.change(quality(), { target: { value: '360' } });
+    expect(await screen.findByText(/В выбранном потоке нет 360p или ниже/)).toBeTruthy();
+    fireEvent.change(quality(), { target: { value: '1080' } });
+    await stream('kodik-720');
+
+    mediaError(container.querySelector('video')!);
+    await screen.findByRole('button', { name: 'Повторить загрузку' }, { timeout: 3000 });
+    expect(resolveStream).toHaveBeenCalledTimes(4);
+    expect(source().selectedOptions[0]?.textContent).toBe('Kodik · MP4');
+    fireEvent.change(source(), { target: { value: '' } });
+    await stream('cvh-1080');
   });
   it('does not rewind on repeated decoder metadata during accelerated playback', async () => {
     const { container } = render(

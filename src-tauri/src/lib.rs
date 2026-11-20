@@ -170,8 +170,20 @@ async fn save_poster(
 async fn resolve_candidates(
     state: tauri::State<'_, backend::Backend>,
     candidates: Vec<providers::Candidate>,
+    quality: Option<u32>,
 ) -> Result<serde_json::Value, String> {
-    state.resolve(candidates).await
+    match quality {
+        Some(quality) => state.resolve_quality(candidates, Some(quality)).await,
+        None => state.resolve(candidates).await,
+    }
+}
+
+#[tauri::command]
+async fn inspect_stream_qualities(
+    state: tauri::State<'_, backend::Backend>,
+    candidates: Vec<providers::Candidate>,
+) -> Result<Vec<u32>, String> {
+    state.inspect_qualities(candidates).await
 }
 
 #[derive(Deserialize)]
@@ -357,6 +369,7 @@ pub fn run() {
             server_status::yummy_server_status,
             updates::latest_app_release,
             resolve_candidates,
+            inspect_stream_qualities,
             #[cfg(desktop)]
             shutdown::window_close_saved,
             #[cfg(target_os = "macos")]

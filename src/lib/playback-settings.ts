@@ -47,7 +47,10 @@ export function playbackSettings(): PlaybackSettings {
 
   return {
     mode: raw.mode === 'universal' ? 'universal' : 'source',
-    quality: PLAYBACK_QUALITIES.includes(raw.quality || '') ? raw.quality! : '360',
+    quality:
+      typeof raw.quality === 'string' && /^(?:auto|[1-9]\d{0,4})$/.test(raw.quality)
+        ? raw.quality
+        : '360',
     upscale: PLAYBACK_UPSCALERS.find(option => option.value === raw.upscale)?.value ?? 'default',
     upscaleSharpness:
       UPSCALE_SHARPNESS.find(option => option.value === raw.upscaleSharpness)?.value ??

@@ -2459,7 +2459,8 @@
   gap: 12px;
   margin: 12px 0 16px;
 }
-.video-settings-selects .video-setting-field {
+.video-settings-selects .video-setting-field,
+.video-settings .video-source-choice {
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -2471,10 +2472,15 @@
 .video-settings-selects .video-upscale-setting {
   grid-column: 1 / -1;
 }
-.video-settings-selects .select-control {
+.video-settings .video-source-choice {
+  margin-bottom: 16px;
+}
+.video-settings-selects .select-control,
+.video-settings .video-source-choice .select-control {
   width: 100%;
 }
-.video-settings-selects .select-control > select {
+.video-settings-selects .select-control > select,
+.video-settings .video-source-choice .select-control > select {
   width: 100%;
   max-width: none;
   min-height: 44px;
@@ -2535,6 +2541,18 @@
 }
 .playback-loader-actions > button {
   min-height: 40px;
+}
+.playback-loader-actions :is(.video-source-choice, .video-quality-choice) {
+  display: grid;
+  justify-items: stretch;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+  pointer-events: auto;
+}
+.playback-loader-actions :is(.video-source-choice, .video-quality-choice) select {
+  max-width: 100%;
+  min-height: 44px;
 }
 .playback-loader-actions .text-link {
   color: #d0c8d5;
