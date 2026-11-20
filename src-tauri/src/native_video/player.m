@@ -403,7 +403,8 @@ static NSButton *floating_button(NSString *symbol, NSString *label, id target, S
     _panel.tabbingMode = NSWindowTabbingModeDisallowed;
     _panel.collectionBehavior = NSWindowCollectionBehaviorCanJoinAllSpaces |
                                 NSWindowCollectionBehaviorFullScreenAuxiliary;
-    if (@available(macOS 13.0, *)) {
+    // The flag is a constant, so the OS check needs no Clang availability runtime.
+    if ([NSProcessInfo.processInfo isOperatingSystemAtLeastVersion:(NSOperatingSystemVersion){13, 0, 0}]) {
         _panel.collectionBehavior |= NSWindowCollectionBehaviorCanJoinAllApplications;
     }
     YWPictureInPictureView *content = [[YWPictureInPictureView alloc]

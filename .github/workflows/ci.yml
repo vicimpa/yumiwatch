@@ -4,6 +4,11 @@ on:
   push:
     branches: [main, master, develop]
   workflow_dispatch:
+    inputs:
+      prepare_release:
+        description: Build desktop release installers without publishing
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -40,4 +45,7 @@ jobs:
   builds:
     needs: checks
     uses: ./.github/workflows/build.yml
+    with:
+      release: ${{ inputs.prepare_release || false }}
+      mobile: ${{ !inputs.prepare_release }}
     secrets: inherit
