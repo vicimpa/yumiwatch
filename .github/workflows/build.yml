@@ -89,6 +89,9 @@ jobs:
       - name: Verify embedded application token
         if: inputs.release
         run: node scripts/check-application-token.mjs dist
+      - name: Verify packaged libmpv on macOS
+        if: (matrix.platform == 'macos-arm64' && runner.arch == 'ARM64') || (matrix.platform == 'macos-intel' && runner.arch == 'X64')
+        run: src-tauri/target/${{ matrix.target }}/release/bundle/macos/YummyWatch.app/Contents/MacOS/yummywatch --check-libmpv
       - name: Verify AppImage includes libmpv
         if: runner.os == 'Linux'
         shell: bash

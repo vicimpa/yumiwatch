@@ -52,6 +52,8 @@ Upload key Android можно создать через `keytool` по [инст
 
 Без этих дополнительных секретов desktop-пакеты собираются без доверенной подписи разработчика. Windows Authenticode также не настроен: для него потребуется сертификат или сервис подписи. [Официальная схема Tauri/GitHub](https://v2.tauri.app/distribute/pipelines/github/) используется как основа сборки.
 
+Ad-hoc сборка macOS включает `com.apple.security.cs.disable-library-validation`, чтобы Hardened Runtime мог загрузить вложенную `libmpv` без Team ID. В CI подпись Developer ID использует штатную проверку библиотеки по Team ID. Проверка `--check-libmpv` запускает загрузку библиотеки из собранной `.app`.
+
 ## Выпуск версии
 
 1. Выполни `npm version <version> --no-git-tag-version` и выставь ту же `version` в `src-tauri/Cargo.toml`. Обнови `Cargo.lock` командой `cargo check --manifest-path src-tauri/Cargo.toml`.

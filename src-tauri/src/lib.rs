@@ -9,6 +9,8 @@ mod macos_window;
 mod media;
 #[cfg(target_os = "macos")]
 mod native_video;
+#[cfg(target_os = "macos")]
+pub use native_video::check_bundled_library;
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 #[path = "native_video/portable.rs"]
 mod native_video;

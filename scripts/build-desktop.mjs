@@ -10,6 +10,16 @@ const env = { ...process.env };
 // Empty optional secrets must be absent: Tauri distinguishes unset from empty.
 for (const key of Object.keys(env)) if (key.startsWith('APPLE_') && !env[key]) delete env[key];
 
+const signingIdentity = env.APPLE_SIGNING_IDENTITY;
+const signsWithCertificate = signingIdentity
+  ? signingIdentity !== '-'
+  : Boolean(env.APPLE_CERTIFICATE && env.APPLE_CERTIFICATE_PASSWORD);
+// macOS can validate the bundled library against a Developer ID team's signature.
+const config =
+  target.endsWith('-apple-darwin') && signsWithCertificate
+    ? ['--config', JSON.stringify({ bundle: { macOS: { entitlements: null } } })]
+    : [];
+
 const result = spawnSync(
   process.execPath,
   [
@@ -20,6 +30,7 @@ const result = spawnSync(
     target,
     '--bundles',
     bundles,
+    ...config,
     '--',
     '--locked',
   ],
