@@ -50,7 +50,17 @@ import type { TPlayerProps } from './Player.types';
 import { EpisodeOptions, SourceOptions, VoiceOptions } from './PlayerOptions';
 import { STREAM_ERROR_DELAY_MS, STREAM_RESUME_REFRESH_MS, VideoSurface } from './VideoSurface';
 import { WatchPicker } from './WatchPicker';
-import { Button, Empty, ErrorState, Icon, SearchField, Select, Sheet, Sidebar, Toggle } from '~/ui';
+import {
+  Button,
+  Dropdown,
+  Empty,
+  ErrorState,
+  Icon,
+  SearchField,
+  Sheet,
+  Sidebar,
+  Toggle,
+} from '~/ui';
 
 const snapshotFields = [
   'videoId',
@@ -653,8 +663,7 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
     [active, onSelectPlayer, current, position, duration]
   );
 
-  const changeQuality = (event: JSX.TargetedEvent<HTMLSelectElement>) => {
-    const quality = event.currentTarget.value;
+  const changeQuality = (quality: string) => {
     const target = preferredStreamQuality(quality);
     const canKeepSource =
       variants?.some(stream => stream.quality === target) &&
@@ -675,8 +684,7 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
     savePlaybackSettings({ quality });
   };
 
-  const changeSource = (event: JSX.TargetedEvent<HTMLSelectElement>) => {
-    const value = event.currentTarget.value;
+  const changeSource = (value: string) => {
     if (value && !sourceChoices.some(choice => choice.value === value)) return;
     const video = media.current;
     if (video && video.readyState >= 2 && !video.error)
@@ -744,43 +752,44 @@ export const UniversalPlayer: FC<TPlayerProps> = ({
   const qualityPicker = (
     <label class="video-setting-field video-quality-choice">
       <span>Качество</span>
-      <Select
+      <Dropdown
         aria-label="Качество видео"
         value={settings.quality}
         disabled={!qualities.length}
         onChange={changeQuality}
-      >
-        <option value="auto">Авто · до 480p</option>
-        {qualities.map(quality => (
-          <option key={quality} value={quality}>
-            {quality}p
-          </option>
-        ))}
-        {settings.quality !== 'auto' && !qualities.includes(targetQuality) && (
-          <option value={settings.quality} disabled>
-            {settings.quality}p · недоступно
-          </option>
-        )}
-      </Select>
+        options={[
+          { value: 'auto', label: 'Авто · до 480p' },
+          ...qualities.map(quality => ({ value: String(quality), label: `${quality}p` })),
+          ...(settings.quality !== 'auto' && !qualities.includes(targetQuality)
+            ? [
+                {
+                  value: settings.quality,
+                  label: `${settings.quality}p · недоступно`,
+                  disabled: true,
+                },
+              ]
+            : []),
+        ]}
+      />
     </label>
   );
   const sourcePicker = !background && sourceChoices.length > 0 && (
     <label class="video-source-choice">
       <span>Источник потока</span>
-      <Select
+      <Dropdown
         aria-label="Источник потока"
         value={manualSource?.value ?? ''}
         onChange={changeSource}
-      >
-        <option value="">Авто</option>
-        {sourceChoices.map(choice => (
-          <option key={choice.value} value={choice.value}>
-            {sourceChoices.some(other => other.label === choice.label && other !== choice)
+        options={[
+          { value: '', label: 'Авто' },
+          ...sourceChoices.map(choice => ({
+            value: choice.value,
+            label: sourceChoices.some(other => other.label === choice.label && other !== choice)
               ? `${choice.label} · ${choice.videoId}`
-              : choice.label}
-          </option>
-        ))}
-      </Select>
+              : choice.label,
+          })),
+        ]}
+      />
     </label>
   );
   const playerSettings = (

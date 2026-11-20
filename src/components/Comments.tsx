@@ -1,5 +1,5 @@
 import { AppLink } from '~/ui/AppLink';
-import type { FunctionalComponent as FC, JSX } from 'preact';
+import type { FunctionalComponent as FC } from 'preact';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 
 import type { TReplyTarget } from '~/lib/comments';
@@ -9,7 +9,7 @@ import { useResource, useSession } from '~/lib/hooks';
 import { CommentComposer } from './CommentComposer';
 import { CommentThread } from './CommentThread';
 import { AutoLoad } from './AutoLoad';
-import { Button, FormError, Icon, Select } from '~/ui';
+import { Button, Dropdown, FormError, Icon } from '~/ui';
 import './Comments.css';
 
 export type TCommentsProps = { animeId: number; returnTo?: string };
@@ -80,9 +80,9 @@ const CommentsContent: FC<TCommentsContentProps> = ({ animeId, returnTo }) => {
     [session, loginHref, sending]
   );
 
-  const changeSort = useCallback((event: JSX.TargetedEvent<HTMLSelectElement>) => {
+  const changeSort = useCallback((value: string) => {
     generation.current++;
-    setSort(event.currentTarget.value);
+    setSort(value);
     setExtra([]);
     setMoreEnd(false);
     setLoadingMore(false);
@@ -143,11 +143,16 @@ const CommentsContent: FC<TCommentsContentProps> = ({ animeId, returnTo }) => {
             <h2>Обсуждение</h2>
             <p>Без спойлеров — до твоего нажатия</p>
           </div>
-          <Select aria-label="Сортировка комментариев" value={sort} onChange={changeSort}>
-            <option value="new">Новые</option>
-            <option value="nice">Лучшие</option>
-            <option value="old">Старые</option>
-          </Select>
+          <Dropdown
+            aria-label="Сортировка комментариев"
+            value={sort}
+            onChange={changeSort}
+            options={[
+              { value: 'new', label: 'Новые' },
+              { value: 'nice', label: 'Лучшие' },
+              { value: 'old', label: 'Старые' },
+            ]}
+          />
         </div>
         {resource.loading ? (
           <div class="comment-loading" role="status" aria-label="Загрузка комментариев">

@@ -210,10 +210,6 @@ h1 {
 .results-heading {
   font-size: 13px;
 }
-.sort-label select {
-  color: #eee;
-  font-size: 13px;
-}
 .applied-filters {
   display: flex;
   gap: 8px;
@@ -461,10 +457,7 @@ h1 {
 .watch-selectors label {
   font-size: 12px;
 }
-.watch-selectors .select-control {
-  display: flex;
-}
-.watch-selectors select {
+.watch-selectors .settings-dropdown {
   min-height: 47px;
   font-size: 14px;
   border-radius: 5px;
@@ -733,8 +726,7 @@ h1 {
   min-width: 0;
   font-size: 11px;
 }
-.filter-range input,
-.filter-range select {
+.filter-range input {
   width: 100%;
   font-size: 14px;
   border-radius: 5px;
@@ -779,11 +771,6 @@ h1 {
 }
 .comments-section .section-heading h2 {
   font-size: 18px;
-}
-.comments-section .section-heading select {
-  font-size: 13px;
-  padding: 9px 12px;
-  border-radius: 5px;
 }
 .comment-reply-to {
   display: flex;
@@ -1139,7 +1126,7 @@ h1 {
   .watch-selectors label {
     font-size: 12px;
   }
-  .watch-selectors select {
+  .watch-selectors .settings-dropdown {
     font-size: 16px;
     padding: 11px 8px;
     min-height: 47px;
@@ -1220,11 +1207,6 @@ h1 {
   .catalog-search input {
     font-size: 16px;
   }
-  .sort-label select {
-    font-size: 14px;
-    max-width: 170px;
-    min-height: 44px;
-  }
   .results-heading {
     font-size: 12px;
   }
@@ -1247,7 +1229,6 @@ h1 {
     gap: 0;
   }
   .filter-range input,
-  .filter-range select,
   .genre-filter > input {
     font-size: 16px;
     min-height: 47px;
@@ -1270,10 +1251,6 @@ h1 {
   }
   .comments-section .section-heading h2 {
     font-size: 16px;
-  }
-  .comments-section .section-heading select {
-    font-size: 16px;
-    max-width: 133px;
   }
   .comment-form textarea {
     font-size: 16px;

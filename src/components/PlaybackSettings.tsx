@@ -10,7 +10,7 @@ import {
   usePlaybackSettings,
 } from '~/lib/playback-settings';
 
-import { Dropdown, Field, Icon, Select, SettingsCard, Toggle } from '~/ui';
+import { Dropdown, Field, Icon, SettingsCard, Toggle } from '~/ui';
 
 const saveUpscale = (value: string) => {
   const mode = PLAYBACK_UPSCALERS.find(option => option.value === value);
@@ -24,35 +24,24 @@ export const VideoUpscaleSetting: FC = () => {
     <>
       <label class="video-setting-field video-upscale-setting">
         <span>Апскейл</span>
-        <Select
+        <Dropdown
           aria-label="Апскейл видео"
           value={upscale}
-          onChange={event => saveUpscale(event.currentTarget.value)}
-        >
-          {PLAYBACK_UPSCALERS.map(({ value, label }) => (
-            <option value={value} key={value}>
-              {label}
-            </option>
-          ))}
-        </Select>
+          onChange={saveUpscale}
+          options={PLAYBACK_UPSCALERS}
+        />
       </label>
       <label class="video-setting-field video-upscale-setting">
         <span>Резкость контуров</span>
-        <Select
+        <Dropdown
           aria-label="Резкость контуров"
           value={upscaleSharpness}
-          onChange={event => {
-            const value = event.currentTarget.value;
+          onChange={value => {
             const level = UPSCALE_SHARPNESS.find(option => option.value === value);
             if (level) savePlaybackSettings({ upscaleSharpness: level.value });
           }}
-        >
-          {UPSCALE_SHARPNESS.map(({ value, label }) => (
-            <option value={value} key={value}>
-              {label}
-            </option>
-          ))}
-        </Select>
+          options={UPSCALE_SHARPNESS}
+        />
       </label>
     </>
   );

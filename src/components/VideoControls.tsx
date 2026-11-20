@@ -16,7 +16,7 @@ import { PlaybackLoader } from './PlaybackLoader';
 import { VideoUpscaleSetting } from './PlaybackSettings';
 import { PictureInPictureButton } from './PictureInPictureButton';
 import { VideoTimeline } from './VideoTimeline';
-import { Icon, Input, Select } from '~/ui';
+import { Dropdown, Icon, Input } from '~/ui';
 
 const physical: Partial<Record<string, string>> = {
   KeyK: 'k',
@@ -267,8 +267,16 @@ export const VideoControls: FC<TVideoControlsProps> = ({
 
     const outside = (event: MouseEvent) => {
       const target = event.target as Node;
+      const listbox = target instanceof Element ? target.closest('.settings-dropdown-menu') : null;
+      const ownerId = listbox?.getAttribute('aria-labelledby');
+      const owner = ownerId ? document.getElementById(ownerId) : null;
 
-      if (menuElement.current?.contains(target) || menuButton.current?.contains(target)) return;
+      if (
+        menuElement.current?.contains(target) ||
+        menuButton.current?.contains(target) ||
+        (owner && menuElement.current?.contains(owner))
+      )
+        return;
       setMenu(false);
       wake();
       if (
@@ -291,18 +299,9 @@ export const VideoControls: FC<TVideoControlsProps> = ({
         return;
 
       const target = event.target instanceof HTMLElement ? event.target : null;
-
-      if (
-        target?.closest(
-          'input,select,textarea,[contenteditable]:not([contenteditable=false]),[role=textbox]'
-        )
-      )
-        return;
-
       const dialog = document.querySelector('[aria-modal=true]');
 
       if (dialog && !frame.current?.contains(dialog)) return;
-      if (target?.closest('[data-sidebar-open=true]') && event.key.startsWith('Arrow')) return;
       if (event.key === 'Escape') {
         if (menuElement.current) {
           event.preventDefault();
@@ -310,6 +309,14 @@ export const VideoControls: FC<TVideoControlsProps> = ({
         }
         return;
       }
+      if (
+        target?.closest(
+          'input,select,textarea,[role=combobox],[contenteditable]:not([contenteditable=false]),[role=textbox]'
+        )
+      )
+        return;
+
+      if (target?.closest('[data-sidebar-open=true]') && event.key.startsWith('Arrow')) return;
       if (event.key === 'Enter' && !target?.closest('button,a')) {
         event.preventDefault();
         keyboard.current = true;
@@ -379,8 +386,8 @@ export const VideoControls: FC<TVideoControlsProps> = ({
   const closeSettings = useCallback(() => setMenu(false), []);
 
   const changeRate = useCallback(
-    (event: JSX.TargetedEvent<HTMLSelectElement>) => {
-      const rate = Number(event.currentTarget.value);
+    (value: string) => {
+      const rate = Number(value);
       if (media.current && PLAYBACK_RATES.includes(rate)) {
         setPlaybackRate(media.current, rate);
         savePlaybackSettings({ rate });
@@ -515,13 +522,12 @@ export const VideoControls: FC<TVideoControlsProps> = ({
             {quality}
             <label class="video-setting-field">
               <span>Скорость</span>
-              <Select aria-label="Скорость воспроизведения" value={rate} onChange={changeRate}>
-                {PLAYBACK_RATES.map(rate => (
-                  <option value={rate} key={rate}>
-                    {rate}×
-                  </option>
-                ))}
-              </Select>
+              <Dropdown
+                aria-label="Скорость воспроизведения"
+                value={String(rate)}
+                onChange={changeRate}
+                options={PLAYBACK_RATES.map(rate => ({ value: String(rate), label: `${rate}×` }))}
+              />
             </label>
             {native && <VideoUpscaleSetting />}
           </div>

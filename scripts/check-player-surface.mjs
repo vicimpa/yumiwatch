@@ -54,6 +54,7 @@ export async function checkPlayerSurface(page, init, label) {
     );
   }, init);
   for (const file of [
+    'ui/Dropdown.css',
     'styles.css',
     'yummy.css',
     'mobile.css',
@@ -188,9 +189,8 @@ export async function checkPlayerSurface(page, init, label) {
     trace(`switching to ${higher.quality}`);
     await page.locator('.video-controls').dispatchEvent('pointermove');
     await page.getByRole('button', { name: 'Настройки плеера', exact: true }).click();
-    await page
-      .getByRole('combobox', { name: 'Качество видео' })
-      .selectOption(String(higher.quality));
+    await page.getByRole('combobox', { name: 'Качество видео' }).click();
+    await page.getByRole('option', { name: `${higher.quality}p`, exact: true }).click();
     await page.getByRole('button', { name: 'Закрыть настройки' }).click();
 
     const switchingAt = await page.evaluate(() => window.surfaceProbe.media().currentTime);
@@ -243,7 +243,8 @@ export async function checkPlayerSurface(page, init, label) {
 
         await page.locator('.video-controls').dispatchEvent('pointermove');
         await page.getByRole('button', { name: 'Настройки плеера', exact: true }).click();
-        await page.getByRole('combobox', { name: 'Качество видео' }).selectOption(String(quality));
+        await page.getByRole('combobox', { name: 'Качество видео' }).click();
+        await page.getByRole('option', { name: `${quality}p`, exact: true }).click();
         await page.getByRole('button', { name: 'Закрыть настройки' }).click();
         await page.waitForFunction(
           ({ height, up }) => {

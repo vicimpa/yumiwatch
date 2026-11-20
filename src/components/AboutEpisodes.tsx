@@ -1,7 +1,7 @@
 import { animeSiteUrl } from '~/lib/content-links';
 import { AppLink } from '~/ui/AppLink';
-import type { FunctionalComponent as FC, JSX } from 'preact';
-import { useCallback, useEffect, useMemo, useState } from 'preact/hooks';
+import type { FunctionalComponent as FC } from 'preact';
+import { useEffect, useMemo, useState } from 'preact/hooks';
 
 import { imageUrl } from '~/lib/api';
 import { formatTime, videoPosition } from '~/lib/player';
@@ -9,13 +9,13 @@ import { groupVoices, voiceKey, voiceVideos } from '~/lib/streams';
 import type { Anime, Video, WatchEntry } from '~/lib/types';
 
 import {
+  Dropdown,
   Empty,
   EpisodeCaption,
   EpisodePreview,
   ErrorState,
   Field,
   SearchField,
-  Select,
   Sidebar,
 } from '~/ui';
 
@@ -107,11 +107,6 @@ export const AboutEpisodes: FC<TAboutEpisodesProps> = ({
     [choices, query]
   );
 
-  const changeVoice = useCallback(
-    (event: JSX.TargetedEvent<HTMLSelectElement>) => setSelectedVoice(event.currentTarget.value),
-    []
-  );
-
   return (
     <Sidebar
       open={open}
@@ -131,13 +126,15 @@ export const AboutEpisodes: FC<TAboutEpisodesProps> = ({
       ) : (
         <>
           <Field class="about-episodes-voice" label="Озвучка">
-            <Select aria-label="Озвучка серий" value={voiceKey(voice)} onChange={changeVoice}>
-              {voices.map(({ key, name }) => (
-                <option key={key} value={key}>
-                  {name.replace(/^Озвучка /, '')}
-                </option>
-              ))}
-            </Select>
+            <Dropdown
+              aria-label="Озвучка серий"
+              value={voiceKey(voice)}
+              onChange={setSelectedVoice}
+              options={voices.map(({ key, name }) => ({
+                value: key,
+                label: name.replace(/^Озвучка /, ''),
+              }))}
+            />
           </Field>
           <SearchField
             value={query}

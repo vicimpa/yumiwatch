@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
+import { chooseOption } from './dropdown-actions';
 import { useRef } from 'preact/hooks';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/preact';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CONTROLS_IDLE_MS, VideoControls } from '~/components/VideoControls';
+import { Dropdown } from '~/ui';
 
 function Harness({ failed = false }: { failed?: boolean }) {
   const media = useRef<HTMLVideoElement>(null),
@@ -21,9 +23,12 @@ function Harness({ failed = false }: { failed?: boolean }) {
         settings={
           <label>
             Качество
-            <select aria-label="Качество">
-              <option>720p</option>
-            </select>
+            <Dropdown
+              aria-label="Качество"
+              value="720"
+              options={[{ value: '720', label: '720p' }]}
+              onChange={() => {}}
+            />
           </label>
         }
         onVisibility={() => {}}
@@ -220,9 +225,9 @@ describe('custom playback controls', () => {
 
     const speed = screen.getByRole('combobox', {
       name: 'Скорость воспроизведения',
-    }) as HTMLSelectElement;
+    }) as HTMLButtonElement;
 
-    fireEvent.change(speed, { target: { value: '2' } });
+    chooseOption(speed, '2×');
     expect(video.playbackRate).toBe(2);
     expect(video.defaultPlaybackRate).toBe(2);
     for (const rate of [0, 1, 2]) {
@@ -231,6 +236,12 @@ describe('custom playback controls', () => {
       fireEvent.timeUpdate(video);
       expect(speed.value).toBe('2');
     }
+    fireEvent.click(speed);
+    fireEvent.keyDown(speed, { key: 'Escape' });
+    expect(screen.queryByRole('listbox')).toBeNull();
+    expect(screen.getByRole('dialog', { name: 'Настройки плеера' })).toBeTruthy();
+    fireEvent.keyDown(speed, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'Настройки плеера' })).toBeNull();
   });
 
   it('waits for a single mouse click and cancels pending clicks when the player unmounts', () => {

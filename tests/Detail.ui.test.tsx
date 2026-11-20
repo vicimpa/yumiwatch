@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { chooseOption } from './dropdown-actions';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/preact';
 import { Detail } from '~/components/Detail';
@@ -216,9 +217,12 @@ describe('anime media center screens', () => {
     fireEvent.input(within(panel).getByRole('searchbox', { name: 'Найти серию' }), {
       target: { value: '' },
     });
-    fireEvent.change(within(panel).getByRole('combobox', { name: 'Озвучка серий' }), {
-      target: { value: 'dub:anidub' },
-    });
+    const dubbing = within(panel).getByRole('combobox', { name: 'Озвучка серий' });
+    fireEvent.click(dubbing);
+    fireEvent.keyDown(dubbing, { key: 'Escape' });
+    expect(screen.getByRole('dialog', { name: 'Серии' })).toBe(panel);
+    expect(screen.queryByRole('listbox')).toBeNull();
+    chooseOption(dubbing, 'AniDub');
     expect(
       within(panel).getByRole('link', { name: 'Серия 1' }).getAttribute('data-app-href')
     ).toContain('voice=AniDub');

@@ -297,17 +297,13 @@
 .catalog-gallery .results-heading {
   margin: 16px 0 18px;
 }
-.catalog-gallery .sort-label > span:not(.select-control) {
+.catalog-gallery .sort-label > span {
   display: none;
 }
-.catalog-gallery .sort-label .select-control {
+.catalog-gallery .sort-label .settings-dropdown {
   width: 205px;
-}
-.catalog-gallery .sort-label select {
-  width: 100%;
-  max-width: none;
   min-height: 42px;
-  padding: 9px 36px 9px 12px;
+  padding: 9px 12px;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 7px;
@@ -527,10 +523,8 @@
   .catalog-gallery .catalog-view-tools {
     gap: 2px;
   }
-  .catalog-gallery .sort-label .select-control {
+  .catalog-gallery .sort-label .settings-dropdown {
     width: 165px;
-  }
-  .catalog-gallery .sort-label select {
     font-size: 12px;
     min-height: 42px;
   }

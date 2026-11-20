@@ -636,10 +636,8 @@ a.profile-genre:hover {
   min-width: 160px;
   margin: 0;
 }
-.profile-collection-toolbar .select-control {
+.profile-collection-toolbar .settings-dropdown {
   max-width: 200px;
-}
-.profile-collection-toolbar select {
   font-size: 12px;
   width: 100%;
   height: 100%;
@@ -984,12 +982,10 @@ a.profile-genre:hover {
     flex: auto;
     min-height: 44px;
   }
-  .profile-collection-toolbar .select-control {
+  .profile-collection-toolbar .settings-dropdown {
     flex: 1;
     max-width: none;
     min-width: 0;
-  }
-  .profile-collection-toolbar select {
     font-size: 10px;
     min-height: 40px;
   }

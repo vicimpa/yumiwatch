@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { chooseOption } from './dropdown-actions';
 import { useRef } from 'preact/hooks';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/preact';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -150,13 +151,13 @@ it('runs the macOS controls through the native surface without mounting HTML vid
     undefined
   );
   fireEvent.click(screen.getByRole('button', { name: 'Настройки плеера' }));
-  const upscale = screen.getByRole<HTMLSelectElement>('combobox', { name: 'Апскейл видео' });
+  const upscale = screen.getByRole<HTMLButtonElement>('combobox', { name: 'Апскейл видео' });
   const speed = screen.getByRole('combobox', { name: 'Скорость воспроизведения' });
-  const sharpen = screen.getByRole<HTMLSelectElement>('combobox', { name: 'Резкость контуров' });
+  const sharpen = screen.getByRole<HTMLButtonElement>('combobox', { name: 'Резкость контуров' });
   expect(upscale.closest('label')?.previousElementSibling).toBe(speed.closest('label'));
   expect(upscale.value).toBe('fsr');
   expect(sharpen.value).toBe('moderate');
-  fireEvent.change(sharpen, { target: { value: 'strong' } });
+  chooseOption(sharpen, 'Сильно');
   expect(playbackSettings().upscaleSharpness).toBe('strong');
   await act(async () => {
     await vi.advanceTimersByTimeAsync(100);
@@ -166,7 +167,7 @@ it('runs the macOS controls through the native surface without mounting HTML vid
     { request: expect.objectContaining({ action: 'poll', upscale: 'fsr', sharpen: 'strong' }) },
     undefined
   );
-  fireEvent.change(upscale, { target: { value: 'default' } });
+  chooseOption(upscale, 'Стандартный');
   expect(playbackSettings().upscale).toBe('default');
   await act(async () => {
     await vi.advanceTimersByTimeAsync(100);
@@ -238,9 +239,7 @@ it('updates every control after a new URL replaces the native player at the same
   fireEvent.input(screen.getByRole('slider', { name: 'Громкость' }), { target: { value: '0.4' } });
   fireEvent.click(screen.getByRole('button', { name: 'Выключить звук' }));
   fireEvent.click(screen.getByRole('button', { name: 'Настройки плеера' }));
-  fireEvent.change(screen.getByRole('combobox', { name: 'Скорость воспроизведения' }), {
-    target: { value: '1.5' },
-  });
+  chooseOption(screen.getByRole('combobox', { name: 'Скорость воспроизведения' }), '1.5×');
 
   rerender(<Harness url="https://cdn.example/replacement.mp4" />);
   await act(async () => {
@@ -252,7 +251,7 @@ it('updates every control after a new URL replaces the native player at the same
   expect(screen.getByRole('button', { name: 'Пауза' })).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Включить звук' })).toBeTruthy();
   expect(
-    (screen.getByRole('combobox', { name: 'Скорость воспроизведения' }) as HTMLSelectElement).value
+    (screen.getByRole('combobox', { name: 'Скорость воспроизведения' }) as HTMLButtonElement).value
   ).toBe('1.5');
   const replacement = [...sources].find(([, url]) => url.includes('replacement'))?.[0];
   expect(replacement).toBeDefined();

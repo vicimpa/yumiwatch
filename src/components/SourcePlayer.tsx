@@ -29,6 +29,7 @@ import {
   Button,
   ButtonLink,
   CachedNotice,
+  Dropdown,
   Empty,
   EpisodeCaption,
   EpisodePreview,
@@ -39,7 +40,6 @@ import {
   OptionButton,
   SEARCH_INPUT_PROPS,
   SearchField,
-  Select,
   Sheet,
   Sidebar,
   Toggle,
@@ -323,10 +323,8 @@ export const SourcePlayer: FC<TPlayerProps> = ({
   }, []);
 
   const changeVoice = useCallback(
-    (event: JSX.TargetedEvent<HTMLSelectElement>) => {
-      const match = [...groups.values()].find(
-        group => group.videos[0].data.dubbing === event.currentTarget.value
-      );
+    (value: string) => {
+      const match = [...groups.values()].find(group => group.videos[0].data.dubbing === value);
 
       if (match)
         choose(match.videos.find(video => video.number === current.number) || match.videos[0]);
@@ -530,13 +528,12 @@ export const SourcePlayer: FC<TPlayerProps> = ({
       ) : (
         <div class="watch-selectors">
           <Field label="Озвучка">
-            <Select value={current.data.dubbing} onChange={changeVoice}>
-              {dubbings.map(dubbing => (
-                <option key={dubbing} value={dubbing}>
-                  {dubbing}
-                </option>
-              ))}
-            </Select>
+            <Dropdown
+              aria-label="Озвучка"
+              value={current.data.dubbing}
+              onChange={changeVoice}
+              options={dubbings.map(dubbing => ({ value: dubbing, label: dubbing }))}
+            />
           </Field>
           <PlayerSelect
             videos={resource.value!.data}

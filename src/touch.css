@@ -176,12 +176,11 @@
   .catalog-gallery .results-heading {
     flex-wrap: wrap;
   }
-  .catalog-gallery .sort-label select,
-  .about-episodes-voice select,
-  .media-sidebar .discussion-header .select-control > select,
+  .catalog-gallery .sort-label .settings-dropdown,
+  .about-episodes-voice .settings-dropdown,
+  .media-sidebar .discussion-header .settings-dropdown,
   input:not([type='range']):not([type='checkbox']):not([type='radio']),
-  textarea,
-  select {
+  textarea {
     font-size: 16px;
   }
   .catalog-view-tools .icon-button,

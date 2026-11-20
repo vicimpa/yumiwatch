@@ -41,6 +41,7 @@ import {
   Button,
   ButtonLink,
   CachedNotice,
+  Dropdown,
   Empty,
   ErrorState,
   Field,
@@ -51,7 +52,6 @@ import {
   Input,
   SEARCH_INPUT_PROPS,
   SectionHeading,
-  Select,
   Sheet,
   Skeleton,
   Textarea,
@@ -122,22 +122,18 @@ const EditProfile: FC<{ profile: UserProfile; close: () => void; saved: () => vo
           />
         </Field>
         <Field htmlFor="profile-privacy" label="Кто видит мои списки">
-          <Select
+          <Dropdown
             id="profile-privacy"
+            aria-label="Кто видит мои списки"
+            aria-required
             value={privacy}
-            required
             disabled={busy}
-            onChange={event => setPrivacy(event.currentTarget.value as ListPrivacy)}
-          >
-            <option value="" disabled>
-              Выбери видимость списков
-            </option>
-            {Object.entries(LIST_PRIVACY).map(([value, title]) => (
-              <option key={value} value={value}>
-                {title}
-              </option>
-            ))}
-          </Select>
+            onChange={value => setPrivacy(value as ListPrivacy)}
+            options={[
+              { value: '', label: 'Выбери видимость списков', disabled: true },
+              ...Object.entries(LIST_PRIVACY).map(([value, label]) => ({ value, label })),
+            ]}
+          />
         </Field>
         <p class="profile-muted">Эта настройка действует и на сайте YummyAnime.</p>
         {error && <FormError>{error}</FormError>}
@@ -273,29 +269,32 @@ const ProfileCollection: FC<{
             </Button>
           )}
         </div>
-        <Select
+        <Dropdown
           aria-label="Статус выхода"
           value={status}
-          onChange={event => setStatus(event.currentTarget.value)}
-        >
-          <option value="all">Любой статус выхода</option>
-          <option value="ongoing">Онгоинги</option>
-          <option value="released">Вышедшие</option>
-          <option value="announcement">Анонсы</option>
-        </Select>
-        <Select
+          onChange={setStatus}
+          options={[
+            { value: 'all', label: 'Любой статус выхода' },
+            { value: 'ongoing', label: 'Онгоинги' },
+            { value: 'released', label: 'Вышедшие' },
+            { value: 'announcement', label: 'Анонсы' },
+          ]}
+        />
+        <Dropdown
           aria-label="Порядок аниме"
           value={sort}
-          onChange={event => setSort(event.currentTarget.value)}
-        >
-          <option value="added">
-            {animes.some(anime => anime.date) ? 'По добавлению' : 'Порядок списка'}
-          </option>
-          <option value="title">По названию</option>
-          <option value="rating">По рейтингу сайта</option>
-          <option value="user_rating">{own ? 'По моей оценке' : 'По оценке профиля'}</option>
-          <option value="year">По году</option>
-        </Select>
+          onChange={setSort}
+          options={[
+            {
+              value: 'added',
+              label: animes.some(anime => anime.date) ? 'По добавлению' : 'Порядок списка',
+            },
+            { value: 'title', label: 'По названию' },
+            { value: 'rating', label: 'По рейтингу сайта' },
+            { value: 'user_rating', label: own ? 'По моей оценке' : 'По оценке профиля' },
+            { value: 'year', label: 'По году' },
+          ]}
+        />
       </div>
       <p class="profile-result-count" role="status">
         {values.length.toLocaleString('ru')} аниме{search ? ` по запросу «${search}»` : ''}

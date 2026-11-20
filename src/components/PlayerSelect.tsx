@@ -1,11 +1,11 @@
-import type { FunctionalComponent as FC, JSX } from 'preact';
+import type { FunctionalComponent as FC } from 'preact';
 import { useCallback, useMemo } from 'preact/hooks';
 
 import { groupKey, groupVideos } from '~/lib/player';
 import { voiceKey } from '~/lib/streams';
 import type { Video } from '~/lib/types';
 
-import { Field, Select } from '~/ui';
+import { Dropdown, Field } from '~/ui';
 
 export const OUR_PLAYER = 'universal';
 
@@ -26,9 +26,7 @@ export const PlayerSelect: FC<TPlayerSelectProps> = ({ videos, current, universa
     [groups, current.data.dubbing]
   );
   const select = useCallback(
-    (event: JSX.TargetedEvent<HTMLSelectElement>) => {
-      const value = event.currentTarget.value;
-
+    (value: string) => {
       if (value === OUR_PLAYER) return onChange();
 
       const group = providers.find(([key]) => key === value)?.[1];
@@ -41,18 +39,15 @@ export const PlayerSelect: FC<TPlayerSelectProps> = ({ videos, current, universa
 
   return (
     <Field class="player-select" label="Плеер">
-      <Select
+      <Dropdown
         aria-label="Плеер"
         value={universal ? OUR_PLAYER : groupKey(current)}
         onChange={select}
-      >
-        <option value={OUR_PLAYER}>Наш плеер</option>
-        {providers.map(([key, group]) => (
-          <option key={key} value={key}>
-            {group.videos[0].data.player}
-          </option>
-        ))}
-      </Select>
+        options={[
+          { value: OUR_PLAYER, label: 'Наш плеер' },
+          ...providers.map(([value, group]) => ({ value, label: group.videos[0].data.player })),
+        ]}
+      />
     </Field>
   );
 };

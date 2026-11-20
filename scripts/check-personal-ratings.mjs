@@ -174,7 +174,7 @@ for (const engine of [chromium, webkit]) {
         '02',
       ]);
       assert.equal(
-        await page.getByRole('combobox', { name: 'Порядок аниме' }).inputValue(),
+        await page.getByRole('combobox', { name: 'Порядок аниме' }).getAttribute('value'),
         'user_rating'
       );
       await page.screenshot({ path: `${output}/${engine.name()}-${width}-top.png` });
