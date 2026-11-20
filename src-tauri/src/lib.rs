@@ -3,6 +3,7 @@ mod backend;
 mod discord;
 mod images;
 mod interface_scale;
+mod keep_awake;
 #[cfg(target_os = "macos")]
 mod macos_window;
 mod media;
@@ -287,12 +288,13 @@ pub fn run() {
         .enable_macos_default_menu(false)
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
-        .on_page_load(|_webview, _payload| {
-            #[cfg(target_os = "macos")]
-            if _webview.label() == "main"
-                && _payload.event() == tauri::webview::PageLoadEvent::Started
+        .on_page_load(|webview, payload| {
+            if webview.label() == "main"
+                && payload.event() == tauri::webview::PageLoadEvent::Started
             {
-                let _ = _webview.run_on_main_thread(native_video::clear);
+                keep_awake::clear(webview);
+                #[cfg(target_os = "macos")]
+                let _ = webview.run_on_main_thread(native_video::clear);
             }
         })
         .on_window_event(|window, event| {
@@ -305,8 +307,10 @@ pub fn run() {
                     }
                 }
             }
-            #[cfg(target_os = "macos")]
             if window.label() == "main" && matches!(event, tauri::WindowEvent::Destroyed) {
+                #[cfg(not(target_os = "android"))]
+                keep_awake::window_destroyed(window);
+                #[cfg(target_os = "macos")]
                 native_video::clear();
             }
             if window.label() == "main"
@@ -357,6 +361,7 @@ pub fn run() {
         )
         .invoke_handler(tauri::generate_handler![
             discord::set_discord_presence,
+            keep_awake::set_playback_awake,
             desktop_info,
             interface_scale::set_interface_scale,
             set_window_cursor_visible,

@@ -3,6 +3,7 @@ import type { FunctionalComponent as FC, JSX } from 'preact';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 
 import { useDiscordPresence } from '~/hooks/useDiscordPresence';
+import { usePlaybackWakeLock } from '~/hooks/usePlaybackWakeLock';
 import { useAnimeDiscordContext } from '~/hooks/useAnimeDiscordContext';
 import { useFullscreen } from '~/hooks/useFullscreen';
 import { useSourcePlayback } from '~/hooks/useSourcePlayback';
@@ -170,11 +171,9 @@ export const SourcePlayer: FC<TPlayerProps> = ({
     if (fullscreenError) notify(fullscreenError);
   }, [fullscreenError]);
 
-  useDiscordPresence(
-    anime,
-    current,
-    presence?.videoId === current?.video_id ? presence : undefined
-  );
+  const playback = presence?.videoId === current?.video_id ? presence : undefined;
+  useDiscordPresence(anime, current, playback);
+  usePlaybackWakeLock(playback?.playing === true);
 
   useAnimeDiscordContext(
     anime,

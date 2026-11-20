@@ -36,8 +36,18 @@ http-body-util = "0.1"
 block2 = "0.6"
 dispatch2 = "0.3"
 objc2 = "0.6"
-objc2-foundation = { version = "0.3", default-features = false, features = ["NSNotification", "NSString", "NSOperation", "block2"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["NSNotification", "NSString", "NSOperation", "NSProcessInfo", "block2"] }
 objc2-app-kit = { version = "0.3", default-features = false, features = ["NSApplication", "NSWindow", "NSButton", "NSView", "NSControl", "NSResponder", "NSCursor"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_System_Power"] }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2 = "0.6"
+objc2-ui-kit = { version = "0.3", default-features = false, features = ["UIApplication", "UIResponder"] }
+
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["test-util"] }

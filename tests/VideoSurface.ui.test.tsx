@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { chooseOption } from './dropdown-actions';
 import { useRef } from 'preact/hooks';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/preact';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/preact';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AUTO_ACTION_DELAY_MS } from '~/components/AutoActionCountdown';
 import {
@@ -11,6 +11,7 @@ import {
   VideoSurface,
 } from '~/components/VideoSurface';
 import { CONTROLS_IDLE_MS } from '~/components/VideoControls';
+import type { PictureInPictureControls } from '~/lib/native-playback';
 import { playbackSettings } from '~/lib/playback-settings';
 import type { Stream } from '~/lib/streams';
 
@@ -28,6 +29,8 @@ function Harness({
   ended,
   skips = {},
   resume,
+  background,
+  pip,
 }: {
   url?: string;
   quality?: number;
@@ -42,6 +45,8 @@ function Harness({
   ended?: () => void;
   skips?: { opening?: { time: number; length: number }; ending?: { time: number; length: number } };
   resume?: () => boolean;
+  background?: boolean;
+  pip?: PictureInPictureControls;
 }) {
   const media = useRef<HTMLVideoElement>(null);
 
@@ -52,6 +57,8 @@ function Harness({
       identity={1}
       start={0}
       autoplay={false}
+      background={background}
+      pip={pip}
       media={media}
       onUpdate={() => {}}
       onEnded={ended}
@@ -99,6 +106,42 @@ it('shows only the selected preview while the video is loading', () => {
   const images = container.querySelectorAll('.playback-preview img');
   expect(images).toHaveLength(1);
   expect(images[0].getAttribute('src')).toBe('blob:watch-frame');
+});
+
+it('keeps the device awake while playing or buffering in PiP and releases on pause', async () => {
+  vi.useRealTimers();
+  const invoke = vi.fn().mockResolvedValue(undefined);
+  vi.stubGlobal('isTauri', true);
+  vi.stubGlobal('__TAURI_INTERNALS__', { invoke });
+  vi.spyOn(HTMLMediaElement.prototype, 'readyState', 'get').mockReturnValue(4);
+  const { container, rerender } = render(<Harness />);
+  const video = container.querySelector('video')!;
+  const paused = vi.spyOn(video, 'paused', 'get').mockReturnValue(false);
+  const powerRequests = () =>
+    invoke.mock.calls.filter(([command]) => command === 'set_playback_awake');
+
+  await act(async () => {
+    fireEvent.loadedMetadata(video);
+    fireEvent.playing(video);
+  });
+  await waitFor(() =>
+    expect(powerRequests()).toEqual([['set_playback_awake', { playing: true }, undefined]])
+  );
+  await act(async () => {
+    rerender(<Harness background pip={{ active: true, pending: false, error: '', toggle() {} }} />);
+    fireEvent.waiting(video);
+  });
+  expect(powerRequests()).toHaveLength(1);
+  paused.mockReturnValue(true);
+  await act(async () => {
+    fireEvent.pause(video);
+  });
+  await waitFor(() =>
+    expect(powerRequests()).toEqual([
+      ['set_playback_awake', { playing: true }, undefined],
+      ['set_playback_awake', { playing: false }, undefined],
+    ])
+  );
 });
 
 it('runs the macOS controls through the native surface without mounting HTML video', async () => {
@@ -192,7 +235,11 @@ it('runs the macOS controls through the native surface without mounting HTML vid
     },
     undefined
   );
-  expect(invoke.mock.calls.filter(([, args]) => args.request.action === 'open')).toHaveLength(1);
+  expect(
+    invoke.mock.calls.filter(
+      ([command, args]) => command === 'native_video' && args.request.action === 'open'
+    )
+  ).toHaveLength(1);
   unmount();
   expect(invoke).toHaveBeenCalledWith(
     'native_video',

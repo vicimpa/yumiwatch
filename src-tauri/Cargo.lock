@@ -5324,9 +5324,11 @@ dependencies = [
  "http-body-util",
  "hyper",
  "hyper-util",
+ "jni",
  "objc2",
  "objc2-app-kit",
  "objc2-foundation",
+ "objc2-ui-kit",
  "rand 0.9.5",
  "regex",
  "reqwest 0.12.28",
@@ -5338,6 +5340,7 @@ dependencies = [
  "tauri-plugin-opener",
  "tokio",
  "url",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

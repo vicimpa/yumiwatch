@@ -7,6 +7,7 @@ import {
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 
 import { activeSkip, mergeSkips, metadataSkips, type SkipMarkers } from '../../shared/skips.mjs';
+import { usePlaybackWakeLock } from '~/hooks/usePlaybackWakeLock';
 import {
   NativePlayback,
   setPictureInPictureUnavailable,
@@ -170,6 +171,8 @@ export const VideoSurface: FC<TVideoSurfaceProps> = ({
     [playing, setPlaying] = useState(false),
     [seeking, setSeeking] = useState(false),
     [cancelledNext, setCancelledNext] = useState(false);
+  const [keepAwake, setKeepAwake] = useState(false);
+  usePlaybackWakeLock(keepAwake && (!background || !!pip?.active || !!pip?.pending));
 
   useEffect(() => {
     if (!autoNext) setCancelledNext(false);
@@ -412,13 +415,15 @@ export const VideoSurface: FC<TVideoSurfaceProps> = ({
       if (ready && !video.error && reason !== 'error') saved.current.time = time;
       setPosition(time);
 
-      const isPlaying =
+      const ongoingPlayback =
         !video.paused &&
         !completion.current &&
         !mediaAtEnd(video) &&
         ready &&
-        !['dispose', 'error', 'buffering', 'offline', 'ended'].includes(reason);
+        !['dispose', 'error', 'offline', 'ended'].includes(reason);
 
+      const isPlaying = ongoingPlayback && reason !== 'buffering';
+      setKeepAwake(ongoingPlayback);
       setPlaying(isPlaying);
       setSeeking(video.seeking);
       onMediaUpdate(
@@ -545,6 +550,7 @@ export const VideoSurface: FC<TVideoSurfaceProps> = ({
       if (event.type === 'pause') {
         pausedAt ??= Date.now();
         if (!video.error) saved.current.playing = false;
+        setKeepAwake(false);
       }
       if (event.type === 'play') {
         saved.current.playing = true;
