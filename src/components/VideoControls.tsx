@@ -304,8 +304,10 @@ export const VideoControls: FC<TVideoControlsProps> = ({
       if (dialog && !frame.current?.contains(dialog)) return;
       if (target?.closest('[data-sidebar-open=true]') && event.key.startsWith('Arrow')) return;
       if (event.key === 'Escape') {
-        setMenu(false);
-
+        if (menuElement.current) {
+          event.preventDefault();
+          setMenu(false);
+        }
         return;
       }
       if (event.key === 'Enter' && !target?.closest('button,a')) {

@@ -155,14 +155,27 @@ let fullscreenChange: Promise<void> | undefined;
 
 /** One window owns fullscreen across every route and player. */
 export function toggleDesktopFullscreen(): Promise<void> {
+  return changeDesktopFullscreen();
+}
+
+export function exitDesktopFullscreen(): Promise<void> {
+  return changeDesktopFullscreen(false);
+}
+
+function changeDesktopFullscreen(target?: boolean): Promise<void> {
   if (!isDesktopWindow()) return Promise.resolve();
 
   return (fullscreenChange ??= (async () => {
+    document.documentElement.dataset.desktopFullscreenChanging = 'true';
     const appWindow = getCurrentWindow();
-    const fullscreen = !(await appWindow.isFullscreen());
+    const current = await appWindow.isFullscreen();
+    const fullscreen = target ?? !current;
+    if (fullscreen === current) {
+      syncDesktopFullscreen(current);
+      return;
+    }
     const focused = document.activeElement;
 
-    document.documentElement.dataset.desktopFullscreenChanging = 'true';
     if (document.documentElement.dataset.desktop === 'macos') {
       // Never wait for an animation notification in the keyboard handler. The Rust
       // observer repairs first-responder focus when AppKit actually finishes.
@@ -175,9 +188,11 @@ export function toggleDesktopFullscreen(): Promise<void> {
         focused instanceof HTMLElement &&
         focused !== document.body &&
         focused.isConnected &&
+        !focused.matches('.video-hit-area,.sidebar-backdrop') &&
         !focused.closest('[inert]')
           ? focused
-          : document.querySelector<HTMLElement>('.video-controls,#main');
+          : (document.querySelector<HTMLElement>('.video-controls:not([inert])') ??
+            document.getElementById('main'));
 
       target?.focus({ preventScroll: true });
     } else await appWindow.setFullscreen(fullscreen);
@@ -188,7 +203,23 @@ export function toggleDesktopFullscreen(): Promise<void> {
   }));
 }
 
+type BrowserFullscreenDocument = Document & {
+  webkitFullscreenElement?: Element | null;
+  webkitExitFullscreen?: () => void;
+};
+
+export function browserFullscreenElement() {
+  const doc = document as BrowserFullscreenDocument;
+  return doc.fullscreenElement || doc.webkitFullscreenElement;
+}
+
+export async function exitBrowserFullscreen() {
+  const doc = document as BrowserFullscreenDocument;
+  if (doc.fullscreenElement) await doc.exitFullscreen();
+  else if (doc.webkitFullscreenElement) doc.webkitExitFullscreen?.();
+}
+
 export async function exitPlayerFullscreen() {
   // Browser fullscreen belongs to the player; desktop fullscreen belongs to the app.
-  if (!isDesktopWindow() && document.fullscreenElement) await document.exitFullscreen();
+  if (!isDesktopWindow()) await exitBrowserFullscreen();
 }

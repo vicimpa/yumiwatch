@@ -1,8 +1,16 @@
 import type { FunctionalComponent as FC } from 'preact';
 import { useEffect, useRef } from 'preact/hooks';
 
+import {
+  browserFullscreenElement,
+  desktopFullscreen,
+  desktopFullscreenChanging,
+  exitBrowserFullscreen,
+  exitDesktopFullscreen,
+} from '~/lib/desktop';
 import { useInterfaceSettings } from '~/lib/interface-settings';
 import { focusTarget, keyboardTargets, revealFocus } from '~/lib/keyboard-navigation';
+import { notify } from '~/lib/notifications';
 import { installSelectionPolicy } from '~/lib/text-selection';
 
 export type TInterfaceEffectsProps = { onBack: () => void; watching: boolean };
@@ -199,18 +207,30 @@ export const InterfaceEffects: FC<TInterfaceEffectsProps> = ({ onBack, watching 
       const target = event.target instanceof HTMLElement ? event.target : null;
       const vertical = event.key === 'ArrowUp' || event.key === 'ArrowDown',
         field = target?.closest('input,select');
-
-      if (
+      const editing =
         target?.closest('textarea,[contenteditable]:not([contenteditable=false])') ||
-        (field && !vertical)
-      )
-        return;
+        (field && !vertical);
+      if (editing && event.key !== 'Escape') return;
 
       const sidebar = document.querySelector<HTMLElement>('[data-sidebar-open=true]'),
         dialog = [...document.querySelectorAll<HTMLElement>('dialog[open],.video-settings')].at(-1);
 
       if (event.key === 'Escape' || event.key === 'Backspace') {
-        if (sidebar || dialog || document.fullscreenElement) return;
+        if (sidebar || dialog) return;
+        const browserFullscreen = browserFullscreenElement();
+        if (event.key === 'Escape') {
+          if (event.repeat || desktopFullscreenChanging()) {
+            event.preventDefault();
+            return;
+          }
+          if (browserFullscreen || desktopFullscreen()) {
+            event.preventDefault();
+            const exit = browserFullscreen ? exitBrowserFullscreen : exitDesktopFullscreen;
+            void exit().catch(() => notify('Не удалось выйти из полного экрана.'));
+            return;
+          }
+        }
+        if (editing || browserFullscreen) return;
         event.preventDefault();
         latest.current.onBack();
 

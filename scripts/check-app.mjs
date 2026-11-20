@@ -421,10 +421,15 @@ try {
       await page.waitForFunction(
         () => document.documentElement.dataset.desktopFullscreen === 'true'
       );
+      const fullscreenRoute = await page.evaluate(() => location.hash);
       await page.keyboard.press('Escape');
-      assert.equal(
-        await page.evaluate(() => document.documentElement.dataset.desktopFullscreen),
-        'true'
+      await page.waitForFunction(
+        () => document.documentElement.dataset.desktopFullscreen === 'false'
+      );
+      assert.equal(await page.evaluate(() => location.hash), fullscreenRoute);
+      await page.keyboard.press('f');
+      await page.waitForFunction(
+        () => document.documentElement.dataset.desktopFullscreen === 'true'
       );
       await nav('Все аниме');
       await page.locator('.anime-card:visible').first().waitFor();
