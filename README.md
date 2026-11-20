@@ -32,11 +32,11 @@ YummyWatch — приложение для просмотра аниме из к
 | Linux      | x86_64                | `.deb`, `.rpm`, `.AppImage` |
 | Arch Linux | x86_64                | `.pkg.tar.zst` для pacman   |
 
-Linux-бинарник собирается на Ubuntu 24.04. AppImage включает медиа-компоненты GStreamer; DEB/RPM устанавливают системные зависимости. Пакет Arch собирается через `makepkg` и проверяется установкой в актуальном Arch Linux. Доступность кодеков зависит от дистрибутива.
+Windows и Linux воспроизводят видео через libmpv. Windows-установщики включают DLL. Linux-бинарник собирается на Ubuntu 24.04. AppImage включает libmpv, а DEB, RPM и Arch используют библиотеку дистрибутива. Пакет Arch собирается через `makepkg` и проверяется установкой в актуальном Arch Linux.
 
 Для Arch скачай пакет `linux-x64-…pkg.tar.zst` со страницы релиза. Выполни `sudo pacman -U` с путём к скачанному файлу.
 
-Для Nix и NixOS на x86_64 и ARM64 Linux доступен flake. Он собирает приложение из исходников и включает WebKitGTK и медиаплагины GStreamer:
+Для Nix и NixOS на x86_64 и ARM64 Linux доступен flake. Он собирает приложение из исходников и включает libmpv, WebKitGTK и медиаплагины GStreamer:
 
 ```sh
 nix run github:vicimpa/yummywatch

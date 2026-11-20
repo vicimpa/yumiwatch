@@ -1,7 +1,7 @@
 import type { FunctionalComponent as FC, JSX } from 'preact';
 import { useCallback } from 'preact/hooks';
 
-import { usesNativePlayback } from '~/lib/native-playback';
+import { usesMacNativePlayback } from '~/lib/native-playback';
 import {
   PLAYBACK_QUALITIES,
   PLAYBACK_UPSCALERS,
@@ -49,7 +49,7 @@ export const VideoUpscaleSetting: FC = () => {
 
 export const AutoPictureInPictureSetting: FC = () => {
   const settings = usePlaybackSettings();
-  if (!usesNativePlayback()) return null;
+  if (!usesMacNativePlayback()) return null;
 
   return (
     <Toggle
@@ -122,7 +122,7 @@ export const PlaybackSettingsCard: FC = () => {
           }))}
         />
       </Field>
-      {usesNativePlayback() && (
+      {usesMacNativePlayback() && (
         <Field class="settings-choice" label="Апскейл видео">
           <Dropdown
             aria-label="Апскейл видео"

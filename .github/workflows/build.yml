@@ -63,13 +63,16 @@ jobs:
         run: python3 -m pip install meson==1.12.1 ninja==1.13.2 Jinja2==3.1.6
       - name: Linux dependencies
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev librsvg2-dev libayatana-appindicator3-dev patchelf rpm libgstreamer1.0-dev gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libmpv-dev build-essential curl wget file libxdo-dev libssl-dev librsvg2-dev libayatana-appindicator3-dev patchelf rpm libgstreamer1.0-dev gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
           # Reuse both architecture caches from the initial universal build.
           key: ${{ runner.os == 'macOS' && 'macos-universal' || matrix.platform }}
       - run: npm ci
+      - name: Prepare Windows libmpv
+        if: runner.os == 'Windows'
+        run: node scripts/prepare-windows-libmpv.mjs
       - name: Require application token for release
         if: inputs.release
         run: node scripts/check-application-token.mjs
@@ -86,6 +89,18 @@ jobs:
       - name: Verify embedded application token
         if: inputs.release
         run: node scripts/check-application-token.mjs dist
+      - name: Verify packaged libmpv on macOS
+        if: (matrix.platform == 'macos-arm64' && runner.arch == 'ARM64') || (matrix.platform == 'macos-intel' && runner.arch == 'X64')
+        run: src-tauri/target/${{ matrix.target }}/release/bundle/macos/YummyWatch.app/Contents/MacOS/yummywatch --check-libmpv
+      - name: Verify AppImage includes libmpv
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          image=$(find "$PWD/src-tauri/target/${{ matrix.target }}/release/bundle/appimage" -name '*.AppImage' -print -quit)
+          test -n "$image"
+          cd "$RUNNER_TEMP"
+          "$image" --appimage-extract >/dev/null
+          test -n "$(find squashfs-root -name 'libmpv.so.2*' -type f -print -quit)"
       - name: Build and verify Arch Linux package
         if: runner.os == 'Linux'
         run: node scripts/package-arch.mjs src-tauri/target/${{ matrix.target }}/release/bundle

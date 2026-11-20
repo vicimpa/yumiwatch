@@ -56,7 +56,10 @@ static BOOL load_mpv(const char *override, const YWMediaIO *media_io) {
         stringByAppendingPathComponent:@"libmpv.2.dylib"];
     void *library = bundled ? dlopen(bundled.fileSystemRepresentation, RTLD_LOCAL | RTLD_NOW) : NULL;
     if (!library && override) library = dlopen(override, RTLD_LOCAL | RTLD_NOW);
-    if (!library) return NO;
+    if (!library) {
+        fprintf(stderr, "libmpv: %s\n", dlerror() ?: "bundle framework is missing");
+        return NO;
+    }
     unsigned long (*api_version)(void) = dlsym(library, "mpv_client_api_version");
     if (!api_version || (api_version() >> 16) != 2) goto failure;
 #define LOAD(name) if (!(mpv.name = dlsym(library, "mpv_" #name))) goto failure
@@ -85,6 +88,10 @@ failure:
     memset(&mpv, 0, sizeof(mpv));
     dlclose(library);
     return NO;
+}
+
+bool yw_video_check_bundled_library(const YWMediaIO *media_io) {
+    return load_mpv(NULL, media_io) && mpv.set_media_io != NULL;
 }
 
 @interface YWVideoLayer : CAOpenGLLayer {
@@ -748,7 +755,11 @@ void *yw_video_open(void *webview, const char *library, const char *url,
                     const char *scale, const char *shader, const char *sharpen,
                     bool strong, const char **error) {
     NSView *web = (__bridge NSView *)webview;
-    if (!web.superview || !load_mpv(library, media_io)) {
+    if (!web.superview) {
+        *error = "Видеоповерхность ещё не подключена к окну.";
+        return NULL;
+    }
+    if (!load_mpv(library, media_io)) {
         *error = "Не найдена нативная библиотека libmpv.";
         return NULL;
     }

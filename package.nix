@@ -11,6 +11,7 @@
   gtk3,
   libsoup_3,
   webkitgtk_4_1,
+  mpv-unwrapped,
   gst_all_1,
 }:
 
@@ -60,6 +61,7 @@ rustPlatform.buildRustPackage {
     gtk3
     libsoup_3
     webkitgtk_4_1
+    mpv-unwrapped
   ] ++ gstPlugins;
 
   preBuild = ''

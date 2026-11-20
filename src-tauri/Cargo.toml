@@ -1,6 +1,6 @@
 [package]
 name = "yummywatch"
-version = "0.0.8"
+version = "0.0.9"
 description = "YummyWatch anime application"
 edition = "2021"
 rust-version = "1.90"
@@ -29,6 +29,12 @@ base64 = "0.22"
 [target.'cfg(target_os = "linux")'.dependencies]
 gtk = "0.18"
 
+[target.'cfg(any(target_os = "linux", target_os = "windows"))'.dependencies]
+futures-util = "0.3"
+http-body-util = "0.1"
+hyper = { version = "1", features = ["http1", "server"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
+
 [target.'cfg(target_os = "macos")'.dependencies]
 block2 = "0.6"
 dispatch2 = "0.3"
@@ -37,6 +43,7 @@ objc2-foundation = { version = "0.3", default-features = false, features = ["NSN
 objc2-app-kit = { version = "0.3", default-features = false, features = ["NSApplication", "NSWindow", "NSButton", "NSView", "NSControl", "NSResponder", "NSCursor"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
+libloading = "0.7"
 windows-sys = { version = "0.61", features = ["Win32_System_Power"] }
 
 [target.'cfg(target_os = "ios")'.dependencies]

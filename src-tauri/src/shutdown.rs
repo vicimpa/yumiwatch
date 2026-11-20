@@ -26,12 +26,9 @@ pub fn save_then_close(window: WebviewWindow, quit: bool) {
         });
     }
 
-    // Sample libmpv on the main thread before AppKit enters its termination loop.
-    #[cfg(target_os = "macos")]
+    // Sample libmpv before the window and its playback state are destroyed.
     let positions = serde_json::to_string(&crate::native_video::closing_positions())
         .unwrap_or_else(|_| "{}".into());
-    #[cfg(not(target_os = "macos"))]
-    let positions = "{}";
     let notified = window
         .eval(format!("window.dispatchEvent(new CustomEvent('yumiwatch:window-close-requested', {{ detail: {positions} }}))"))
         .is_ok();

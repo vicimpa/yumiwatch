@@ -3,8 +3,11 @@ import type { PlaybackClosePositions, PlaybackMedia } from './playback-media';
 import type { PlaybackSettings, UpscaleMode, UpscaleSharpness } from './playback-settings';
 import type { Stream, StreamCaption } from './streams';
 
-export const usesNativePlayback = () =>
+export const usesMacNativePlayback = () =>
   isDesktop() && document.documentElement.dataset.desktop === 'macos';
+
+export const usesCanvasPlayback = () =>
+  isDesktop() && ['linux', 'windows'].includes(document.documentElement.dataset.desktop || '');
 
 export const RETURN_TO_PLAYER_EVENT = 'yumiwatch:return-to-player';
 
@@ -34,6 +37,8 @@ type Snapshot = {
   position: number;
   duration: number;
   buffered: number;
+  frameWidth?: number;
+  frameHeight?: number;
 };
 
 const invoke = <T>(request: Record<string, unknown>) =>
@@ -98,6 +103,12 @@ export class NativePlayback extends EventTarget implements PlaybackMedia {
   private lastVisible = false;
   private polling = false;
   private element?: HTMLElement;
+  private canvas?: HTMLCanvasElement;
+  private animation = 0;
+  private frameSize = { width: 640, height: 360 };
+  readonly previewFrame = usesCanvasPlayback()
+    ? undefined
+    : (seconds: number) => this.requestFrame(false, seconds);
 
   constructor(url: string) {
     super();
@@ -112,7 +123,7 @@ export class NativePlayback extends EventTarget implements PlaybackMedia {
     if (this.disposed || this.error) return;
     this.error = {
       code: 3,
-      message: 'Не удалось воспроизвести поток через VideoToolbox.',
+      message: 'Не удалось воспроизвести поток через libmpv.',
     } as MediaError;
     this.readyState = 0;
     this.emit('error');
@@ -210,10 +221,12 @@ export class NativePlayback extends EventTarget implements PlaybackMedia {
     stream: Stream,
     caption: StreamCaption | undefined,
     start: number,
-    previewStream?: Stream
+    previewStream?: Stream,
+    canvas?: HTMLCanvasElement
   ) {
     this.position = start;
     this.element = element;
+    this.canvas = canvas;
     const upscale = this.upscaleOptions;
 
     try {
@@ -236,6 +249,7 @@ export class NativePlayback extends EventTarget implements PlaybackMedia {
         this.close();
         return;
       }
+      if (canvas) this.drawFrames(canvas);
       await this.poll();
     } catch (error) {
       if (!this.disposed) {
@@ -243,6 +257,46 @@ export class NativePlayback extends EventTarget implements PlaybackMedia {
         this.emit('error');
       }
     }
+  }
+
+  private drawFrames(canvas: HTMLCanvasElement) {
+    const context = canvas.getContext('2d', { alpha: false });
+    if (!context) {
+      this.fail();
+      return;
+    }
+    let previous = -Infinity;
+    const draw = async (now: number) => {
+      if (this.disposed || this.closing || this.error) return;
+      const interval = this.paused && !this.seeking && this.readyState ? 100 : 0;
+      if (now - previous >= interval) {
+        previous = now;
+        const { width, height } = this.frameSize;
+        try {
+          const response = await desktopInvoke<ArrayBuffer | number[]>('native_video_pixels', {
+            id: this.id,
+            width,
+            height,
+          });
+          if (this.disposed || this.closing || this.error) return;
+          const pixels = Array.isArray(response)
+            ? Uint8ClampedArray.from(response)
+            : new Uint8ClampedArray(response);
+          if (pixels.length === width * height * 4) {
+            if (canvas.width !== width || canvas.height !== height) {
+              canvas.width = width;
+              canvas.height = height;
+            }
+            context.putImageData(new ImageData(pixels, width, height), 0, 0);
+          }
+        } catch {
+          this.fail();
+          return;
+        }
+      }
+      this.animation = requestAnimationFrame(draw);
+    };
+    this.animation = requestAnimationFrame(draw);
   }
 
   private async poll() {
@@ -285,6 +339,13 @@ export class NativePlayback extends EventTarget implements PlaybackMedia {
       if (snapshot.failure) {
         this.fail();
         return;
+      }
+      if (snapshot.frameWidth && snapshot.frameHeight) {
+        const scale = Math.min(1, 1920 / snapshot.frameWidth, 1080 / snapshot.frameHeight);
+        this.frameSize = {
+          width: Math.max(16, Math.round((snapshot.frameWidth * scale) / 16) * 16),
+          height: Math.max(1, Math.round(snapshot.frameHeight * scale)),
+        };
       }
 
       const initial = snapshot.ready && this.readyState === 0;
@@ -332,17 +393,25 @@ export class NativePlayback extends EventTarget implements PlaybackMedia {
     if (!this.opened || this.disposed || this.closing) return;
     this.closing = true;
     clearTimeout(this.timer);
+    cancelAnimationFrame(this.animation);
     const position = positions[this.id];
     if (!this.seeking && !this.error && Number.isFinite(position) && position >= 0)
       this.position = position;
   }
 
   captureFrame(close: boolean) {
+    if (this.canvas) {
+      const frame = document.createElement('canvas');
+      const scale = Math.min(1, 640 / Math.max(this.canvas.width, this.canvas.height));
+      frame.width = Math.max(1, Math.round(this.canvas.width * scale));
+      frame.height = Math.max(1, Math.round(this.canvas.height * scale));
+      frame.getContext('2d')?.drawImage(this.canvas, 0, 0, frame.width, frame.height);
+      if (close) this.close();
+      return new Promise<Blob | undefined>(resolve =>
+        frame.toBlob(blob => resolve(blob ?? undefined), 'image/jpeg', 0.76)
+      );
+    }
     return this.requestFrame(close);
-  }
-
-  previewFrame(seconds: number) {
-    return this.requestFrame(false, seconds);
   }
 
   private async requestFrame(close: boolean, seconds?: number) {
@@ -368,6 +437,7 @@ export class NativePlayback extends EventTarget implements PlaybackMedia {
   close() {
     this.disposed = true;
     clearTimeout(this.timer);
+    cancelAnimationFrame(this.animation);
     if (this.opened) {
       this.opened = false;
       void invoke({ action: 'close', id: this.id }).catch(() => {});

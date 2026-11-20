@@ -36,6 +36,7 @@
       "src/native_video/shaders/": "upscaling/"
     },
     "macOS": {
+      "entitlements": "macos-adhoc.entitlements",
       "frameworks": ["native-libs/macos/libmpv.2.dylib"],
       "files": {
         "Resources/libmpv-licenses": "native-libs/macos/libmpv-licenses"

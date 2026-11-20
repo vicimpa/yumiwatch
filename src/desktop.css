@@ -238,6 +238,15 @@ html[data-native-video] .native-video-frame {
   background: transparent;
   background-image: none !important;
 }
+.native-stream-layer > canvas {
+  display: none;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.native-stream-ready > canvas {
+  display: block;
+}
 
 /* Backdrop filters require a fresh composite as their panels move or resize. */
 html[data-desktop='macos'][data-live-resize]

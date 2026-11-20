@@ -209,6 +209,7 @@ pub struct Snapshot {
 }
 
 extern "C" {
+    fn yw_video_check_bundled_library(media_io: *const protocol::MediaIO) -> bool;
     fn yw_video_open(
         webview: *mut c_void,
         library: *const c_char,
@@ -259,6 +260,10 @@ extern "C" {
     fn yw_video_flag(player: *mut c_void, name: *const c_char, value: i32);
     fn yw_video_number(player: *mut c_void, name: *const c_char, value: f64);
     fn yw_video_snapshot(player: *mut c_void, snapshot: *mut RawSnapshot);
+}
+
+pub fn check_bundled_library() -> bool {
+    unsafe { yw_video_check_bundled_library(&protocol::MEDIA_IO) }
 }
 
 struct Player(NonNull<c_void>);

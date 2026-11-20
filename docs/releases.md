@@ -15,7 +15,7 @@
 | Android             | Debug APK для arm64                        | Подписанные APK/AAB с arm64, armv7 и x86_64                               |
 | iOS                 | ZIP приложения arm64 Simulator без подписи | IPA с App Store Connect provisioning profile                              |
 
-AppImage включает GStreamer; DEB/RPM объявляют зависимости медиа. Arch-пакет создаётся `makepkg` в контейнере `archlinux:base-devel` из проверенного DEB той же сборки; PKGBUILD хранится в `packaging/archlinux`. CI устанавливает результат через `pacman -U`, проверяет файлы, desktop entry и динамические библиотеки. Публикация в AUR не выполняется. Наличие конкретного кодека на целевом дистрибутиве и воспроизведение на физических телефонах требуют отдельной проверки. Симулятор и браузерные проверки не подтверждают работу DRM/кодеков и custom URI transport на реальном устройстве.
+Windows-установщики включают DLL libmpv. AppImage включает libmpv и плагины GStreamer. DEB, RPM и Arch объявляют зависимость от системной libmpv. Arch-пакет создаётся `makepkg` в контейнере `archlinux:base-devel` из проверенного DEB той же сборки. PKGBUILD хранится в `packaging/archlinux`. CI устанавливает результат через `pacman -U`, проверяет файлы, desktop entry и динамические библиотеки. Публикация в AUR не выполняется. Наличие конкретного кодека на целевом дистрибутиве и воспроизведение на физических телефонах требуют отдельной проверки. Симулятор и браузерные проверки не подтверждают работу DRM/кодеков и custom URI transport на реальном устройстве.
 
 ## Подготовка GitHub
 
@@ -51,6 +51,8 @@ Upload key Android можно создать через `keytool` по [инст
 | `APPLE_TEAM_ID`              | Team ID для notarization                     |
 
 Без этих дополнительных секретов desktop-пакеты собираются без доверенной подписи разработчика. Windows Authenticode также не настроен: для него потребуется сертификат или сервис подписи. [Официальная схема Tauri/GitHub](https://v2.tauri.app/distribute/pipelines/github/) используется как основа сборки.
+
+Ad-hoc сборка macOS включает `com.apple.security.cs.disable-library-validation`, чтобы Hardened Runtime мог загрузить вложенную `libmpv` без Team ID. В CI подпись Developer ID использует штатную проверку библиотеки по Team ID. Проверка `--check-libmpv` запускает загрузку библиотеки из собранной `.app`.
 
 ## Выпуск версии
 
