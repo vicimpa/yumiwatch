@@ -25,6 +25,7 @@ export type TMediaNavigationProps = {
   selected: string;
   watching?: boolean;
   history?: ComponentChildren;
+  updateNotice?: ComponentChildren;
 };
 
 export const MediaNavigation: FC<TMediaNavigationProps> = ({
@@ -32,6 +33,7 @@ export const MediaNavigation: FC<TMediaNavigationProps> = ({
   selected,
   watching = false,
   history,
+  updateNotice,
 }) => {
   const mobile = useMediaQuery('(max-width: 760px), (max-width: 1000px) and (pointer: coarse)'),
     session = useSession(),
@@ -105,10 +107,13 @@ export const MediaNavigation: FC<TMediaNavigationProps> = ({
             </AppLink>
           </>
         )}
-        <AppLink class={path.startsWith('/settings') ? 'active' : ''} href="#/settings">
-          <Icon name="settings" size={22} />
-          <span>Настройки</span>
-        </AppLink>
+        <div class="media-settings-row">
+          <AppLink class={path.startsWith('/settings') ? 'active' : ''} href="#/settings">
+            <Icon name="settings" size={22} />
+            <span>Настройки</span>
+          </AppLink>
+          {updateNotice}
+        </div>
         <AppLink
           class={`media-account ${selected === '/profile' || selected === '/account' ? 'active' : ''}`}
           href="#/profile"
@@ -189,7 +194,8 @@ export const MediaNavigation: FC<TMediaNavigationProps> = ({
         })}
         <button
           class={`media-menu-trigger ${/^\/(settings|account|users|notifications|messages)(\/|\?|$)/.test(path) ? 'active' : ''}`}
-          aria-label="Открыть меню"
+          aria-label={updateNotice ? 'Открыть меню · доступно обновление' : 'Открыть меню'}
+          data-update-available={updateNotice ? '' : undefined}
           aria-expanded={open}
           onClick={openMenu}
         >

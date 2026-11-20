@@ -1,4 +1,3 @@
-import { AppLink } from '~/ui/AppLink';
 import type { FunctionalComponent as FC } from 'preact';
 import { useCallback, useLayoutEffect, useRef } from 'preact/hooks';
 
@@ -24,6 +23,7 @@ import { WindowChrome } from '~/components/WindowChrome';
 import { WindowCursor } from '~/components/WindowCursor';
 import { Scrollbars } from '~/components/Scrollbars';
 import { ActivityNotice } from '~/components/Social';
+import { AppUpdateNotice } from '~/components/AppUpdateNotice';
 import { NavigationHistory } from '~/components/NavigationHistory';
 import { navigateBack } from '~/lib/navigation';
 import { CardTitleTooltip, Icon, Toast } from '~/ui';
@@ -116,6 +116,18 @@ export const App: FC = () => {
         path={path}
         watching={watching}
         selected={detailRoute ? browseReturn.current.split('?')[0] : route}
+        updateNotice={
+          !watching &&
+          (update ? (
+            <AppUpdateNotice apply={applyUpdate} />
+          ) : releaseUpdate.release ? (
+            <AppUpdateNotice
+              key={releaseUpdate.release.version}
+              release={releaseUpdate.release}
+              dismiss={releaseUpdate.dismiss}
+            />
+          ) : null)
+        }
         history={
           sidebarHistory ? (
             <NavigationHistory path={path} hidden={watching} placement="sidebar" />
@@ -130,29 +142,6 @@ export const App: FC = () => {
             {session
               ? 'Ты без сети. Для коллекции аккаунта нужен интернет.'
               : 'Ты без сети. Гостевая коллекция и загруженные страницы доступны.'}
-          </div>
-        )}
-        {!watching && update && (
-          <div class="update-bar" role="status">
-            <Icon name="spark" size={17} />
-            Готова новая версия YummyWatch
-            <button onClick={applyUpdate}>Обновить</button>
-          </div>
-        )}
-        {!watching && !update && releaseUpdate.release && (
-          <div class="update-bar release-update-bar" role="status">
-            <Icon name="spark" size={17} />
-            <span>Вышла YummyWatch {releaseUpdate.release.version}</span>
-            <AppLink href={releaseUpdate.release.url} target="_blank" rel="noreferrer">
-              Что нового и скачать <Icon name="external" size={14} />
-            </AppLink>
-            <button
-              class="release-update-close"
-              aria-label="Скрыть уведомление до следующего запуска"
-              onClick={releaseUpdate.dismiss}
-            >
-              <Icon name="close" size={16} />
-            </button>
           </div>
         )}
         <main id="main" class="media-scroll" tabIndex={-1}>

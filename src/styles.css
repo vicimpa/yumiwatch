@@ -1117,8 +1117,7 @@ h1 {
   border-radius: 7px;
   margin: 15px 0;
 }
-.offline-bar,
-.update-bar {
+.offline-bar {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1128,15 +1127,6 @@ h1 {
   color: #e0c1a4;
   font-size: 11px;
   line-height: 1.6;
-}
-.update-bar {
-  background: #2a2430;
-  color: #dac3df;
-}
-.update-bar button {
-  color: var(--accent);
-  font-size: 11px;
-  text-decoration: underline;
 }
 .back-link {
   font-size: 11px;
@@ -2488,8 +2478,7 @@ h1 {
     font-size: 11px;
     padding: 13px 16px;
   }
-  .offline-bar,
-  .update-bar {
+  .offline-bar {
     font-size: 10px;
     justify-content: flex-start;
     padding: 11px 20px;

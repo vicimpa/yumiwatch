@@ -86,37 +86,3 @@
     transition: none;
   }
 }
-.release-update-bar > a {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-left: auto;
-  font-size: 12px;
-  color: var(--accent);
-  white-space: nowrap;
-}
-.release-update-bar .release-update-close {
-  display: grid;
-  place-items: center;
-  margin-left: 8px;
-  padding: 6px;
-  border-radius: 6px;
-  flex-shrink: 0;
-}
-.release-update-bar .release-update-close:hover {
-  background: #ffffff0a;
-}
-@media (max-width: 600px) {
-  .release-update-bar {
-    flex-wrap: wrap;
-    gap: 8px;
-    font-size: 11px;
-  }
-  .release-update-bar > a {
-    font-size: 10px;
-    margin-left: 25px;
-  }
-  .release-update-bar .release-update-close {
-    margin-left: auto;
-  }
-}

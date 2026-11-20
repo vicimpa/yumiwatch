@@ -85,6 +85,20 @@
     color: var(--accent);
     background: color-mix(in srgb, var(--accent) 9%, transparent);
   }
+  .phone-nav > .media-menu-trigger[data-update-available] {
+    position: relative;
+    inset: auto;
+  }
+  .phone-nav > .media-menu-trigger[data-update-available]::after {
+    position: absolute;
+    top: calc(50% - 17px);
+    left: calc(50% + 9px);
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    content: '';
+  }
   .media-workspace {
     padding-left: 0;
     left: 0;
